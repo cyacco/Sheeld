@@ -1,0 +1,95 @@
+## Sheeld Helm chart values
+
+## API (Go backend)
+api:
+  replicaCount: 2
+  image:
+    repository: sheeld/api
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+## Web (Next.js dashboard)
+web:
+  replicaCount: 1
+  image:
+    repository: sheeld/web
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3000
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+## PostgreSQL
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+  storage:
+    size: 10Gi
+    storageClassName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+## Ingress
+ingress:
+  enabled: false
+  className: nginx
+  host: sheeld.example.com
+  tls:
+    enabled: false
+    secretName: sheeld-tls
+  annotations: {}
+
+## Config (non-sensitive)
+config:
+  port: "8080"
+  logLevel: info
+  llmGatewayURL: "http://litellm:4000"
+  llmRequestTimeout: "30s"
+  proxyTimeout: "60s"
+  rateLimitRPS: "100"
+  rateLimitBurst: "200"
+  maxBodyBytes: "1048576"
+  corsAllowedOrigins: "https://sheeld.example.com"
+
+## Secrets (sensitive — override in production)
+secrets:
+  databaseURL: "postgres://sheeld:sheeld@sheeld-postgres:5432/sheeld?sslmode=disable"
+  jwtSecret: "change-me-in-production"
+  encryptionKey: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+## Service account
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+imagePullSecrets: []
