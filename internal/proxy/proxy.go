@@ -1,0 +1,218 @@
+package proxy
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/sheeld/sheeld/internal/db/generated"
+	"github.com/sheeld/sheeld/internal/guard"
+	"github.com/sheeld/sheeld/internal/llm"
+)
+
+// ProxyResult is the full result of a proxy request.
+type ProxyResult struct {
+	// Status is "pass" or "rejected".
+	Status string `json:"status"`
+
+	// Phase indicates where rejection happened ("input" or "output"). Empty on pass.
+	Phase string `json:"phase,omitempty"`
+
+	// LLMResponse is the chat completion response (nil if input was rejected).
+	LLMResponse *llm.ChatResponse `json:"llm_response,omitempty"`
+
+	// GuardResults contains per-phase guard evaluation results.
+	GuardResults map[string]*guard.EngineResult `json:"guard_results"`
+
+	// LatencyMs is the total wall-clock time for the request.
+	LatencyMs int64 `json:"latency_ms"`
+}
+
+// Proxy orchestrates the full Sheeld flow:
+// input guards → LLM call → output guards → response.
+type Proxy struct {
+	queries   *generated.Queries
+	engine    *guard.Engine
+	llmClient *llm.Client
+}
+
+// NewProxy creates a new proxy orchestrator.
+func NewProxy(queries *generated.Queries, engine *guard.Engine, llmClient *llm.Client) *Proxy {
+	return &Proxy{
+		queries:   queries,
+		engine:    engine,
+		llmClient: llmClient,
+	}
+}
+
+// Execute runs the full proxy flow for a given source and chat request.
+func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceSlug string, chatReq *llm.ChatRequest) (*ProxyResult, error) {
+	start := time.Now()
+
+	// 1. Look up source by slug + org
+	source, err := p.queries.GetSourceBySlug(ctx, generated.GetSourceBySlugParams{
+		Slug:           sourceSlug,
+		OrganizationID: orgID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("source not found: %w", err)
+	}
+
+	if !source.Enabled {
+		return nil, fmt.Errorf("source %q is disabled", sourceSlug)
+	}
+
+	// 2. Load enabled destinations
+	destinations, err := p.queries.ListEnabledDestinationsBySource(ctx, source.ID)
+	if err != nil {
+		return nil, fmt.Errorf("loading destinations: %w", err)
+	}
+
+	// 3. Separate into input and output guards
+	inputGuards, err := p.buildGuards(destinations, "input")
+	if err != nil {
+		return nil, fmt.Errorf("building input guards: %w", err)
+	}
+	outputGuards, err := p.buildGuards(destinations, "output")
+	if err != nil {
+		return nil, fmt.Errorf("building output guards: %w", err)
+	}
+
+	// Build eval config from source settings
+	evalCfg := guard.EvalConfig{
+		Criteria: guard.PassCriteria(source.PassCriteria),
+	}
+	if source.PassThreshold.Valid {
+		evalCfg.Threshold = int(source.PassThreshold.Int32)
+	}
+
+	// 4. Extract input text (last user message)
+	inputText := llm.ExtractInputText(chatReq)
+
+	// 5. Run input guards
+	guardResults := make(map[string]*guard.EngineResult)
+	if len(inputGuards) > 0 {
+		inputResult, err := p.engine.Run(ctx, inputGuards, inputText, evalCfg)
+		if err != nil {
+			return nil, fmt.Errorf("running input guards: %w", err)
+		}
+		guardResults["input"] = inputResult
+
+		// 6. If input fails → reject (no LLM call, tokens saved)
+		if !inputResult.Passed {
+			result := &ProxyResult{
+				Status:       "rejected",
+				Phase:        "input",
+				GuardResults: guardResults,
+				LatencyMs:    time.Since(start).Milliseconds(),
+			}
+			p.writeAuditLog(ctx, source, orgID, inputText, guardResults, "fail", result.LatencyMs)
+			return result, nil
+		}
+	}
+
+	// 7. Call LLM via gateway
+	// Override model with the source's configured model
+	chatReq.Model = source.LlmModel
+
+	// TODO: Decrypt API key (Phase 6). For now, using plaintext.
+	apiKey := source.LlmApiKeyEnc
+
+	slog.Info("calling LLM gateway",
+		"source", sourceSlug,
+		"model", chatReq.Model,
+	)
+
+	chatResp, err := p.llmClient.ChatCompletion(ctx, apiKey, chatReq)
+	if err != nil {
+		return nil, fmt.Errorf("LLM call failed: %w", err)
+	}
+
+	// 8. Run output guards
+	if len(outputGuards) > 0 {
+		outputText := llm.ExtractOutputText(chatResp)
+		outputResult, err := p.engine.Run(ctx, outputGuards, outputText, evalCfg)
+		if err != nil {
+			return nil, fmt.Errorf("running output guards: %w", err)
+		}
+		guardResults["output"] = outputResult
+
+		// 9. If output fails → reject (LLM was called, but response blocked)
+		if !outputResult.Passed {
+			result := &ProxyResult{
+				Status:       "rejected",
+				Phase:        "output",
+				GuardResults: guardResults,
+				LatencyMs:    time.Since(start).Milliseconds(),
+			}
+			p.writeAuditLog(ctx, source, orgID, inputText, guardResults, "fail", result.LatencyMs)
+			return result, nil
+		}
+	}
+
+	// 10. Everything passed — return the LLM response
+	result := &ProxyResult{
+		Status:       "pass",
+		LLMResponse:  chatResp,
+		GuardResults: guardResults,
+		LatencyMs:    time.Since(start).Milliseconds(),
+	}
+	p.writeAuditLog(ctx, source, orgID, inputText, guardResults, "pass", result.LatencyMs)
+	return result, nil
+}
+
+// buildGuards creates Guard instances for destinations matching the given phase.
+func (p *Proxy) buildGuards(destinations []generated.Destination, phase string) ([]guard.Guard, error) {
+	var guards []guard.Guard
+	for _, dest := range destinations {
+		if dest.Phase != phase && dest.Phase != "both" {
+			continue
+		}
+		g, err := p.engine.Registry().Create(dest.GuardType, dest.Name, dest.Config)
+		if err != nil {
+			return nil, fmt.Errorf("creating guard %q (type %s): %w", dest.Name, dest.GuardType, err)
+		}
+		guards = append(guards, g)
+	}
+	return guards, nil
+}
+
+// writeAuditLog records the proxy result asynchronously.
+func (p *Proxy) writeAuditLog(
+	ctx context.Context,
+	source generated.Source,
+	orgID uuid.UUID,
+	inputText string,
+	guardResults map[string]*guard.EngineResult,
+	overallResult string,
+	latencyMs int64,
+) {
+	// Hash the input for tracking without storing raw content
+	hash := sha256.Sum256([]byte(inputText))
+	inputHash := hex.EncodeToString(hash[:])
+
+	guardResultsJSON, err := json.Marshal(guardResults)
+	if err != nil {
+		slog.Error("failed to marshal guard results for audit log", "error", err)
+		return
+	}
+
+	_, err = p.queries.CreateAuditLog(ctx, generated.CreateAuditLogParams{
+		OrganizationID: orgID,
+		SourceID:       source.ID,
+		InputHash:      pgtype.Text{String: inputHash, Valid: true},
+		GuardResults:   guardResultsJSON,
+		OverallResult:  overallResult,
+		LatencyMs:      int32(latencyMs),
+	})
+	if err != nil {
+		slog.Error("failed to write audit log", "error", err, "source", source.Slug)
+	}
+}
