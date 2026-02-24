@@ -11,6 +11,7 @@ import (
 	"github.com/sheeld/sheeld/internal/api/middleware"
 	"github.com/sheeld/sheeld/internal/api/response"
 	"github.com/sheeld/sheeld/internal/config"
+	"github.com/sheeld/sheeld/internal/db/generated"
 	"github.com/sheeld/sheeld/internal/proxy"
 	"github.com/sheeld/sheeld/internal/service"
 )
@@ -22,6 +23,7 @@ func NewRouter(
 	sourceService *service.SourceService,
 	destinationService *service.DestinationService,
 	proxyService *proxy.Proxy,
+	queries *generated.Queries,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -49,6 +51,7 @@ func NewRouter(
 	sourceHandler := handler.NewSourceHandler(sourceService)
 	destinationHandler := handler.NewDestinationHandler(destinationService)
 	proxyHandler := handler.NewProxyHandler(proxyService)
+	auditLogHandler := handler.NewAuditLogHandler(queries)
 
 	// API v1
 	r.Route("/v1", func(r chi.Router) {
@@ -84,6 +87,12 @@ func NewRouter(
 				r.Put("/{id}", destinationHandler.Update)
 				r.Delete("/{id}", destinationHandler.Delete)
 			})
+		})
+
+		// Audit log routes (JWT for dashboard)
+		r.Route("/audit-logs", func(r chi.Router) {
+			r.Use(middleware.JWTAuth(authService))
+			r.Get("/", auditLogHandler.List)
 		})
 
 		// Proxy route (API key auth for machine-to-machine)

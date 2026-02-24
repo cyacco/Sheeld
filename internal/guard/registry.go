@@ -24,6 +24,8 @@ func NewRegistry() *Registry {
 	// Register built-in guard types
 	r.Register("blocklist", blocklistFactory)
 	r.Register("regex", regexFactory)
+	r.Register("openai_moderation", openAIModerationFactory)
+	r.Register("guardrails_ai", guardrailsAIFactory)
 
 	return r
 }
@@ -76,4 +78,29 @@ func regexFactory(name string, config json.RawMessage) (Guard, error) {
 		return nil, fmt.Errorf("invalid regex config: %w", err)
 	}
 	return NewRegexGuard(name, cfg)
+}
+
+func openAIModerationFactory(name string, config json.RawMessage) (Guard, error) {
+	var cfg OpenAIModerationConfig
+	if err := json.Unmarshal(config, &cfg); err != nil {
+		return nil, fmt.Errorf("invalid openai_moderation config: %w", err)
+	}
+	if cfg.APIKey == "" {
+		return nil, fmt.Errorf("openai_moderation: api_key is required")
+	}
+	return NewOpenAIModerationGuard(name, cfg), nil
+}
+
+func guardrailsAIFactory(name string, config json.RawMessage) (Guard, error) {
+	var cfg GuardrailsAIConfig
+	if err := json.Unmarshal(config, &cfg); err != nil {
+		return nil, fmt.Errorf("invalid guardrails_ai config: %w", err)
+	}
+	if cfg.ServerURL == "" {
+		return nil, fmt.Errorf("guardrails_ai: server_url is required")
+	}
+	if cfg.GuardName == "" {
+		return nil, fmt.Errorf("guardrails_ai: guard_name is required")
+	}
+	return NewGuardrailsAIGuard(name, cfg), nil
 }
