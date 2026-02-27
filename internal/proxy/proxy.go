@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/sheeld/sheeld/internal/crypto"
 	"github.com/sheeld/sheeld/internal/db/generated"
 	"github.com/sheeld/sheeld/internal/guard"
 	"github.com/sheeld/sheeld/internal/llm"
@@ -38,17 +39,19 @@ type ProxyResult struct {
 // Proxy orchestrates the full Sheeld flow:
 // input guards → LLM call → output guards → response.
 type Proxy struct {
-	queries   *generated.Queries
-	engine    *guard.Engine
-	llmClient *llm.Client
+	queries       *generated.Queries
+	engine        *guard.Engine
+	llmClient     *llm.Client
+	encryptionKey string
 }
 
 // NewProxy creates a new proxy orchestrator.
-func NewProxy(queries *generated.Queries, engine *guard.Engine, llmClient *llm.Client) *Proxy {
+func NewProxy(queries *generated.Queries, engine *guard.Engine, llmClient *llm.Client, encryptionKey string) *Proxy {
 	return &Proxy{
-		queries:   queries,
-		engine:    engine,
-		llmClient: llmClient,
+		queries:       queries,
+		engine:        engine,
+		llmClient:     llmClient,
+		encryptionKey: encryptionKey,
 	}
 }
 
@@ -122,8 +125,10 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceSlug string,
 	// Override model with the source's configured model
 	chatReq.Model = source.LlmModel
 
-	// TODO: Decrypt API key (Phase 6). For now, using plaintext.
-	apiKey := source.LlmApiKeyEnc
+	apiKey, err := crypto.Decrypt(source.LlmApiKeyEnc, p.encryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("decrypting API key: %w", err)
+	}
 
 	slog.Info("calling LLM gateway",
 		"source", sourceSlug,

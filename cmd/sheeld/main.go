@@ -75,7 +75,7 @@ func run() error {
 	guardRegistry := guard.NewRegistry()
 	guardEngine := guard.NewEngine(guardRegistry)
 	llmClient := llm.NewClient(cfg.LLMGatewayURL, cfg.LLMRequestTimeout)
-	proxyService := proxy.NewProxy(queries, guardEngine, llmClient)
+	proxyService := proxy.NewProxy(queries, guardEngine, llmClient, cfg.EncryptionKey)
 
 	slog.Info("LLM gateway configured", "url", cfg.LLMGatewayURL, "timeout", cfg.LLMRequestTimeout)
 

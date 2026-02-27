@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/sheeld/sheeld/internal/crypto"
 	"github.com/sheeld/sheeld/internal/db/generated"
 )
 
@@ -51,9 +53,10 @@ func NewSourceService(queries *generated.Queries, encryptionKey string) *SourceS
 
 // Create creates a new source.
 func (s *SourceService) Create(ctx context.Context, orgID uuid.UUID, params CreateSourceParams) (generated.Source, error) {
-	// TODO: Encrypt LLM API key with AES-256-GCM (tech debt: Phase 6)
-	// For now, store as-is. This MUST be addressed before production.
-	encryptedKey := params.LLMAPIKey
+	encryptedKey, err := crypto.Encrypt(params.LLMAPIKey, s.encryptionKey)
+	if err != nil {
+		return generated.Source{}, fmt.Errorf("encrypting API key: %w", err)
+	}
 
 	description := pgtype.Text{}
 	if params.Description != nil {
@@ -102,8 +105,10 @@ func (s *SourceService) List(ctx context.Context, orgID uuid.UUID) ([]generated.
 
 // Update updates a source.
 func (s *SourceService) Update(ctx context.Context, orgID, sourceID uuid.UUID, params UpdateSourceParams) (generated.Source, error) {
-	// TODO: Encrypt LLM API key (tech debt: Phase 6)
-	encryptedKey := params.LLMAPIKey
+	encryptedKey, err := crypto.Encrypt(params.LLMAPIKey, s.encryptionKey)
+	if err != nil {
+		return generated.Source{}, fmt.Errorf("encrypting API key: %w", err)
+	}
 
 	description := pgtype.Text{}
 	if params.Description != nil {
