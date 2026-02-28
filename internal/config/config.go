@@ -29,6 +29,16 @@ type Config struct {
 	LLMGatewayURL     string        `envconfig:"LLM_GATEWAY_URL" default:"http://localhost:4000"`
 	LLMRequestTimeout time.Duration `envconfig:"LLM_REQUEST_TIMEOUT" default:"30s"`
 
+	// Rate Limiting
+	RateLimitRPS   float64 `envconfig:"RATE_LIMIT_RPS" default:"100"`
+	RateLimitBurst int     `envconfig:"RATE_LIMIT_BURST" default:"200"`
+
+	// Request Body Limit
+	MaxBodyBytes int64 `envconfig:"MAX_BODY_BYTES" default:"1048576"`
+
+	// Proxy Timeout
+	ProxyTimeout time.Duration `envconfig:"PROXY_TIMEOUT" default:"60s"`
+
 	// CORS
 	CORSAllowedOrigins []string `envconfig:"CORS_ALLOWED_ORIGINS" default:"http://localhost:3000"`
 

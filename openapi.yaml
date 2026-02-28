@@ -1,0 +1,907 @@
+openapi: "3.0.3"
+info:
+  title: Sheeld API
+  description: Segment for LLM guardrails — a full LLM proxy that validates input, proxies LLM calls, and validates output.
+  version: "1.0.0"
+  license:
+    name: Apache 2.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+security: []
+
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags: [System]
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  db:
+                    type: string
+                    example: connected
+        "503":
+          description: Unhealthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: error
+                  db:
+                    type: string
+                    example: disconnected
+
+  /v1/auth/register:
+    post:
+      summary: Register a new organization and user
+      operationId: register
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [org_name, email, password]
+              properties:
+                org_name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /v1/auth/login:
+    post:
+      summary: Log in with email and password
+      operationId: login
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/auth/api-keys:
+    post:
+      summary: Create an API key
+      operationId: createApiKey
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: API key created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_key:
+                    $ref: "#/components/schemas/ApiKey"
+                  raw_key:
+                    type: string
+                    description: Only returned at creation time
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      summary: List API keys
+      operationId: listApiKeys
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: API key list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApiKey"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/auth/api-keys/{id}:
+    delete:
+      summary: Revoke an API key
+      operationId: revokeApiKey
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: revoked
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/sources:
+    post:
+      summary: Create a source
+      operationId: createSource
+      tags: [Sources]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceInput"
+      responses:
+        "201":
+          description: Source created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      summary: List sources
+      operationId: listSources
+      tags: [Sources]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Source list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Source"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/sources/{id}:
+    get:
+      summary: Get a source
+      operationId: getSource
+      tags: [Sources]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Source details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      summary: Update a source
+      operationId: updateSource
+      tags: [Sources]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SourceInput"
+      responses:
+        "200":
+          description: Source updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Source"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      summary: Delete a source
+      operationId: deleteSource
+      tags: [Sources]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/sources/{sourceID}/destinations:
+    post:
+      summary: Create a destination (guardrail)
+      operationId: createDestination
+      tags: [Destinations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sourceID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DestinationInput"
+      responses:
+        "201":
+          description: Destination created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Destination"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      summary: List destinations for a source
+      operationId: listDestinations
+      tags: [Destinations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sourceID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Destination list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Destination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/sources/{sourceID}/destinations/{id}:
+    get:
+      summary: Get a destination
+      operationId: getDestination
+      tags: [Destinations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sourceID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Destination details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Destination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      summary: Update a destination
+      operationId: updateDestination
+      tags: [Destinations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sourceID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DestinationInput"
+      responses:
+        "200":
+          description: Destination updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Destination"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    delete:
+      summary: Delete a destination
+      operationId: deleteDestination
+      tags: [Destinations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sourceID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/proxy/{sourceSlug}:
+    post:
+      summary: Proxy an LLM request through guardrails
+      operationId: proxy
+      tags: [Proxy]
+      security:
+        - apiKeyAuth: []
+      parameters:
+        - name: sourceSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Request passed all guards
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResult"
+        "403":
+          description: Request rejected by guards
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProxyResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          description: Rate limit exceeded
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /v1/audit-logs:
+    get:
+      summary: List audit logs
+      operationId: listAuditLogs
+      tags: [Audit Logs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: source_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Audit log list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLog"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyAuth:
+      type: http
+      scheme: bearer
+      description: API key (shld_* prefix)
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        organization:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        key_prefix:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    SourceInput:
+      type: object
+      required: [name, slug, llm_provider, llm_model, llm_api_key]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        llm_provider:
+          type: string
+        llm_model:
+          type: string
+        llm_api_key:
+          type: string
+          description: Encrypted at rest, never returned in responses
+        pass_criteria:
+          type: string
+          enum: [all, any, n_of_m]
+          default: all
+        pass_threshold:
+          type: integer
+          nullable: true
+        enabled:
+          type: boolean
+          default: true
+
+    Source:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        llm_provider:
+          type: string
+        llm_model:
+          type: string
+        pass_criteria:
+          type: string
+        pass_threshold:
+          type: integer
+          nullable: true
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    DestinationInput:
+      type: object
+      required: [name, guard_type]
+      properties:
+        name:
+          type: string
+        guard_type:
+          type: string
+        phase:
+          type: string
+          enum: [input, output, both]
+          default: input
+        config:
+          type: object
+          additionalProperties: true
+        priority:
+          type: integer
+          default: 0
+        enabled:
+          type: boolean
+          default: true
+
+    Destination:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        source_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        guard_type:
+          type: string
+        phase:
+          type: string
+        config:
+          type: object
+          additionalProperties: true
+        priority:
+          type: integer
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ChatRequest:
+      type: object
+      required: [messages]
+      properties:
+        model:
+          type: string
+        messages:
+          type: array
+          items:
+            type: object
+            required: [role, content]
+            properties:
+              role:
+                type: string
+                enum: [system, user, assistant]
+              content:
+                type: string
+        temperature:
+          type: number
+        max_tokens:
+          type: integer
+        top_p:
+          type: number
+        stop:
+          type: array
+          items:
+            type: string
+
+    ProxyResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pass, rejected]
+        phase:
+          type: string
+          enum: [input, output]
+          nullable: true
+        llm_response:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+            object:
+              type: string
+            created:
+              type: integer
+            model:
+              type: string
+            choices:
+              type: array
+              items:
+                type: object
+                properties:
+                  index:
+                    type: integer
+                  message:
+                    type: object
+                    properties:
+                      role:
+                        type: string
+                      content:
+                        type: string
+                  finish_reason:
+                    type: string
+            usage:
+              type: object
+              properties:
+                prompt_tokens:
+                  type: integer
+                completion_tokens:
+                  type: integer
+                total_tokens:
+                  type: integer
+        guard_results:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/GuardEngineResult"
+        latency_ms:
+          type: integer
+
+    GuardEngineResult:
+      type: object
+      properties:
+        passed:
+          type: boolean
+        criteria:
+          type: string
+        threshold:
+          type: integer
+          nullable: true
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              guard_name:
+                type: string
+              guard_type:
+                type: string
+              passed:
+                type: boolean
+              message:
+                type: string
+              details:
+                type: object
+                additionalProperties: true
+              duration_ms:
+                type: integer
+        total_duration_ms:
+          type: integer
+        pass_count:
+          type: integer
+        fail_count:
+          type: integer
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+        source_id:
+          type: string
+          format: uuid
+        input_hash:
+          type: string
+        guard_results:
+          type: object
+          additionalProperties: true
+        overall_result:
+          type: string
+          enum: [pass, fail]
+        latency_ms:
+          type: integer
+        created_at:
+          type: string
+          format: date-time

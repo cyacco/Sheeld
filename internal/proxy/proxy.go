@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/sheeld/sheeld/internal/api/middleware"
 	"github.com/sheeld/sheeld/internal/crypto"
 	"github.com/sheeld/sheeld/internal/db/generated"
 	"github.com/sheeld/sheeld/internal/guard"
@@ -55,9 +56,21 @@ func NewProxy(queries *generated.Queries, engine *guard.Engine, llmClient *llm.C
 	}
 }
 
+// requestID extracts the request ID from the context.
+func requestID(ctx context.Context) string {
+	if id, ok := ctx.Value(middleware.RequestIDKey).(string); ok {
+		return id
+	}
+	return ""
+}
+
 // Execute runs the full proxy flow for a given source and chat request.
 func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceSlug string, chatReq *llm.ChatRequest) (*ProxyResult, error) {
 	start := time.Now()
+	reqID := requestID(ctx)
+
+	log := slog.With("request_id", reqID, "source", sourceSlug)
+	log.Info("proxy request started")
 
 	// 1. Look up source by slug + org
 	source, err := p.queries.GetSourceBySlug(ctx, generated.GetSourceBySlugParams{
@@ -102,10 +115,16 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceSlug string,
 	// 5. Run input guards
 	guardResults := make(map[string]*guard.EngineResult)
 	if len(inputGuards) > 0 {
+		guardStart := time.Now()
 		inputResult, err := p.engine.Run(ctx, inputGuards, inputText, evalCfg)
 		if err != nil {
 			return nil, fmt.Errorf("running input guards: %w", err)
 		}
+		log.Info("input guards completed",
+			"guard_count", len(inputGuards),
+			"passed", inputResult.Passed,
+			"latency_ms", time.Since(guardStart).Milliseconds(),
+		)
 		guardResults["input"] = inputResult
 
 		// 6. If input fails → reject (no LLM call, tokens saved)
@@ -116,6 +135,7 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceSlug string,
 				GuardResults: guardResults,
 				LatencyMs:    time.Since(start).Milliseconds(),
 			}
+			log.Info("request rejected at input phase", "total_latency_ms", result.LatencyMs)
 			p.writeAuditLog(ctx, source, orgID, inputText, guardResults, "fail", result.LatencyMs)
 			return result, nil
 		}
@@ -130,23 +150,28 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceSlug string,
 		return nil, fmt.Errorf("decrypting API key: %w", err)
 	}
 
-	slog.Info("calling LLM gateway",
-		"source", sourceSlug,
-		"model", chatReq.Model,
-	)
+	llmStart := time.Now()
+	log.Info("calling LLM gateway", "model", chatReq.Model)
 
 	chatResp, err := p.llmClient.ChatCompletion(ctx, apiKey, chatReq)
 	if err != nil {
 		return nil, fmt.Errorf("LLM call failed: %w", err)
 	}
+	log.Info("LLM call completed", "latency_ms", time.Since(llmStart).Milliseconds())
 
 	// 8. Run output guards
 	if len(outputGuards) > 0 {
+		guardStart := time.Now()
 		outputText := llm.ExtractOutputText(chatResp)
 		outputResult, err := p.engine.Run(ctx, outputGuards, outputText, evalCfg)
 		if err != nil {
 			return nil, fmt.Errorf("running output guards: %w", err)
 		}
+		log.Info("output guards completed",
+			"guard_count", len(outputGuards),
+			"passed", outputResult.Passed,
+			"latency_ms", time.Since(guardStart).Milliseconds(),
+		)
 		guardResults["output"] = outputResult
 
 		// 9. If output fails → reject (LLM was called, but response blocked)
@@ -157,6 +182,7 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceSlug string,
 				GuardResults: guardResults,
 				LatencyMs:    time.Since(start).Milliseconds(),
 			}
+			log.Info("request rejected at output phase", "total_latency_ms", result.LatencyMs)
 			p.writeAuditLog(ctx, source, orgID, inputText, guardResults, "fail", result.LatencyMs)
 			return result, nil
 		}
@@ -169,6 +195,7 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceSlug string,
 		GuardResults: guardResults,
 		LatencyMs:    time.Since(start).Milliseconds(),
 	}
+	log.Info("proxy request completed", "status", "pass", "total_latency_ms", result.LatencyMs)
 	p.writeAuditLog(ctx, source, orgID, inputText, guardResults, "pass", result.LatencyMs)
 	return result, nil
 }

@@ -1,11 +1,14 @@
 package api
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/sheeld/sheeld/internal/api/handler"
 	"github.com/sheeld/sheeld/internal/api/middleware"
@@ -19,6 +22,7 @@ import (
 // NewRouter creates and configures the chi router with all routes and middleware.
 func NewRouter(
 	cfg *config.Config,
+	pool *pgxpool.Pool,
 	authService *service.AuthService,
 	sourceService *service.SourceService,
 	destinationService *service.DestinationService,
@@ -32,6 +36,7 @@ func NewRouter(
 	r.Use(middleware.Logger)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(chimiddleware.RealIP)
+	r.Use(middleware.MaxBodySize(cfg.MaxBodyBytes))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.CORSAllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -41,9 +46,27 @@ func NewRouter(
 		MaxAge:           300,
 	}))
 
-	// Health check
+	// Health check with DB ping
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		response.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+
+		if err := pool.Ping(ctx); err != nil {
+			response.JSON(w, http.StatusServiceUnavailable, map[string]string{
+				"status": "error",
+				"db":     "disconnected",
+			})
+			return
+		}
+		response.JSON(w, http.StatusOK, map[string]string{
+			"status": "ok",
+			"db":     "connected",
+		})
+	})
+
+	// Serve OpenAPI spec
+	r.Get("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "openapi.yaml")
 	})
 
 	// Initialize handlers
@@ -52,6 +75,9 @@ func NewRouter(
 	destinationHandler := handler.NewDestinationHandler(destinationService)
 	proxyHandler := handler.NewProxyHandler(proxyService)
 	auditLogHandler := handler.NewAuditLogHandler(queries)
+
+	// Rate limiter for proxy routes
+	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)
 
 	// API v1
 	r.Route("/v1", func(r chi.Router) {
@@ -98,6 +124,8 @@ func NewRouter(
 		// Proxy route (API key auth for machine-to-machine)
 		r.Route("/proxy", func(r chi.Router) {
 			r.Use(middleware.APIKeyAuth(authService))
+			r.Use(rateLimiter.Middleware)
+			r.Use(chimiddleware.Timeout(cfg.ProxyTimeout))
 			r.Post("/{sourceSlug}", proxyHandler.Handle)
 		})
 	})

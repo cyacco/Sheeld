@@ -80,7 +80,7 @@ func run() error {
 	slog.Info("LLM gateway configured", "url", cfg.LLMGatewayURL, "timeout", cfg.LLMRequestTimeout)
 
 	// Build HTTP router
-	router := api.NewRouter(cfg, authService, sourceService, destinationService, proxyService, queries)
+	router := api.NewRouter(cfg, pool, authService, sourceService, destinationService, proxyService, queries)
 
 	// Start HTTP server
 	srv := &http.Server{
