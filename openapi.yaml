@@ -307,11 +307,11 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /v1/sources/{sourceID}/destinations:
+  /v1/sources/{sourceID}/guardrails:
     post:
-      summary: Create a destination (guardrail)
-      operationId: createDestination
-      tags: [Destinations]
+      summary: Create a guardrail
+      operationId: createGuardrail
+      tags: [Guardrails]
       security:
         - bearerAuth: []
       parameters:
@@ -326,22 +326,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/DestinationInput"
+              $ref: "#/components/schemas/GuardrailInput"
       responses:
         "201":
-          description: Destination created
+          description: Guardrail created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Destination"
+                $ref: "#/components/schemas/Guardrail"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
     get:
-      summary: List destinations for a source
-      operationId: listDestinations
-      tags: [Destinations]
+      summary: List guardrails for a source
+      operationId: listGuardrails
+      tags: [Guardrails]
       security:
         - bearerAuth: []
       parameters:
@@ -353,21 +353,21 @@ paths:
             format: uuid
       responses:
         "200":
-          description: Destination list
+          description: Guardrail list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Destination"
+                  $ref: "#/components/schemas/Guardrail"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /v1/sources/{sourceID}/destinations/{id}:
+  /v1/sources/{sourceID}/guardrails/{id}:
     get:
-      summary: Get a destination
-      operationId: getDestination
-      tags: [Destinations]
+      summary: Get a guardrail
+      operationId: getGuardrail
+      tags: [Guardrails]
       security:
         - bearerAuth: []
       parameters:
@@ -385,19 +385,19 @@ paths:
             format: uuid
       responses:
         "200":
-          description: Destination details
+          description: Guardrail details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Destination"
+                $ref: "#/components/schemas/Guardrail"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
     put:
-      summary: Update a destination
-      operationId: updateDestination
-      tags: [Destinations]
+      summary: Update a guardrail
+      operationId: updateGuardrail
+      tags: [Guardrails]
       security:
         - bearerAuth: []
       parameters:
@@ -418,22 +418,22 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/DestinationInput"
+              $ref: "#/components/schemas/GuardrailInput"
       responses:
         "200":
-          description: Destination updated
+          description: Guardrail updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Destination"
+                $ref: "#/components/schemas/Guardrail"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
     delete:
-      summary: Delete a destination
-      operationId: deleteDestination
-      tags: [Destinations]
+      summary: Delete a guardrail
+      operationId: deleteGuardrail
+      tags: [Guardrails]
       security:
         - bearerAuth: []
       parameters:
@@ -712,7 +712,7 @@ components:
           type: string
           format: date-time
 
-    DestinationInput:
+    GuardrailInput:
       type: object
       required: [name, guard_type]
       properties:
@@ -727,14 +727,11 @@ components:
         config:
           type: object
           additionalProperties: true
-        priority:
-          type: integer
-          default: 0
         enabled:
           type: boolean
           default: true
 
-    Destination:
+    Guardrail:
       type: object
       properties:
         id:
@@ -752,8 +749,6 @@ components:
         config:
           type: object
           additionalProperties: true
-        priority:
-          type: integer
         enabled:
           type: boolean
         created_at:

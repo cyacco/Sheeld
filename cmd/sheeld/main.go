@@ -76,7 +76,7 @@ func run() error {
 
 	authService := service.NewAuthService(queries, cfg.JWTSecret, cfg.JWTExpiration)
 	sourceService := service.NewSourceService(queries, cfg.EncryptionKey)
-	destinationService := service.NewDestinationService(queries)
+	guardrailService := service.NewGuardrailService(queries)
 
 	// Initialize guardrail engine and LLM client
 	guardRegistry := guard.NewRegistry()
@@ -87,7 +87,7 @@ func run() error {
 	slog.Info("LLM gateway configured", "url", cfg.LLMGatewayURL, "timeout", cfg.LLMRequestTimeout)
 
 	// Build HTTP router
-	router := api.NewRouter(cfg, pool, authService, sourceService, destinationService, proxyService, queries)
+	router := api.NewRouter(cfg, pool, authService, sourceService, guardrailService, proxyService, queries)
 
 	// Start HTTP server
 	srv := &http.Server{

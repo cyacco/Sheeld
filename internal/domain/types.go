@@ -80,15 +80,14 @@ const (
 	GuardPhaseBoth   GuardPhase = "both"
 )
 
-// Destination represents a guardrail instance attached to a source.
-type Destination struct {
+// Guardrail represents a guardrail instance attached to a source.
+type Guardrail struct {
 	ID        uuid.UUID              `json:"id"`
 	SourceID  uuid.UUID              `json:"source_id"`
 	Name      string                 `json:"name"`
 	GuardType GuardType              `json:"guard_type"`
 	Phase     GuardPhase             `json:"phase"`
 	Config    map[string]interface{} `json:"config"`
-	Priority  int                    `json:"priority"`
 	Enabled   bool                   `json:"enabled"`
 	CreatedAt time.Time              `json:"created_at"`
 	UpdatedAt time.Time              `json:"updated_at"`

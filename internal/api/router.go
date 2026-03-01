@@ -25,7 +25,7 @@ func NewRouter(
 	pool *pgxpool.Pool,
 	authService *service.AuthService,
 	sourceService *service.SourceService,
-	destinationService *service.DestinationService,
+	guardrailService *service.GuardrailService,
 	proxyService *proxy.Proxy,
 	queries *generated.Queries,
 ) http.Handler {
@@ -72,7 +72,7 @@ func NewRouter(
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService)
 	sourceHandler := handler.NewSourceHandler(sourceService)
-	destinationHandler := handler.NewDestinationHandler(destinationService)
+	guardrailHandler := handler.NewGuardrailHandler(guardrailService)
 	proxyHandler := handler.NewProxyHandler(proxyService)
 	auditLogHandler := handler.NewAuditLogHandler(queries)
 	modelsHandler := handler.NewModelsHandler(queries)
@@ -112,13 +112,13 @@ func NewRouter(
 			r.Put("/{id}", sourceHandler.Update)
 			r.Delete("/{id}", sourceHandler.Delete)
 
-			// Destination routes (nested under sources)
-			r.Route("/{sourceID}/destinations", func(r chi.Router) {
-				r.Post("/", destinationHandler.Create)
-				r.Get("/", destinationHandler.List)
-				r.Get("/{id}", destinationHandler.Get)
-				r.Put("/{id}", destinationHandler.Update)
-				r.Delete("/{id}", destinationHandler.Delete)
+			// Guardrail routes (nested under sources)
+			r.Route("/{sourceID}/guardrails", func(r chi.Router) {
+				r.Post("/", guardrailHandler.Create)
+				r.Get("/", guardrailHandler.List)
+				r.Get("/{id}", guardrailHandler.Get)
+				r.Put("/{id}", guardrailHandler.Update)
+				r.Delete("/{id}", guardrailHandler.Delete)
 			})
 		})
 

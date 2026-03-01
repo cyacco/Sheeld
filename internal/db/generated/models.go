@@ -33,14 +33,13 @@ type AuditLog struct {
 	CreatedAt      time.Time       `json:"created_at"`
 }
 
-type Destination struct {
+type Guardrail struct {
 	ID        uuid.UUID       `json:"id"`
 	SourceID  uuid.UUID       `json:"source_id"`
 	Name      string          `json:"name"`
 	GuardType string          `json:"guard_type"`
 	Phase     string          `json:"phase"`
 	Config    json.RawMessage `json:"config"`
-	Priority  int32           `json:"priority"`
 	Enabled   bool            `json:"enabled"`
 	CreatedAt time.Time       `json:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at"`
