@@ -45,12 +45,6 @@ type Guardrail struct {
 	UpdatedAt time.Time       `json:"updated_at"`
 }
 
-type Model struct {
-	Provider  string    `json:"provider"`
-	ID        string    `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
 type Organization struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`

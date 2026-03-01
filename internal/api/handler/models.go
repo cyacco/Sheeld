@@ -1,31 +1,55 @@
 package handler
 
 import (
-	"log/slog"
 	"net/http"
 
 	"github.com/sheeld/sheeld/internal/api/response"
-	"github.com/sheeld/sheeld/internal/db/generated"
 )
 
+// ModelInfo represents a supported LLM model.
+type ModelInfo struct {
+	Provider string `json:"provider"`
+	ID       string `json:"id"`
+}
+
+var hardcodedModels = []ModelInfo{
+	// Anthropic
+	{Provider: "anthropic", ID: "claude-sonnet-4-5-20250514"},
+	{Provider: "anthropic", ID: "claude-haiku-4-5-20251001"},
+	{Provider: "anthropic", ID: "claude-opus-4-20250514"},
+	// OpenAI
+	{Provider: "openai", ID: "gpt-4o"},
+	{Provider: "openai", ID: "gpt-4o-mini"},
+	{Provider: "openai", ID: "gpt-4.1"},
+	{Provider: "openai", ID: "gpt-4.1-mini"},
+	{Provider: "openai", ID: "gpt-4.1-nano"},
+	{Provider: "openai", ID: "o3"},
+	{Provider: "openai", ID: "o3-mini"},
+	{Provider: "openai", ID: "o4-mini"},
+}
+
 // ModelsHandler handles requests for model lists.
-type ModelsHandler struct {
-	queries *generated.Queries
+type ModelsHandler struct{}
+
+// NewModelsHandler creates a new ModelsHandler.
+func NewModelsHandler() *ModelsHandler {
+	return &ModelsHandler{}
 }
 
-// NewModelsHandler creates a new ModelsHandler backed by the database.
-func NewModelsHandler(queries *generated.Queries) *ModelsHandler {
-	return &ModelsHandler{queries: queries}
-}
-
-// List returns all models from the database.
+// List returns all supported models, optionally filtered by provider.
 func (h *ModelsHandler) List(w http.ResponseWriter, r *http.Request) {
-	models, err := h.queries.ListModels(r.Context())
-	if err != nil {
-		slog.Error("listing models", "error", err)
-		response.JSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list models"})
+	provider := r.URL.Query().Get("provider")
+
+	if provider == "" {
+		response.JSON(w, http.StatusOK, hardcodedModels)
 		return
 	}
 
-	response.JSON(w, http.StatusOK, models)
+	var filtered []ModelInfo
+	for _, m := range hardcodedModels {
+		if m.Provider == provider {
+			filtered = append(filtered, m)
+		}
+	}
+	response.JSON(w, http.StatusOK, filtered)
 }
