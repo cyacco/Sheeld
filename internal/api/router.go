@@ -75,6 +75,7 @@ func NewRouter(
 	destinationHandler := handler.NewDestinationHandler(destinationService)
 	proxyHandler := handler.NewProxyHandler(proxyService)
 	auditLogHandler := handler.NewAuditLogHandler(queries)
+	modelsHandler := handler.NewModelsHandler()
 
 	// Rate limiter for proxy routes
 	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)
@@ -93,6 +94,12 @@ func NewRouter(
 				r.Get("/api-keys", authHandler.ListAPIKeys)
 				r.Delete("/api-keys/{id}", authHandler.RevokeAPIKey)
 			})
+		})
+
+		// Models list (JWT for dashboard)
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.JWTAuth(authService))
+			r.Get("/models", modelsHandler.List)
 		})
 
 		// Protected source routes (JWT for dashboard)

@@ -111,6 +111,11 @@ export interface GuardResultEntry {
   duration_ms: number;
 }
 
+export interface ModelInfo {
+  id: string;
+  provider: string;
+}
+
 // Guard config types
 export interface BlocklistConfig {
   words: string[];

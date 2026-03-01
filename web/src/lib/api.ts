@@ -10,6 +10,7 @@ import type {
   APIKey,
   CreateAPIKeyResult,
   AuditLog,
+  ModelInfo,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -176,6 +177,12 @@ export async function createAPIKey(
 
 export async function revokeAPIKey(id: string): Promise<void> {
   return request<void>(`/v1/auth/api-keys/${id}`, { method: "DELETE" });
+}
+
+// Models
+export async function listModels(provider?: string): Promise<ModelInfo[]> {
+  const qs = provider ? `?provider=${encodeURIComponent(provider)}` : "";
+  return request<ModelInfo[]>(`/v1/models${qs}`);
 }
 
 // Audit Logs
