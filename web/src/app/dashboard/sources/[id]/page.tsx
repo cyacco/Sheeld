@@ -5,13 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import type {
   Source,
   CreateSourceParams,
-  Destination,
-  CreateDestinationParams,
+  Guardrail,
+  CreateGuardrailParams,
 } from "@/lib/types";
 import * as api from "@/lib/api";
 import { SourceForm } from "@/components/source-form";
-import { DestinationForm } from "@/components/destination-form";
-import { DestinationCard } from "@/components/destination-card";
+import { GuardrailForm } from "@/components/guardrail-form";
+import { GuardrailCard } from "@/components/guardrail-card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -28,10 +28,10 @@ export default function SourceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [source, setSource] = useState<Source | null>(null);
-  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [guardrails, setGuardrails] = useState<Guardrail[]>([]);
   const [loading, setLoading] = useState(true);
-  const [destDialogOpen, setDestDialogOpen] = useState(false);
-  const [editingDest, setEditingDest] = useState<Destination | null>(null);
+  const [guardrailDialogOpen, setGuardrailDialogOpen] = useState(false);
+  const [editingGuardrail, setEditingGuardrail] = useState<Guardrail | null>(null);
 
   useEffect(() => {
     loadData();
@@ -40,12 +40,12 @@ export default function SourceDetailPage() {
 
   async function loadData() {
     try {
-      const [src, dests] = await Promise.all([
+      const [src, grs] = await Promise.all([
         api.getSource(id),
-        api.listDestinations(id),
+        api.listGuardrails(id),
       ]);
       setSource(src);
-      setDestinations(dests ?? []);
+      setGuardrails(grs ?? []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load source");
     } finally {
@@ -64,7 +64,7 @@ export default function SourceDetailPage() {
   }
 
   async function handleDeleteSource() {
-    if (!confirm("Delete this source and all its destinations?")) return;
+    if (!confirm("Delete this source and all its guardrails?")) return;
     try {
       await api.deleteSource(id);
       toast.success("Source deleted");
@@ -74,53 +74,52 @@ export default function SourceDetailPage() {
     }
   }
 
-  async function handleCreateDestination(params: CreateDestinationParams) {
+  async function handleCreateGuardrail(params: CreateGuardrailParams) {
     try {
-      await api.createDestination(id, params);
-      toast.success("Destination created");
-      setDestDialogOpen(false);
+      await api.createGuardrail(id, params);
+      toast.success("Guardrail created");
+      setGuardrailDialogOpen(false);
       loadData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create destination");
+      toast.error(err instanceof Error ? err.message : "Failed to create guardrail");
     }
   }
 
-  async function handleUpdateDestination(params: CreateDestinationParams) {
-    if (!editingDest) return;
+  async function handleUpdateGuardrail(params: CreateGuardrailParams) {
+    if (!editingGuardrail) return;
     try {
-      await api.updateDestination(id, editingDest.id, params);
-      toast.success("Destination updated");
-      setEditingDest(null);
+      await api.updateGuardrail(id, editingGuardrail.id, params);
+      toast.success("Guardrail updated");
+      setEditingGuardrail(null);
       loadData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update destination");
+      toast.error(err instanceof Error ? err.message : "Failed to update guardrail");
     }
   }
 
-  async function handleToggleDestination(dest: Destination, enabled: boolean) {
+  async function handleToggleGuardrail(guardrail: Guardrail, enabled: boolean) {
     try {
-      await api.updateDestination(id, dest.id, {
-        name: dest.name,
-        guard_type: dest.guard_type,
-        phase: dest.phase,
-        config: dest.config,
-        priority: dest.priority,
+      await api.updateGuardrail(id, guardrail.id, {
+        name: guardrail.name,
+        guard_type: guardrail.guard_type,
+        phase: guardrail.phase,
+        config: guardrail.config,
         enabled,
       });
       loadData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to toggle destination");
+      toast.error(err instanceof Error ? err.message : "Failed to toggle guardrail");
     }
   }
 
-  async function handleDeleteDestination(dest: Destination) {
-    if (!confirm(`Delete destination "${dest.name}"?`)) return;
+  async function handleDeleteGuardrail(guardrail: Guardrail) {
+    if (!confirm(`Delete guardrail "${guardrail.name}"?`)) return;
     try {
-      await api.deleteDestination(id, dest.id);
-      toast.success("Destination deleted");
+      await api.deleteGuardrail(id, guardrail.id);
+      toast.success("Guardrail deleted");
       loadData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete destination");
+      toast.error(err instanceof Error ? err.message : "Failed to delete guardrail");
     }
   }
 
@@ -142,8 +141,8 @@ export default function SourceDetailPage() {
       <Tabs defaultValue="settings">
         <TabsList>
           <TabsTrigger value="settings">Settings</TabsTrigger>
-          <TabsTrigger value="destinations">
-            Destinations ({destinations.length})
+          <TabsTrigger value="guardrails">
+            Guardrails ({guardrails.length})
           </TabsTrigger>
         </TabsList>
 
@@ -155,19 +154,19 @@ export default function SourceDetailPage() {
           />
         </TabsContent>
 
-        <TabsContent value="destinations" className="mt-4">
+        <TabsContent value="guardrails" className="mt-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Destinations (Guards)</h3>
-            <Dialog open={destDialogOpen} onOpenChange={setDestDialogOpen}>
+            <h3 className="text-lg font-semibold">Guardrails</h3>
+            <Dialog open={guardrailDialogOpen} onOpenChange={setGuardrailDialogOpen}>
               <DialogTrigger asChild>
-                <Button>Add Destination</Button>
+                <Button>Add Guardrail</Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Add Destination</DialogTitle>
+                  <DialogTitle>Add Guardrail</DialogTitle>
                 </DialogHeader>
-                <DestinationForm
-                  onSubmit={handleCreateDestination}
+                <GuardrailForm
+                  onSubmit={handleCreateGuardrail}
                   submitLabel="Create"
                 />
               </DialogContent>
@@ -176,37 +175,37 @@ export default function SourceDetailPage() {
 
           <Separator className="mb-4" />
 
-          {destinations.length === 0 ? (
+          {guardrails.length === 0 ? (
             <p className="text-muted-foreground">
-              No destinations yet. Add one to start guarding this source.
+              No guardrails yet. Add one to start guarding this source.
             </p>
           ) : (
             <div className="space-y-3">
-              {destinations.map((dest) => (
-                <DestinationCard
-                  key={dest.id}
-                  destination={dest}
-                  onToggle={handleToggleDestination}
-                  onEdit={setEditingDest}
-                  onDelete={handleDeleteDestination}
+              {guardrails.map((gr) => (
+                <GuardrailCard
+                  key={gr.id}
+                  guardrail={gr}
+                  onToggle={handleToggleGuardrail}
+                  onEdit={setEditingGuardrail}
+                  onDelete={handleDeleteGuardrail}
                 />
               ))}
             </div>
           )}
 
-          {/* Edit destination dialog */}
+          {/* Edit guardrail dialog */}
           <Dialog
-            open={!!editingDest}
-            onOpenChange={(open) => !open && setEditingDest(null)}
+            open={!!editingGuardrail}
+            onOpenChange={(open) => !open && setEditingGuardrail(null)}
           >
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Edit Destination</DialogTitle>
+                <DialogTitle>Edit Guardrail</DialogTitle>
               </DialogHeader>
-              {editingDest && (
-                <DestinationForm
-                  initial={editingDest}
-                  onSubmit={handleUpdateDestination}
+              {editingGuardrail && (
+                <GuardrailForm
+                  initial={editingGuardrail}
+                  onSubmit={handleUpdateGuardrail}
                   submitLabel="Update"
                 />
               )}

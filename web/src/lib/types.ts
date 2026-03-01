@@ -52,29 +52,27 @@ export interface CreateSourceParams {
 
 export type UpdateSourceParams = CreateSourceParams;
 
-export interface Destination {
+export interface Guardrail {
   id: string;
   source_id: string;
   name: string;
   guard_type: string;
   phase: string;
   config: Record<string, unknown>;
-  priority: number;
   enabled: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export interface CreateDestinationParams {
+export interface CreateGuardrailParams {
   name: string;
   guard_type: string;
   phase: string;
   config: Record<string, unknown>;
-  priority: number;
   enabled: boolean;
 }
 
-export type UpdateDestinationParams = CreateDestinationParams;
+export type UpdateGuardrailParams = CreateGuardrailParams;
 
 export interface APIKey {
   id: string;
@@ -109,6 +107,11 @@ export interface GuardResultEntry {
   message: string;
   details?: Record<string, unknown>;
   duration_ms: number;
+}
+
+export interface ModelInfo {
+  id: string;
+  provider: string;
 }
 
 // Guard config types

@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import type {
-  CreateDestinationParams,
-  Destination,
+  CreateGuardrailParams,
+  Guardrail,
   BlocklistConfig,
   RegexConfig,
   OpenAIModerationConfig,
@@ -47,20 +47,19 @@ function defaultConfig(guardType: string): Record<string, unknown> {
   }
 }
 
-interface DestinationFormProps {
-  initial?: Destination;
-  onSubmit: (params: CreateDestinationParams) => Promise<void>;
+interface GuardrailFormProps {
+  initial?: Guardrail;
+  onSubmit: (params: CreateGuardrailParams) => Promise<void>;
   submitLabel: string;
 }
 
-export function DestinationForm({ initial, onSubmit, submitLabel }: DestinationFormProps) {
+export function GuardrailForm({ initial, onSubmit, submitLabel }: GuardrailFormProps) {
   const [name, setName] = useState(initial?.name ?? "");
   const [guardType, setGuardType] = useState(initial?.guard_type ?? "blocklist");
   const [phase, setPhase] = useState(initial?.phase ?? "input");
   const [config, setConfig] = useState<Record<string, unknown>>(
     initial?.config ?? defaultConfig("blocklist"),
   );
-  const [priority, setPriority] = useState(String(initial?.priority ?? 0));
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [loading, setLoading] = useState(false);
 
@@ -78,7 +77,6 @@ export function DestinationForm({ initial, onSubmit, submitLabel }: DestinationF
         guard_type: guardType,
         phase,
         config,
-        priority: Number(priority),
         enabled,
       });
     } finally {
@@ -121,11 +119,6 @@ export function DestinationForm({ initial, onSubmit, submitLabel }: DestinationF
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Priority</Label>
-        <Input type="number" value={priority} onChange={(e) => setPriority(e.target.value)} />
       </div>
 
       <div className="border rounded-md p-4 space-y-2">

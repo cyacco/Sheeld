@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import type { CreateSourceParams, Source } from "@/lib/types";
+import { useState, useEffect, useCallback } from "react";
+import { RefreshCw } from "lucide-react";
+import type { CreateSourceParams, Source, ModelInfo } from "@/lib/types";
+import { listModels } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +36,24 @@ export function SourceForm({ initial, onSubmit, submitLabel }: SourceFormProps) 
   );
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [loading, setLoading] = useState(false);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+
+  const fetchModels = useCallback(async (provider: string) => {
+    setModelsLoading(true);
+    try {
+      const result = await listModels(provider);
+      setModels(result);
+    } catch {
+      setModels([]);
+    } finally {
+      setModelsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchModels(llmProvider);
+  }, [llmProvider, fetchModels]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -102,8 +122,34 @@ export function SourceForm({ initial, onSubmit, submitLabel }: SourceFormProps) 
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="llm_model">Model</Label>
-          <Input id="llm_model" value={llmModel} onChange={(e) => setLlmModel(e.target.value)} required />
+          <div className="flex items-center gap-1">
+            <Label htmlFor="llm_model">Model</Label>
+            <button
+              type="button"
+              onClick={() => fetchModels(llmProvider)}
+              disabled={modelsLoading}
+              className="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50"
+              title="Refresh models"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${modelsLoading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+          <Select value={llmModel} onValueChange={setLlmModel}>
+            <SelectTrigger>
+              <SelectValue placeholder={modelsLoading ? "Loading..." : "Select a model"} />
+            </SelectTrigger>
+            <SelectContent>
+              {/* Keep current value as option if not in fetched list */}
+              {llmModel && !models.some((m) => m.id === llmModel) && (
+                <SelectItem value={llmModel}>{llmModel}</SelectItem>
+              )}
+              {models.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

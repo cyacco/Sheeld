@@ -4,12 +4,13 @@ import type {
   Source,
   CreateSourceParams,
   UpdateSourceParams,
-  Destination,
-  CreateDestinationParams,
-  UpdateDestinationParams,
+  Guardrail,
+  CreateGuardrailParams,
+  UpdateGuardrailParams,
   APIKey,
   CreateAPIKeyResult,
   AuditLog,
+  ModelInfo,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -111,39 +112,39 @@ export async function deleteSource(id: string): Promise<void> {
   return request<void>(`/v1/sources/${id}`, { method: "DELETE" });
 }
 
-// Destinations
-export async function listDestinations(
+// Guardrails
+export async function listGuardrails(
   sourceId: string,
-): Promise<Destination[]> {
-  return request<Destination[]>(`/v1/sources/${sourceId}/destinations`);
+): Promise<Guardrail[]> {
+  return request<Guardrail[]>(`/v1/sources/${sourceId}/guardrails`);
 }
 
-export async function getDestination(
+export async function getGuardrail(
   sourceId: string,
-  destId: string,
-): Promise<Destination> {
-  return request<Destination>(
-    `/v1/sources/${sourceId}/destinations/${destId}`,
+  guardrailId: string,
+): Promise<Guardrail> {
+  return request<Guardrail>(
+    `/v1/sources/${sourceId}/guardrails/${guardrailId}`,
   );
 }
 
-export async function createDestination(
+export async function createGuardrail(
   sourceId: string,
-  params: CreateDestinationParams,
-): Promise<Destination> {
-  return request<Destination>(`/v1/sources/${sourceId}/destinations`, {
+  params: CreateGuardrailParams,
+): Promise<Guardrail> {
+  return request<Guardrail>(`/v1/sources/${sourceId}/guardrails`, {
     method: "POST",
     body: JSON.stringify(params),
   });
 }
 
-export async function updateDestination(
+export async function updateGuardrail(
   sourceId: string,
-  destId: string,
-  params: UpdateDestinationParams,
-): Promise<Destination> {
-  return request<Destination>(
-    `/v1/sources/${sourceId}/destinations/${destId}`,
+  guardrailId: string,
+  params: UpdateGuardrailParams,
+): Promise<Guardrail> {
+  return request<Guardrail>(
+    `/v1/sources/${sourceId}/guardrails/${guardrailId}`,
     {
       method: "PUT",
       body: JSON.stringify(params),
@@ -151,11 +152,11 @@ export async function updateDestination(
   );
 }
 
-export async function deleteDestination(
+export async function deleteGuardrail(
   sourceId: string,
-  destId: string,
+  guardrailId: string,
 ): Promise<void> {
-  return request<void>(`/v1/sources/${sourceId}/destinations/${destId}`, {
+  return request<void>(`/v1/sources/${sourceId}/guardrails/${guardrailId}`, {
     method: "DELETE",
   });
 }
@@ -176,6 +177,12 @@ export async function createAPIKey(
 
 export async function revokeAPIKey(id: string): Promise<void> {
   return request<void>(`/v1/auth/api-keys/${id}`, { method: "DELETE" });
+}
+
+// Models
+export async function listModels(provider?: string): Promise<ModelInfo[]> {
+  const qs = provider ? `?provider=${encodeURIComponent(provider)}` : "";
+  return request<ModelInfo[]>(`/v1/models${qs}`);
 }
 
 // Audit Logs

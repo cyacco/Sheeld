@@ -85,18 +85,18 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute string
 		return nil, fmt.Errorf("source %q is disabled", sourceRoute)
 	}
 
-	// 2. Load enabled destinations
-	destinations, err := p.queries.ListEnabledDestinationsBySource(ctx, source.ID)
+	// 2. Load enabled guardrails
+	guardrails, err := p.queries.ListEnabledGuardrailsBySource(ctx, source.ID)
 	if err != nil {
-		return nil, fmt.Errorf("loading destinations: %w", err)
+		return nil, fmt.Errorf("loading guardrails: %w", err)
 	}
 
 	// 3. Separate into input and output guards
-	inputGuards, err := p.buildGuards(destinations, "input")
+	inputGuards, err := p.buildGuards(guardrails, "input")
 	if err != nil {
 		return nil, fmt.Errorf("building input guards: %w", err)
 	}
-	outputGuards, err := p.buildGuards(destinations, "output")
+	outputGuards, err := p.buildGuards(guardrails, "output")
 	if err != nil {
 		return nil, fmt.Errorf("building output guards: %w", err)
 	}
@@ -200,16 +200,16 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute string
 	return result, nil
 }
 
-// buildGuards creates Guard instances for destinations matching the given phase.
-func (p *Proxy) buildGuards(destinations []generated.Destination, phase string) ([]guard.Guard, error) {
+// buildGuards creates Guard instances for guardrails matching the given phase.
+func (p *Proxy) buildGuards(guardrails []generated.Guardrail, phase string) ([]guard.Guard, error) {
 	var guards []guard.Guard
-	for _, dest := range destinations {
-		if dest.Phase != phase && dest.Phase != "both" {
+	for _, gr := range guardrails {
+		if gr.Phase != phase && gr.Phase != "both" {
 			continue
 		}
-		g, err := p.engine.Registry().Create(dest.GuardType, dest.Name, dest.Config)
+		g, err := p.engine.Registry().Create(gr.GuardType, gr.Name, gr.Config)
 		if err != nil {
-			return nil, fmt.Errorf("creating guard %q (type %s): %w", dest.Name, dest.GuardType, err)
+			return nil, fmt.Errorf("creating guard %q (type %s): %w", gr.Name, gr.GuardType, err)
 		}
 		guards = append(guards, g)
 	}

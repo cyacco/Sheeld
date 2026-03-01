@@ -35,7 +35,7 @@ sheeld/
 │   ├── api/                 # HTTP handlers + middleware (chi router)
 │   │   ├── router.go        # Route definitions
 │   │   ├── middleware/       # auth (JWT + API key), logging, request ID
-│   │   ├── handler/         # auth, source, destination handlers
+│   │   ├── handler/         # auth, source, guardrail handlers
 │   │   └── response/        # JSON response helpers
 │   ├── config/              # envconfig-based configuration
 │   ├── db/
@@ -46,7 +46,7 @@ sheeld/
 │   ├── guard/               # Guardrail engine (Phase 2)
 │   ├── llm/                 # LLM provider proxy (Phase 3)
 │   ├── proxy/               # Proxy orchestration (Phase 3)
-│   └── service/             # Business logic (auth, source, destination)
+│   └── service/             # Business logic (auth, source, guardrail)
 ├── plans/                   # Implementation plans
 │   ├── active/              # Current phase plans
 │   ├── completed/           # Finished phase plans
@@ -95,14 +95,14 @@ PostgreSQL with goose migrations in `internal/db/migrations/`. Tables:
 - `users` — org members
 - `api_keys` — machine-to-machine auth (SHA-256 hashed)
 - `sources` — named entry points (e.g., "feedback", "chat")
-- `destinations` — guardrail instances attached to sources (JSONB config)
+- `guardrails` — guardrail instances attached to sources (JSONB config)
 - `audit_logs` — request history with per-guard results
 
 ## API Endpoints
 
 - `POST /v1/auth/register` | `POST /v1/auth/login` — Auth
 - `CRUD /v1/sources` — Source management (JWT auth)
-- `CRUD /v1/sources/:id/destinations` — Destination management (JWT auth)
+- `CRUD /v1/sources/:id/guardrails` — Guardrail management (JWT auth)
 - `POST /v1/proxy/:source_route` — Main proxy endpoint (API key auth)
 - `GET /healthz` — Health check
 
