@@ -75,7 +75,7 @@ func NewRouter(
 	destinationHandler := handler.NewDestinationHandler(destinationService)
 	proxyHandler := handler.NewProxyHandler(proxyService)
 	auditLogHandler := handler.NewAuditLogHandler(queries)
-	modelsHandler := handler.NewModelsHandler()
+	modelsHandler := handler.NewModelsHandler(queries)
 
 	// Rate limiter for proxy routes
 	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)
