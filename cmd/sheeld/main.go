@@ -13,6 +13,7 @@ import (
 
 	"github.com/sheeld/sheeld/internal/api"
 	"github.com/sheeld/sheeld/internal/config"
+	"github.com/sheeld/sheeld/internal/db"
 	"github.com/sheeld/sheeld/internal/db/generated"
 	"github.com/sheeld/sheeld/internal/guard"
 	"github.com/sheeld/sheeld/internal/llm"
@@ -63,6 +64,12 @@ func run() error {
 		return fmt.Errorf("pinging database: %w", err)
 	}
 	slog.Info("connected to database")
+
+	// Run database migrations
+	if err := db.RunMigrations(ctx, pool); err != nil {
+		return fmt.Errorf("running migrations: %w", err)
+	}
+	slog.Info("database migrations applied")
 
 	// Initialize dependencies
 	queries := generated.New(pool)
