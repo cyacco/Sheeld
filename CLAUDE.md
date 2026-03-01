@@ -103,7 +103,7 @@ PostgreSQL with goose migrations in `internal/db/migrations/`. Tables:
 - `POST /v1/auth/register` | `POST /v1/auth/login` — Auth
 - `CRUD /v1/sources` — Source management (JWT auth)
 - `CRUD /v1/sources/:id/destinations` — Destination management (JWT auth)
-- `POST /v1/proxy/:source_slug` — Main proxy endpoint (API key auth)
+- `POST /v1/proxy/:source_route` — Main proxy endpoint (API key auth)
 - `GET /healthz` — Health check
 
 ## Git Workflow

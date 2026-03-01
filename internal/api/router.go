@@ -126,7 +126,7 @@ func NewRouter(
 			r.Use(middleware.APIKeyAuth(authService))
 			r.Use(rateLimiter.Middleware)
 			r.Use(chimiddleware.Timeout(cfg.ProxyTimeout))
-			r.Post("/{sourceSlug}", proxyHandler.Handle)
+			r.Post("/{sourceRoute}", proxyHandler.Handle)
 		})
 	})
 

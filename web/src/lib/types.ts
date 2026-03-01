@@ -27,7 +27,7 @@ export interface LoginResult {
 export interface Source {
   id: string;
   name: string;
-  slug: string;
+  route: string;
   description?: string;
   llm_provider: string;
   llm_model: string;
@@ -40,7 +40,7 @@ export interface Source {
 
 export interface CreateSourceParams {
   name: string;
-  slug: string;
+  route: string;
   description?: string;
   llm_provider: string;
   llm_model: string;

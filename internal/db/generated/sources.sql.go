@@ -14,18 +14,18 @@ import (
 
 const createSource = `-- name: CreateSource :one
 INSERT INTO sources (
-    organization_id, name, slug, description,
+    organization_id, name, route, description,
     llm_provider, llm_model, llm_api_key_enc,
     pass_criteria, pass_threshold, enabled
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, organization_id, name, slug, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at
+RETURNING id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at
 `
 
 type CreateSourceParams struct {
 	OrganizationID uuid.UUID   `json:"organization_id"`
 	Name           string      `json:"name"`
-	Slug           string      `json:"slug"`
+	Route          string      `json:"route"`
 	Description    pgtype.Text `json:"description"`
 	LlmProvider    string      `json:"llm_provider"`
 	LlmModel       string      `json:"llm_model"`
@@ -39,7 +39,7 @@ func (q *Queries) CreateSource(ctx context.Context, arg CreateSourceParams) (Sou
 	row := q.db.QueryRow(ctx, createSource,
 		arg.OrganizationID,
 		arg.Name,
-		arg.Slug,
+		arg.Route,
 		arg.Description,
 		arg.LlmProvider,
 		arg.LlmModel,
@@ -53,7 +53,7 @@ func (q *Queries) CreateSource(ctx context.Context, arg CreateSourceParams) (Sou
 		&i.ID,
 		&i.OrganizationID,
 		&i.Name,
-		&i.Slug,
+		&i.Route,
 		&i.Description,
 		&i.LlmProvider,
 		&i.LlmModel,
@@ -83,7 +83,7 @@ func (q *Queries) DeleteSource(ctx context.Context, arg DeleteSourceParams) erro
 }
 
 const getSource = `-- name: GetSource :one
-SELECT id, organization_id, name, slug, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at FROM sources
+SELECT id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at FROM sources
 WHERE id = $1 AND organization_id = $2
 `
 
@@ -99,7 +99,7 @@ func (q *Queries) GetSource(ctx context.Context, arg GetSourceParams) (Source, e
 		&i.ID,
 		&i.OrganizationID,
 		&i.Name,
-		&i.Slug,
+		&i.Route,
 		&i.Description,
 		&i.LlmProvider,
 		&i.LlmModel,
@@ -113,24 +113,24 @@ func (q *Queries) GetSource(ctx context.Context, arg GetSourceParams) (Source, e
 	return i, err
 }
 
-const getSourceBySlug = `-- name: GetSourceBySlug :one
-SELECT id, organization_id, name, slug, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at FROM sources
-WHERE slug = $1 AND organization_id = $2
+const getSourceByRoute = `-- name: GetSourceByRoute :one
+SELECT id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at FROM sources
+WHERE route = $1 AND organization_id = $2
 `
 
-type GetSourceBySlugParams struct {
-	Slug           string    `json:"slug"`
+type GetSourceByRouteParams struct {
+	Route          string    `json:"route"`
 	OrganizationID uuid.UUID `json:"organization_id"`
 }
 
-func (q *Queries) GetSourceBySlug(ctx context.Context, arg GetSourceBySlugParams) (Source, error) {
-	row := q.db.QueryRow(ctx, getSourceBySlug, arg.Slug, arg.OrganizationID)
+func (q *Queries) GetSourceByRoute(ctx context.Context, arg GetSourceByRouteParams) (Source, error) {
+	row := q.db.QueryRow(ctx, getSourceByRoute, arg.Route, arg.OrganizationID)
 	var i Source
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationID,
 		&i.Name,
-		&i.Slug,
+		&i.Route,
 		&i.Description,
 		&i.LlmProvider,
 		&i.LlmModel,
@@ -145,7 +145,7 @@ func (q *Queries) GetSourceBySlug(ctx context.Context, arg GetSourceBySlugParams
 }
 
 const listSourcesByOrganization = `-- name: ListSourcesByOrganization :many
-SELECT id, organization_id, name, slug, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at FROM sources
+SELECT id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at FROM sources
 WHERE organization_id = $1
 ORDER BY created_at DESC
 `
@@ -163,7 +163,7 @@ func (q *Queries) ListSourcesByOrganization(ctx context.Context, organizationID 
 			&i.ID,
 			&i.OrganizationID,
 			&i.Name,
-			&i.Slug,
+			&i.Route,
 			&i.Description,
 			&i.LlmProvider,
 			&i.LlmModel,
@@ -188,7 +188,7 @@ const updateSource = `-- name: UpdateSource :one
 UPDATE sources
 SET
     name = $3,
-    slug = $4,
+    route = $4,
     description = $5,
     llm_provider = $6,
     llm_model = $7,
@@ -198,14 +198,14 @@ SET
     enabled = $11,
     updated_at = now()
 WHERE id = $1 AND organization_id = $2
-RETURNING id, organization_id, name, slug, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at
+RETURNING id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at
 `
 
 type UpdateSourceParams struct {
 	ID             uuid.UUID   `json:"id"`
 	OrganizationID uuid.UUID   `json:"organization_id"`
 	Name           string      `json:"name"`
-	Slug           string      `json:"slug"`
+	Route          string      `json:"route"`
 	Description    pgtype.Text `json:"description"`
 	LlmProvider    string      `json:"llm_provider"`
 	LlmModel       string      `json:"llm_model"`
@@ -220,7 +220,7 @@ func (q *Queries) UpdateSource(ctx context.Context, arg UpdateSourceParams) (Sou
 		arg.ID,
 		arg.OrganizationID,
 		arg.Name,
-		arg.Slug,
+		arg.Route,
 		arg.Description,
 		arg.LlmProvider,
 		arg.LlmModel,
@@ -234,7 +234,7 @@ func (q *Queries) UpdateSource(ctx context.Context, arg UpdateSourceParams) (Sou
 		&i.ID,
 		&i.OrganizationID,
 		&i.Name,
-		&i.Slug,
+		&i.Route,
 		&i.Description,
 		&i.LlmProvider,
 		&i.LlmModel,

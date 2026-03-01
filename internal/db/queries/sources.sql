@@ -1,6 +1,6 @@
 -- name: CreateSource :one
 INSERT INTO sources (
-    organization_id, name, slug, description,
+    organization_id, name, route, description,
     llm_provider, llm_model, llm_api_key_enc,
     pass_criteria, pass_threshold, enabled
 )
@@ -11,9 +11,9 @@ RETURNING *;
 SELECT * FROM sources
 WHERE id = $1 AND organization_id = $2;
 
--- name: GetSourceBySlug :one
+-- name: GetSourceByRoute :one
 SELECT * FROM sources
-WHERE slug = $1 AND organization_id = $2;
+WHERE route = $1 AND organization_id = $2;
 
 -- name: ListSourcesByOrganization :many
 SELECT * FROM sources
@@ -24,7 +24,7 @@ ORDER BY created_at DESC;
 UPDATE sources
 SET
     name = $3,
-    slug = $4,
+    route = $4,
     description = $5,
     llm_provider = $6,
     llm_model = $7,

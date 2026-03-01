@@ -23,7 +23,7 @@ interface SourceFormProps {
 
 export function SourceForm({ initial, onSubmit, submitLabel }: SourceFormProps) {
   const [name, setName] = useState(initial?.name ?? "");
-  const [slug, setSlug] = useState(initial?.slug ?? "");
+  const [route, setRoute] = useState(initial?.route ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [llmProvider, setLlmProvider] = useState(initial?.llm_provider ?? "openai");
   const [llmModel, setLlmModel] = useState(initial?.llm_model ?? "gpt-4o");
@@ -41,7 +41,7 @@ export function SourceForm({ initial, onSubmit, submitLabel }: SourceFormProps) 
     try {
       const params: CreateSourceParams = {
         name,
-        slug,
+        route,
         description: description || undefined,
         llm_provider: llmProvider,
         llm_model: llmModel,
@@ -64,14 +64,17 @@ export function SourceForm({ initial, onSubmit, submitLabel }: SourceFormProps) 
           <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="slug">Slug</Label>
+          <Label htmlFor="route">Route</Label>
           <Input
-            id="slug"
-            value={slug}
-            onChange={(e) => setSlug(e.target.value)}
+            id="route"
+            value={route}
+            onChange={(e) => setRoute(e.target.value)}
             placeholder="my-source"
             required
           />
+          <p className="text-xs text-muted-foreground">
+            Used in your proxy URL: /v1/proxy/your-route
+          </p>
         </div>
       </div>
 

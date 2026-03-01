@@ -40,8 +40,8 @@ func (h *SourceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		response.ValidationError(w, "name", "name is required")
 		return
 	}
-	if params.Slug == "" {
-		response.ValidationError(w, "slug", "slug is required")
+	if params.Route == "" {
+		response.ValidationError(w, "route", "route is required")
 		return
 	}
 	if params.LLMProvider == "" {

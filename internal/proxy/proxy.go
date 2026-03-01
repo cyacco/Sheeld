@@ -65,16 +65,16 @@ func requestID(ctx context.Context) string {
 }
 
 // Execute runs the full proxy flow for a given source and chat request.
-func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceSlug string, chatReq *llm.ChatRequest) (*ProxyResult, error) {
+func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute string, chatReq *llm.ChatRequest) (*ProxyResult, error) {
 	start := time.Now()
 	reqID := requestID(ctx)
 
-	log := slog.With("request_id", reqID, "source", sourceSlug)
+	log := slog.With("request_id", reqID, "source", sourceRoute)
 	log.Info("proxy request started")
 
-	// 1. Look up source by slug + org
-	source, err := p.queries.GetSourceBySlug(ctx, generated.GetSourceBySlugParams{
-		Slug:           sourceSlug,
+	// 1. Look up source by route + org
+	source, err := p.queries.GetSourceByRoute(ctx, generated.GetSourceByRouteParams{
+		Route:          sourceRoute,
 		OrganizationID: orgID,
 	})
 	if err != nil {
@@ -82,7 +82,7 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceSlug string,
 	}
 
 	if !source.Enabled {
-		return nil, fmt.Errorf("source %q is disabled", sourceSlug)
+		return nil, fmt.Errorf("source %q is disabled", sourceRoute)
 	}
 
 	// 2. Load enabled destinations
@@ -245,6 +245,6 @@ func (p *Proxy) writeAuditLog(
 		LatencyMs:      int32(latencyMs),
 	})
 	if err != nil {
-		slog.Error("failed to write audit log", "error", err, "source", source.Slug)
+		slog.Error("failed to write audit log", "error", err, "source", source.Route)
 	}
 }

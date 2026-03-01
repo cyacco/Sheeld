@@ -49,7 +49,7 @@ type Source struct {
 	ID             uuid.UUID    `json:"id"`
 	OrganizationID uuid.UUID    `json:"organization_id"`
 	Name           string       `json:"name"`
-	Slug           string       `json:"slug"`
+	Route          string       `json:"route"`
 	Description    *string      `json:"description,omitempty"`
 	LLMProvider    string       `json:"llm_provider"`
 	LLMModel       string       `json:"llm_model"`

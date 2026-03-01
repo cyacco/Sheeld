@@ -18,7 +18,7 @@ export function SourceCard({ source }: { source: Source }) {
           </div>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground font-mono mb-1">/{source.slug}</p>
+          <p className="text-sm text-muted-foreground font-mono mb-1">/{source.route}</p>
           {source.description && (
             <p className="text-sm text-muted-foreground mb-2">{source.description}</p>
           )}

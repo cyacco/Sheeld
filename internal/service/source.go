@@ -14,7 +14,7 @@ import (
 // CreateSourceParams holds the input for creating a source.
 type CreateSourceParams struct {
 	Name          string  `json:"name"`
-	Slug          string  `json:"slug"`
+	Route         string  `json:"route"`
 	Description   *string `json:"description,omitempty"`
 	LLMProvider   string  `json:"llm_provider"`
 	LLMModel      string  `json:"llm_model"`
@@ -27,7 +27,7 @@ type CreateSourceParams struct {
 // UpdateSourceParams holds the input for updating a source.
 type UpdateSourceParams struct {
 	Name          string  `json:"name"`
-	Slug          string  `json:"slug"`
+	Route         string  `json:"route"`
 	Description   *string `json:"description,omitempty"`
 	LLMProvider   string  `json:"llm_provider"`
 	LLMModel      string  `json:"llm_model"`
@@ -71,7 +71,7 @@ func (s *SourceService) Create(ctx context.Context, orgID uuid.UUID, params Crea
 	return s.queries.CreateSource(ctx, generated.CreateSourceParams{
 		OrganizationID: orgID,
 		Name:           params.Name,
-		Slug:           params.Slug,
+		Route:          params.Route,
 		Description:    description,
 		LlmProvider:    params.LLMProvider,
 		LlmModel:       params.LLMModel,
@@ -90,10 +90,10 @@ func (s *SourceService) Get(ctx context.Context, orgID, sourceID uuid.UUID) (gen
 	})
 }
 
-// GetBySlug retrieves a source by slug.
-func (s *SourceService) GetBySlug(ctx context.Context, orgID uuid.UUID, slug string) (generated.Source, error) {
-	return s.queries.GetSourceBySlug(ctx, generated.GetSourceBySlugParams{
-		Slug:           slug,
+// GetByRoute retrieves a source by route.
+func (s *SourceService) GetByRoute(ctx context.Context, orgID uuid.UUID, route string) (generated.Source, error) {
+	return s.queries.GetSourceByRoute(ctx, generated.GetSourceByRouteParams{
+		Route:          route,
 		OrganizationID: orgID,
 	})
 }
@@ -124,7 +124,7 @@ func (s *SourceService) Update(ctx context.Context, orgID, sourceID uuid.UUID, p
 		ID:             sourceID,
 		OrganizationID: orgID,
 		Name:           params.Name,
-		Slug:           params.Slug,
+		Route:          params.Route,
 		Description:    description,
 		LlmProvider:    params.LLMProvider,
 		LlmModel:       params.LLMModel,
@@ -147,7 +147,7 @@ func (s *SourceService) Delete(ctx context.Context, orgID, sourceID uuid.UUID) e
 type SourceResponse struct {
 	ID            uuid.UUID `json:"id"`
 	Name          string    `json:"name"`
-	Slug          string    `json:"slug"`
+	Route         string    `json:"route"`
 	Description   *string   `json:"description,omitempty"`
 	LLMProvider   string    `json:"llm_provider"`
 	LLMModel      string    `json:"llm_model"`
@@ -163,7 +163,7 @@ func ToSourceResponse(src generated.Source) SourceResponse {
 	resp := SourceResponse{
 		ID:           src.ID,
 		Name:         src.Name,
-		Slug:         src.Slug,
+		Route:        src.Route,
 		LLMProvider:  src.LlmProvider,
 		LLMModel:     src.LlmModel,
 		PassCriteria: src.PassCriteria,

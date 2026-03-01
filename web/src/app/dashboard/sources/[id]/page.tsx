@@ -132,7 +132,7 @@ export default function SourceDetailPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold">{source.name}</h2>
-          <p className="text-sm text-muted-foreground font-mono">/{source.slug}</p>
+          <p className="text-sm text-muted-foreground font-mono">/{source.route}</p>
         </div>
         <Button variant="destructive" size="sm" onClick={handleDeleteSource}>
           Delete Source

@@ -23,7 +23,7 @@ func NewProxyHandler(p *proxy.Proxy) *ProxyHandler {
 	return &ProxyHandler{proxy: p}
 }
 
-// Handle processes POST /v1/proxy/:sourceSlug.
+// Handle processes POST /v1/proxy/:sourceRoute.
 func (h *ProxyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.OrgIDFromContext(r.Context())
 	if orgID == uuid.Nil {
@@ -31,9 +31,9 @@ func (h *ProxyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sourceSlug := chi.URLParam(r, "sourceSlug")
-	if sourceSlug == "" {
-		response.Error(w, http.StatusBadRequest, "missing source slug")
+	sourceRoute := chi.URLParam(r, "sourceRoute")
+	if sourceRoute == "" {
+		response.Error(w, http.StatusBadRequest, "missing source route")
 		return
 	}
 
@@ -48,7 +48,7 @@ func (h *ProxyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.proxy.Execute(r.Context(), orgID, sourceSlug, &chatReq)
+	result, err := h.proxy.Execute(r.Context(), orgID, sourceRoute, &chatReq)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, err.Error())
 		return

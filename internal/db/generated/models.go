@@ -57,7 +57,7 @@ type Source struct {
 	ID             uuid.UUID   `json:"id"`
 	OrganizationID uuid.UUID   `json:"organization_id"`
 	Name           string      `json:"name"`
-	Slug           string      `json:"slug"`
+	Route          string      `json:"route"`
 	Description    pgtype.Text `json:"description"`
 	LlmProvider    string      `json:"llm_provider"`
 	LlmModel       string      `json:"llm_model"`
