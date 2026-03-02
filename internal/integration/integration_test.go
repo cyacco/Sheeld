@@ -290,8 +290,8 @@ func TestAuth(t *testing.T) {
 	t.Run("register happy path", func(t *testing.T) {
 		resp := doRequest(t, "POST", "/v1/auth/register", map[string]string{
 			"org_name": "Auth Test Org",
-			"email":             "authtest@example.com",
-			"password":          "strongpassword123",
+			"email":    "authtest@example.com",
+			"password": "strongpassword123",
 		}, "")
 		expectStatus(t, resp, http.StatusCreated)
 		var result map[string]interface{}
@@ -310,7 +310,7 @@ func TestAuth(t *testing.T) {
 	t.Run("register missing email", func(t *testing.T) {
 		resp := doRequest(t, "POST", "/v1/auth/register", map[string]string{
 			"org_name": "Missing Email Org",
-			"password":          "strongpassword123",
+			"password": "strongpassword123",
 		}, "")
 		expectStatus(t, resp, http.StatusBadRequest)
 	})
@@ -318,8 +318,8 @@ func TestAuth(t *testing.T) {
 	t.Run("register short password", func(t *testing.T) {
 		resp := doRequest(t, "POST", "/v1/auth/register", map[string]string{
 			"org_name": "Short PW Org",
-			"email":             "shortpw@example.com",
-			"password":          "short",
+			"email":    "shortpw@example.com",
+			"password": "short",
 		}, "")
 		expectStatus(t, resp, http.StatusBadRequest)
 	})
@@ -327,8 +327,8 @@ func TestAuth(t *testing.T) {
 	t.Run("register duplicate email", func(t *testing.T) {
 		resp := doRequest(t, "POST", "/v1/auth/register", map[string]string{
 			"org_name": "Dup Org",
-			"email":             "authtest@example.com",
-			"password":          "strongpassword123",
+			"email":    "authtest@example.com",
+			"password": "strongpassword123",
 		}, "")
 		expectStatus(t, resp, http.StatusInternalServerError)
 	})
