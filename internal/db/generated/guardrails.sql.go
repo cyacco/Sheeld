@@ -13,23 +13,23 @@ import (
 )
 
 const createGuardrail = `-- name: CreateGuardrail :one
-INSERT INTO guardrails (source_id, name, guard_type, phase, config, enabled)
+INSERT INTO guardrails (organization_id, name, guard_type, phase, config, enabled)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, source_id, name, guard_type, phase, config, enabled, created_at, updated_at
+RETURNING id, name, guard_type, phase, config, enabled, created_at, updated_at, organization_id
 `
 
 type CreateGuardrailParams struct {
-	SourceID  uuid.UUID       `json:"source_id"`
-	Name      string          `json:"name"`
-	GuardType string          `json:"guard_type"`
-	Phase     string          `json:"phase"`
-	Config    json.RawMessage `json:"config"`
-	Enabled   bool            `json:"enabled"`
+	OrganizationID uuid.UUID       `json:"organization_id"`
+	Name           string          `json:"name"`
+	GuardType      string          `json:"guard_type"`
+	Phase          string          `json:"phase"`
+	Config         json.RawMessage `json:"config"`
+	Enabled        bool            `json:"enabled"`
 }
 
 func (q *Queries) CreateGuardrail(ctx context.Context, arg CreateGuardrailParams) (Guardrail, error) {
 	row := q.db.QueryRow(ctx, createGuardrail,
-		arg.SourceID,
+		arg.OrganizationID,
 		arg.Name,
 		arg.GuardType,
 		arg.Phase,
@@ -39,7 +39,6 @@ func (q *Queries) CreateGuardrail(ctx context.Context, arg CreateGuardrailParams
 	var i Guardrail
 	err := row.Scan(
 		&i.ID,
-		&i.SourceID,
 		&i.Name,
 		&i.GuardType,
 		&i.Phase,
@@ -47,41 +46,41 @@ func (q *Queries) CreateGuardrail(ctx context.Context, arg CreateGuardrailParams
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const deleteGuardrail = `-- name: DeleteGuardrail :exec
 DELETE FROM guardrails
-WHERE id = $1 AND source_id = $2
+WHERE id = $1 AND organization_id = $2
 `
 
 type DeleteGuardrailParams struct {
-	ID       uuid.UUID `json:"id"`
-	SourceID uuid.UUID `json:"source_id"`
+	ID             uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
 }
 
 func (q *Queries) DeleteGuardrail(ctx context.Context, arg DeleteGuardrailParams) error {
-	_, err := q.db.Exec(ctx, deleteGuardrail, arg.ID, arg.SourceID)
+	_, err := q.db.Exec(ctx, deleteGuardrail, arg.ID, arg.OrganizationID)
 	return err
 }
 
 const getGuardrail = `-- name: GetGuardrail :one
-SELECT id, source_id, name, guard_type, phase, config, enabled, created_at, updated_at FROM guardrails
-WHERE id = $1 AND source_id = $2
+SELECT id, name, guard_type, phase, config, enabled, created_at, updated_at, organization_id FROM guardrails
+WHERE id = $1 AND organization_id = $2
 `
 
 type GetGuardrailParams struct {
-	ID       uuid.UUID `json:"id"`
-	SourceID uuid.UUID `json:"source_id"`
+	ID             uuid.UUID `json:"id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
 }
 
 func (q *Queries) GetGuardrail(ctx context.Context, arg GetGuardrailParams) (Guardrail, error) {
-	row := q.db.QueryRow(ctx, getGuardrail, arg.ID, arg.SourceID)
+	row := q.db.QueryRow(ctx, getGuardrail, arg.ID, arg.OrganizationID)
 	var i Guardrail
 	err := row.Scan(
 		&i.ID,
-		&i.SourceID,
 		&i.Name,
 		&i.GuardType,
 		&i.Phase,
@@ -89,14 +88,16 @@ func (q *Queries) GetGuardrail(ctx context.Context, arg GetGuardrailParams) (Gua
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrganizationID,
 	)
 	return i, err
 }
 
 const listEnabledGuardrailsBySource = `-- name: ListEnabledGuardrailsBySource :many
-SELECT id, source_id, name, guard_type, phase, config, enabled, created_at, updated_at FROM guardrails
-WHERE source_id = $1 AND enabled = true
-ORDER BY created_at ASC
+SELECT g.id, g.name, g.guard_type, g.phase, g.config, g.enabled, g.created_at, g.updated_at, g.organization_id FROM guardrails g
+JOIN source_guardrails sg ON sg.guardrail_id = g.id
+WHERE sg.source_id = $1 AND g.enabled = true
+ORDER BY g.created_at ASC
 `
 
 func (q *Queries) ListEnabledGuardrailsBySource(ctx context.Context, sourceID uuid.UUID) ([]Guardrail, error) {
@@ -110,7 +111,6 @@ func (q *Queries) ListEnabledGuardrailsBySource(ctx context.Context, sourceID uu
 		var i Guardrail
 		if err := rows.Scan(
 			&i.ID,
-			&i.SourceID,
 			&i.Name,
 			&i.GuardType,
 			&i.Phase,
@@ -118,6 +118,43 @@ func (q *Queries) ListEnabledGuardrailsBySource(ctx context.Context, sourceID uu
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OrganizationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGuardrailsByOrg = `-- name: ListGuardrailsByOrg :many
+SELECT id, name, guard_type, phase, config, enabled, created_at, updated_at, organization_id FROM guardrails
+WHERE organization_id = $1
+ORDER BY created_at ASC
+`
+
+func (q *Queries) ListGuardrailsByOrg(ctx context.Context, organizationID uuid.UUID) ([]Guardrail, error) {
+	rows, err := q.db.Query(ctx, listGuardrailsByOrg, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Guardrail{}
+	for rows.Next() {
+		var i Guardrail
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.GuardType,
+			&i.Phase,
+			&i.Config,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -130,9 +167,10 @@ func (q *Queries) ListEnabledGuardrailsBySource(ctx context.Context, sourceID uu
 }
 
 const listGuardrailsBySource = `-- name: ListGuardrailsBySource :many
-SELECT id, source_id, name, guard_type, phase, config, enabled, created_at, updated_at FROM guardrails
-WHERE source_id = $1
-ORDER BY created_at ASC
+SELECT g.id, g.name, g.guard_type, g.phase, g.config, g.enabled, g.created_at, g.updated_at, g.organization_id FROM guardrails g
+JOIN source_guardrails sg ON sg.guardrail_id = g.id
+WHERE sg.source_id = $1
+ORDER BY g.created_at ASC
 `
 
 func (q *Queries) ListGuardrailsBySource(ctx context.Context, sourceID uuid.UUID) ([]Guardrail, error) {
@@ -146,7 +184,6 @@ func (q *Queries) ListGuardrailsBySource(ctx context.Context, sourceID uuid.UUID
 		var i Guardrail
 		if err := rows.Scan(
 			&i.ID,
-			&i.SourceID,
 			&i.Name,
 			&i.GuardType,
 			&i.Phase,
@@ -154,6 +191,7 @@ func (q *Queries) ListGuardrailsBySource(ctx context.Context, sourceID uuid.UUID
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -174,24 +212,24 @@ SET
     config = $6,
     enabled = $7,
     updated_at = now()
-WHERE id = $1 AND source_id = $2
-RETURNING id, source_id, name, guard_type, phase, config, enabled, created_at, updated_at
+WHERE id = $1 AND organization_id = $2
+RETURNING id, name, guard_type, phase, config, enabled, created_at, updated_at, organization_id
 `
 
 type UpdateGuardrailParams struct {
-	ID        uuid.UUID       `json:"id"`
-	SourceID  uuid.UUID       `json:"source_id"`
-	Name      string          `json:"name"`
-	GuardType string          `json:"guard_type"`
-	Phase     string          `json:"phase"`
-	Config    json.RawMessage `json:"config"`
-	Enabled   bool            `json:"enabled"`
+	ID             uuid.UUID       `json:"id"`
+	OrganizationID uuid.UUID       `json:"organization_id"`
+	Name           string          `json:"name"`
+	GuardType      string          `json:"guard_type"`
+	Phase          string          `json:"phase"`
+	Config         json.RawMessage `json:"config"`
+	Enabled        bool            `json:"enabled"`
 }
 
 func (q *Queries) UpdateGuardrail(ctx context.Context, arg UpdateGuardrailParams) (Guardrail, error) {
 	row := q.db.QueryRow(ctx, updateGuardrail,
 		arg.ID,
-		arg.SourceID,
+		arg.OrganizationID,
 		arg.Name,
 		arg.GuardType,
 		arg.Phase,
@@ -201,7 +239,6 @@ func (q *Queries) UpdateGuardrail(ctx context.Context, arg UpdateGuardrailParams
 	var i Guardrail
 	err := row.Scan(
 		&i.ID,
-		&i.SourceID,
 		&i.Name,
 		&i.GuardType,
 		&i.Phase,
@@ -209,6 +246,7 @@ func (q *Queries) UpdateGuardrail(ctx context.Context, arg UpdateGuardrailParams
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OrganizationID,
 	)
 	return i, err
 }
