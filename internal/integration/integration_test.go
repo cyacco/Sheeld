@@ -271,6 +271,45 @@ func createAPIKey(t *testing.T, token, name string) string {
 	return rawKey
 }
 
+func createSource(t *testing.T, token string, name, route string) string {
+	t.Helper()
+	resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
+		"name":          name,
+		"route":         route,
+		"llm_provider":  "openai",
+		"llm_model":     "gpt-4o",
+		"llm_api_key":   "sk-test-key-12345",
+		"pass_criteria": "all",
+		"enabled":       true,
+	}, token)
+	expectStatus(t, resp, http.StatusCreated)
+	var result map[string]interface{}
+	decodeBody(t, resp, &result)
+	return result["id"].(string)
+}
+
+func createGuardrail(t *testing.T, token string, params map[string]interface{}) string {
+	t.Helper()
+	resp := doRequest(t, "POST", "/v1/guardrails", params, token)
+	expectStatus(t, resp, http.StatusCreated)
+	var result map[string]interface{}
+	decodeBody(t, resp, &result)
+	id, ok := result["id"].(string)
+	if !ok || id == "" {
+		t.Fatalf("expected guardrail ID, got: %v", result)
+	}
+	return id
+}
+
+func attachGuardrail(t *testing.T, token, guardrailID, sourceID string) {
+	t.Helper()
+	resp := doRequest(t, "POST", "/v1/guardrails/"+guardrailID+"/sources", map[string]interface{}{
+		"source_id": sourceID,
+	}, token)
+	expectStatus(t, resp, http.StatusCreated)
+	resp.Body.Close()
+}
+
 // --- Test Cases ---
 
 func TestHealthz(t *testing.T) {
@@ -516,25 +555,10 @@ func TestSources(t *testing.T) {
 func TestGuardrails(t *testing.T) {
 	token := registerUser(t, "Guardrails Test Org", "guardrails@example.com", "strongpassword123")
 
-	// Create a source to attach guardrails to
-	resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
-		"name":          "Guard Source",
-		"route":         "guard-source",
-		"llm_provider":  "openai",
-		"llm_model":     "gpt-4o",
-		"llm_api_key":   "sk-test-key-12345",
-		"pass_criteria": "all",
-		"enabled":       true,
-	}, token)
-	expectStatus(t, resp, http.StatusCreated)
-	var source map[string]interface{}
-	decodeBody(t, resp, &source)
-	sourceID := source["id"].(string)
-
 	var blocklist1ID, regex1ID string
 
 	t.Run("create blocklist guardrail", func(t *testing.T) {
-		resp := doRequest(t, "POST", "/v1/sources/"+sourceID+"/guardrails", map[string]interface{}{
+		blocklist1ID = createGuardrail(t, token, map[string]interface{}{
 			"name":       "Block Bad Words",
 			"guard_type": "blocklist",
 			"phase":      "input",
@@ -542,18 +566,11 @@ func TestGuardrails(t *testing.T) {
 				"words": []string{"forbidden", "banned"},
 			},
 			"enabled": true,
-		}, token)
-		expectStatus(t, resp, http.StatusCreated)
-		var result map[string]interface{}
-		decodeBody(t, resp, &result)
-		blocklist1ID = result["id"].(string)
-		if blocklist1ID == "" {
-			t.Fatal("expected guardrail ID")
-		}
+		})
 	})
 
 	t.Run("create regex guardrail", func(t *testing.T) {
-		resp := doRequest(t, "POST", "/v1/sources/"+sourceID+"/guardrails", map[string]interface{}{
+		regex1ID = createGuardrail(t, token, map[string]interface{}{
 			"name":       "Block SSN",
 			"guard_type": "regex",
 			"phase":      "input",
@@ -561,18 +578,11 @@ func TestGuardrails(t *testing.T) {
 				"pattern": `\d{3}-\d{2}-\d{4}`,
 			},
 			"enabled": true,
-		}, token)
-		expectStatus(t, resp, http.StatusCreated)
-		var result map[string]interface{}
-		decodeBody(t, resp, &result)
-		regex1ID = result["id"].(string)
-		if regex1ID == "" {
-			t.Fatal("expected guardrail ID")
-		}
+		})
 	})
 
-	t.Run("list guardrails", func(t *testing.T) {
-		resp := doRequest(t, "GET", "/v1/sources/"+sourceID+"/guardrails", nil, token)
+	t.Run("list guardrails (org-scoped)", func(t *testing.T) {
+		resp := doRequest(t, "GET", "/v1/guardrails", nil, token)
 		expectStatus(t, resp, http.StatusOK)
 		var guardrails []interface{}
 		decodeBody(t, resp, &guardrails)
@@ -582,17 +592,20 @@ func TestGuardrails(t *testing.T) {
 	})
 
 	t.Run("get guardrail by ID", func(t *testing.T) {
-		resp := doRequest(t, "GET", "/v1/sources/"+sourceID+"/guardrails/"+blocklist1ID, nil, token)
+		resp := doRequest(t, "GET", "/v1/guardrails/"+blocklist1ID, nil, token)
 		expectStatus(t, resp, http.StatusOK)
 		var result map[string]interface{}
 		decodeBody(t, resp, &result)
 		if result["id"] != blocklist1ID {
 			t.Errorf("expected id %s, got %v", blocklist1ID, result["id"])
 		}
+		if result["organization_id"] == nil {
+			t.Error("expected organization_id in response")
+		}
 	})
 
 	t.Run("update guardrail", func(t *testing.T) {
-		resp := doRequest(t, "PUT", "/v1/sources/"+sourceID+"/guardrails/"+blocklist1ID, map[string]interface{}{
+		resp := doRequest(t, "PUT", "/v1/guardrails/"+blocklist1ID, map[string]interface{}{
 			"name":       "Updated Block Bad Words",
 			"guard_type": "blocklist",
 			"phase":      "input",
@@ -610,11 +623,11 @@ func TestGuardrails(t *testing.T) {
 	})
 
 	t.Run("delete guardrail", func(t *testing.T) {
-		resp := doRequest(t, "DELETE", "/v1/sources/"+sourceID+"/guardrails/"+regex1ID, nil, token)
+		resp := doRequest(t, "DELETE", "/v1/guardrails/"+regex1ID, nil, token)
 		expectStatus(t, resp, http.StatusOK)
 
 		// Subsequent GET should fail
-		resp = doRequest(t, "GET", "/v1/sources/"+sourceID+"/guardrails/"+regex1ID, nil, token)
+		resp = doRequest(t, "GET", "/v1/guardrails/"+regex1ID, nil, token)
 		if resp.StatusCode == http.StatusOK {
 			t.Error("expected guardrail to be deleted")
 		}
@@ -622,7 +635,7 @@ func TestGuardrails(t *testing.T) {
 	})
 
 	t.Run("default phase is input", func(t *testing.T) {
-		resp := doRequest(t, "POST", "/v1/sources/"+sourceID+"/guardrails", map[string]interface{}{
+		resp := doRequest(t, "POST", "/v1/guardrails", map[string]interface{}{
 			"name":       "No Phase Specified",
 			"guard_type": "blocklist",
 			"config": map[string]interface{}{
@@ -637,6 +650,100 @@ func TestGuardrails(t *testing.T) {
 			t.Errorf("expected default phase 'input', got %v", result["phase"])
 		}
 	})
+
+	t.Run("attach and detach", func(t *testing.T) {
+		sourceID := createSource(t, token, "Attach Source", "attach-source")
+
+		// Attach guardrail to source
+		attachGuardrail(t, token, blocklist1ID, sourceID)
+
+		// List guardrails for source
+		resp := doRequest(t, "GET", "/v1/sources/"+sourceID+"/guardrails", nil, token)
+		expectStatus(t, resp, http.StatusOK)
+		var guardrails []interface{}
+		decodeBody(t, resp, &guardrails)
+		if len(guardrails) != 1 {
+			t.Fatalf("expected 1 guardrail attached, got %d", len(guardrails))
+		}
+
+		// List sources for guardrail
+		resp = doRequest(t, "GET", "/v1/guardrails/"+blocklist1ID+"/sources", nil, token)
+		expectStatus(t, resp, http.StatusOK)
+		var sources []interface{}
+		decodeBody(t, resp, &sources)
+		if len(sources) != 1 {
+			t.Fatalf("expected 1 source attached, got %d", len(sources))
+		}
+
+		// Detach
+		resp = doRequest(t, "DELETE", "/v1/guardrails/"+blocklist1ID+"/sources/"+sourceID, nil, token)
+		expectStatus(t, resp, http.StatusOK)
+		resp.Body.Close()
+
+		// Verify empty
+		resp = doRequest(t, "GET", "/v1/sources/"+sourceID+"/guardrails", nil, token)
+		expectStatus(t, resp, http.StatusOK)
+		decodeBody(t, resp, &guardrails)
+		if len(guardrails) != 0 {
+			t.Errorf("expected 0 guardrails after detach, got %d", len(guardrails))
+		}
+	})
+
+	t.Run("reuse guardrail across sources", func(t *testing.T) {
+		sourceA := createSource(t, token, "Reuse Source A", "reuse-a")
+		sourceB := createSource(t, token, "Reuse Source B", "reuse-b")
+
+		attachGuardrail(t, token, blocklist1ID, sourceA)
+		attachGuardrail(t, token, blocklist1ID, sourceB)
+
+		// Both sources should list the guardrail
+		resp := doRequest(t, "GET", "/v1/sources/"+sourceA+"/guardrails", nil, token)
+		expectStatus(t, resp, http.StatusOK)
+		var guardsA []interface{}
+		decodeBody(t, resp, &guardsA)
+		if len(guardsA) != 1 {
+			t.Errorf("expected 1 guardrail on source A, got %d", len(guardsA))
+		}
+
+		resp = doRequest(t, "GET", "/v1/sources/"+sourceB+"/guardrails", nil, token)
+		expectStatus(t, resp, http.StatusOK)
+		var guardsB []interface{}
+		decodeBody(t, resp, &guardsB)
+		if len(guardsB) != 1 {
+			t.Errorf("expected 1 guardrail on source B, got %d", len(guardsB))
+		}
+
+		// Guardrail should list both sources
+		resp = doRequest(t, "GET", "/v1/guardrails/"+blocklist1ID+"/sources", nil, token)
+		expectStatus(t, resp, http.StatusOK)
+		var sources []interface{}
+		decodeBody(t, resp, &sources)
+		if len(sources) != 2 {
+			t.Errorf("expected 2 sources attached, got %d", len(sources))
+		}
+	})
+
+	t.Run("deleting source does not delete guardrail", func(t *testing.T) {
+		sourceID := createSource(t, token, "Ephemeral Source", "ephemeral-source")
+		gID := createGuardrail(t, token, map[string]interface{}{
+			"name":       "Survivor Guard",
+			"guard_type": "blocklist",
+			"phase":      "input",
+			"config":     map[string]interface{}{"words": []string{"x"}},
+			"enabled":    true,
+		})
+		attachGuardrail(t, token, gID, sourceID)
+
+		// Delete the source
+		resp := doRequest(t, "DELETE", "/v1/sources/"+sourceID, nil, token)
+		expectStatus(t, resp, http.StatusOK)
+		resp.Body.Close()
+
+		// Guardrail should still exist
+		resp = doRequest(t, "GET", "/v1/guardrails/"+gID, nil, token)
+		expectStatus(t, resp, http.StatusOK)
+		resp.Body.Close()
+	})
 }
 
 func TestProxy(t *testing.T) {
@@ -646,24 +753,10 @@ func TestProxy(t *testing.T) {
 	setMockLLMResponse("Hello! I'm a helpful assistant.")
 
 	t.Run("happy path no guards", func(t *testing.T) {
-		// Create source
-		resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
-			"name":          "Proxy Happy",
-			"route":         "proxy-happy",
-			"llm_provider":  "openai",
-			"llm_model":     "gpt-4o",
-			"llm_api_key":   "sk-test-key-12345",
-			"pass_criteria": "all",
-			"enabled":       true,
-		}, token)
-		expectStatus(t, resp, http.StatusCreated)
-		resp.Body.Close()
-
-		// Create API key
+		createSource(t, token, "Proxy Happy", "proxy-happy")
 		apiKey := createAPIKey(t, token, "proxy-test-key")
 
-		// Proxy request
-		resp = doRequest(t, "POST", "/v1/proxy/proxy-happy", map[string]interface{}{
+		resp := doRequest(t, "POST", "/v1/proxy/proxy-happy", map[string]interface{}{
 			"model": "gpt-4o",
 			"messages": []map[string]string{
 				{"role": "user", "content": "Hello, world!"},
@@ -681,38 +774,19 @@ func TestProxy(t *testing.T) {
 	})
 
 	t.Run("input guard rejects", func(t *testing.T) {
-		// Create source with input blocklist
-		resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
-			"name":          "Proxy Input Guard",
-			"route":         "proxy-input-guard",
-			"llm_provider":  "openai",
-			"llm_model":     "gpt-4o",
-			"llm_api_key":   "sk-test-key-12345",
-			"pass_criteria": "all",
-			"enabled":       true,
-		}, token)
-		expectStatus(t, resp, http.StatusCreated)
-		var source map[string]interface{}
-		decodeBody(t, resp, &source)
-		sourceID := source["id"].(string)
-
-		// Add input blocklist guard
-		resp = doRequest(t, "POST", "/v1/sources/"+sourceID+"/guardrails", map[string]interface{}{
+		sourceID := createSource(t, token, "Proxy Input Guard", "proxy-input-guard")
+		gID := createGuardrail(t, token, map[string]interface{}{
 			"name":       "Input Blocklist",
 			"guard_type": "blocklist",
 			"phase":      "input",
-			"config": map[string]interface{}{
-				"words": []string{"forbidden"},
-			},
-			"enabled": true,
-		}, token)
-		expectStatus(t, resp, http.StatusCreated)
-		resp.Body.Close()
+			"config":     map[string]interface{}{"words": []string{"forbidden"}},
+			"enabled":    true,
+		})
+		attachGuardrail(t, token, gID, sourceID)
 
 		apiKey := createAPIKey(t, token, "input-guard-key")
 
-		// Send message with forbidden word
-		resp = doRequest(t, "POST", "/v1/proxy/proxy-input-guard", map[string]interface{}{
+		resp := doRequest(t, "POST", "/v1/proxy/proxy-input-guard", map[string]interface{}{
 			"model": "gpt-4o",
 			"messages": []map[string]string{
 				{"role": "user", "content": "This message contains forbidden content"},
@@ -733,40 +807,21 @@ func TestProxy(t *testing.T) {
 	})
 
 	t.Run("output guard rejects", func(t *testing.T) {
-		// Set mock LLM to return content with bad word
 		setMockLLMResponse("Here is some badword content for you.")
 
-		resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
-			"name":          "Proxy Output Guard",
-			"route":         "proxy-output-guard",
-			"llm_provider":  "openai",
-			"llm_model":     "gpt-4o",
-			"llm_api_key":   "sk-test-key-12345",
-			"pass_criteria": "all",
-			"enabled":       true,
-		}, token)
-		expectStatus(t, resp, http.StatusCreated)
-		var source map[string]interface{}
-		decodeBody(t, resp, &source)
-		sourceID := source["id"].(string)
-
-		// Add output blocklist guard
-		resp = doRequest(t, "POST", "/v1/sources/"+sourceID+"/guardrails", map[string]interface{}{
+		sourceID := createSource(t, token, "Proxy Output Guard", "proxy-output-guard")
+		gID := createGuardrail(t, token, map[string]interface{}{
 			"name":       "Output Blocklist",
 			"guard_type": "blocklist",
 			"phase":      "output",
-			"config": map[string]interface{}{
-				"words": []string{"badword"},
-			},
-			"enabled": true,
-		}, token)
-		expectStatus(t, resp, http.StatusCreated)
-		resp.Body.Close()
+			"config":     map[string]interface{}{"words": []string{"badword"}},
+			"enabled":    true,
+		})
+		attachGuardrail(t, token, gID, sourceID)
 
 		apiKey := createAPIKey(t, token, "output-guard-key")
 
-		// Send clean input (output will be blocked)
-		resp = doRequest(t, "POST", "/v1/proxy/proxy-output-guard", map[string]interface{}{
+		resp := doRequest(t, "POST", "/v1/proxy/proxy-output-guard", map[string]interface{}{
 			"model": "gpt-4o",
 			"messages": []map[string]string{
 				{"role": "user", "content": "Tell me something nice"},
@@ -782,56 +837,35 @@ func TestProxy(t *testing.T) {
 			t.Errorf("expected phase 'output', got %v", result["phase"])
 		}
 
-		// Reset mock LLM
 		setMockLLMResponse("Hello! I'm a helpful assistant.")
 	})
 
 	t.Run("all guards pass", func(t *testing.T) {
 		setMockLLMResponse("This is a clean response.")
 
-		resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
-			"name":          "Proxy All Pass",
-			"route":         "proxy-all-pass",
-			"llm_provider":  "openai",
-			"llm_model":     "gpt-4o",
-			"llm_api_key":   "sk-test-key-12345",
-			"pass_criteria": "all",
-			"enabled":       true,
-		}, token)
-		expectStatus(t, resp, http.StatusCreated)
-		var source map[string]interface{}
-		decodeBody(t, resp, &source)
-		sourceID := source["id"].(string)
+		sourceID := createSource(t, token, "Proxy All Pass", "proxy-all-pass")
 
-		// Add input guard
-		resp = doRequest(t, "POST", "/v1/sources/"+sourceID+"/guardrails", map[string]interface{}{
+		inputGID := createGuardrail(t, token, map[string]interface{}{
 			"name":       "Input Blocklist Pass",
 			"guard_type": "blocklist",
 			"phase":      "input",
-			"config": map[string]interface{}{
-				"words": []string{"forbidden"},
-			},
-			"enabled": true,
-		}, token)
-		expectStatus(t, resp, http.StatusCreated)
-		resp.Body.Close()
+			"config":     map[string]interface{}{"words": []string{"forbidden"}},
+			"enabled":    true,
+		})
+		attachGuardrail(t, token, inputGID, sourceID)
 
-		// Add output guard
-		resp = doRequest(t, "POST", "/v1/sources/"+sourceID+"/guardrails", map[string]interface{}{
+		outputGID := createGuardrail(t, token, map[string]interface{}{
 			"name":       "Output Blocklist Pass",
 			"guard_type": "blocklist",
 			"phase":      "output",
-			"config": map[string]interface{}{
-				"words": []string{"badword"},
-			},
-			"enabled": true,
-		}, token)
-		expectStatus(t, resp, http.StatusCreated)
-		resp.Body.Close()
+			"config":     map[string]interface{}{"words": []string{"badword"}},
+			"enabled":    true,
+		})
+		attachGuardrail(t, token, outputGID, sourceID)
 
 		apiKey := createAPIKey(t, token, "all-pass-key")
 
-		resp = doRequest(t, "POST", "/v1/proxy/proxy-all-pass", map[string]interface{}{
+		resp := doRequest(t, "POST", "/v1/proxy/proxy-all-pass", map[string]interface{}{
 			"model": "gpt-4o",
 			"messages": []map[string]string{
 				{"role": "user", "content": "Hello, tell me something nice"},

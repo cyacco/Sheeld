@@ -34,15 +34,15 @@ type AuditLog struct {
 }
 
 type Guardrail struct {
-	ID        uuid.UUID       `json:"id"`
-	SourceID  uuid.UUID       `json:"source_id"`
-	Name      string          `json:"name"`
-	GuardType string          `json:"guard_type"`
-	Phase     string          `json:"phase"`
-	Config    json.RawMessage `json:"config"`
-	Enabled   bool            `json:"enabled"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID             uuid.UUID       `json:"id"`
+	Name           string          `json:"name"`
+	GuardType      string          `json:"guard_type"`
+	Phase          string          `json:"phase"`
+	Config         json.RawMessage `json:"config"`
+	Enabled        bool            `json:"enabled"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+	OrganizationID uuid.UUID       `json:"organization_id"`
 }
 
 type Organization struct {
@@ -66,6 +66,12 @@ type Source struct {
 	Enabled        bool        `json:"enabled"`
 	CreatedAt      time.Time   `json:"created_at"`
 	UpdatedAt      time.Time   `json:"updated_at"`
+}
+
+type SourceGuardrail struct {
+	SourceID    uuid.UUID `json:"source_id"`
+	GuardrailID uuid.UUID `json:"guardrail_id"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type User struct {

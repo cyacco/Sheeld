@@ -80,17 +80,17 @@ const (
 	GuardPhaseBoth   GuardPhase = "both"
 )
 
-// Guardrail represents a guardrail instance attached to a source.
+// Guardrail represents an org-level guardrail instance.
 type Guardrail struct {
-	ID        uuid.UUID              `json:"id"`
-	SourceID  uuid.UUID              `json:"source_id"`
-	Name      string                 `json:"name"`
-	GuardType GuardType              `json:"guard_type"`
-	Phase     GuardPhase             `json:"phase"`
-	Config    map[string]interface{} `json:"config"`
-	Enabled   bool                   `json:"enabled"`
-	CreatedAt time.Time              `json:"created_at"`
-	UpdatedAt time.Time              `json:"updated_at"`
+	ID             uuid.UUID              `json:"id"`
+	OrganizationID uuid.UUID              `json:"organization_id"`
+	Name           string                 `json:"name"`
+	GuardType      GuardType              `json:"guard_type"`
+	Phase          GuardPhase             `json:"phase"`
+	Config         map[string]interface{} `json:"config"`
+	Enabled        bool                   `json:"enabled"`
+	CreatedAt      time.Time              `json:"created_at"`
+	UpdatedAt      time.Time              `json:"updated_at"`
 }
 
 // AuditLog records the result of a proxy request.

@@ -112,14 +112,24 @@ func NewRouter(
 			r.Put("/{id}", sourceHandler.Update)
 			r.Delete("/{id}", sourceHandler.Delete)
 
-			// Guardrail routes (nested under sources)
-			r.Route("/{sourceID}/guardrails", func(r chi.Router) {
-				r.Post("/", guardrailHandler.Create)
-				r.Get("/", guardrailHandler.List)
-				r.Get("/{id}", guardrailHandler.Get)
-				r.Put("/{id}", guardrailHandler.Update)
-				r.Delete("/{id}", guardrailHandler.Delete)
-			})
+			// List guardrails for a source
+			r.Get("/{sourceID}/guardrails", guardrailHandler.ListBySource)
+		})
+
+		// Guardrail routes (org-scoped via JWT)
+		r.Route("/guardrails", func(r chi.Router) {
+			r.Use(middleware.JWTAuth(authService))
+
+			r.Post("/", guardrailHandler.Create)
+			r.Get("/", guardrailHandler.List)
+			r.Get("/{id}", guardrailHandler.Get)
+			r.Put("/{id}", guardrailHandler.Update)
+			r.Delete("/{id}", guardrailHandler.Delete)
+
+			// Attach/detach/list sources for a guardrail
+			r.Post("/{id}/sources", guardrailHandler.AttachToSource)
+			r.Get("/{id}/sources", guardrailHandler.ListSources)
+			r.Delete("/{id}/sources/{sourceID}", guardrailHandler.DetachFromSource)
 		})
 
 		// Audit log routes (JWT for dashboard)
