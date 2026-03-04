@@ -41,7 +41,7 @@ export function GuardrailCard({ guardrail, onToggle, onEdit, onDelete }: Props) 
               Edit
             </Button>
             <Button variant="destructive" size="sm" onClick={() => onDelete(guardrail)}>
-              Delete
+              Remove
             </Button>
           </div>
         </div>

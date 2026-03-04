@@ -113,50 +113,58 @@ export async function deleteSource(id: string): Promise<void> {
 }
 
 // Guardrails
-export async function listGuardrails(
+export async function listGuardrails(): Promise<Guardrail[]> {
+  return request<Guardrail[]>("/v1/guardrails");
+}
+
+export async function listGuardrailsBySource(
   sourceId: string,
 ): Promise<Guardrail[]> {
   return request<Guardrail[]>(`/v1/sources/${sourceId}/guardrails`);
 }
 
-export async function getGuardrail(
-  sourceId: string,
-  guardrailId: string,
-): Promise<Guardrail> {
-  return request<Guardrail>(
-    `/v1/sources/${sourceId}/guardrails/${guardrailId}`,
-  );
+export async function getGuardrail(id: string): Promise<Guardrail> {
+  return request<Guardrail>(`/v1/guardrails/${id}`);
 }
 
 export async function createGuardrail(
-  sourceId: string,
   params: CreateGuardrailParams,
 ): Promise<Guardrail> {
-  return request<Guardrail>(`/v1/sources/${sourceId}/guardrails`, {
+  return request<Guardrail>("/v1/guardrails", {
     method: "POST",
     body: JSON.stringify(params),
   });
 }
 
 export async function updateGuardrail(
-  sourceId: string,
-  guardrailId: string,
+  id: string,
   params: UpdateGuardrailParams,
 ): Promise<Guardrail> {
-  return request<Guardrail>(
-    `/v1/sources/${sourceId}/guardrails/${guardrailId}`,
-    {
-      method: "PUT",
-      body: JSON.stringify(params),
-    },
-  );
+  return request<Guardrail>(`/v1/guardrails/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(params),
+  });
 }
 
-export async function deleteGuardrail(
-  sourceId: string,
+export async function deleteGuardrail(id: string): Promise<void> {
+  return request<void>(`/v1/guardrails/${id}`, { method: "DELETE" });
+}
+
+export async function attachGuardrail(
   guardrailId: string,
+  sourceId: string,
 ): Promise<void> {
-  return request<void>(`/v1/sources/${sourceId}/guardrails/${guardrailId}`, {
+  return request<void>(`/v1/guardrails/${guardrailId}/sources`, {
+    method: "POST",
+    body: JSON.stringify({ source_id: sourceId }),
+  });
+}
+
+export async function detachGuardrail(
+  guardrailId: string,
+  sourceId: string,
+): Promise<void> {
+  return request<void>(`/v1/guardrails/${guardrailId}/sources/${sourceId}`, {
     method: "DELETE",
   });
 }
