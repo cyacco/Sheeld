@@ -11,6 +11,7 @@ import type {
   CreateAPIKeyResult,
   AuditLog,
   ModelInfo,
+  SourceSummary,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -158,6 +159,12 @@ export async function attachGuardrail(
     method: "POST",
     body: JSON.stringify({ source_id: sourceId }),
   });
+}
+
+export async function listGuardrailSources(
+  guardrailId: string,
+): Promise<SourceSummary[]> {
+  return request<SourceSummary[]>(`/v1/guardrails/${guardrailId}/sources`);
 }
 
 export async function detachGuardrail(

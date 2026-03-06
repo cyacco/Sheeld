@@ -114,6 +114,12 @@ export interface ModelInfo {
   provider: string;
 }
 
+export interface SourceSummary {
+  id: string;
+  name: string;
+  route: string;
+}
+
 // Guard config types
 export interface BlocklistConfig {
   words: string[];

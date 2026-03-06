@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 
 const navItems = [
   { href: "/dashboard", label: "Sources" },
+  { href: "/dashboard/guardrails", label: "Guardrails" },
   { href: "/dashboard/api-keys", label: "API Keys" },
   { href: "/dashboard/audit-logs", label: "Audit Logs" },
 ];
@@ -43,7 +44,7 @@ export default function DashboardLayout({
             const isActive =
               item.href === "/dashboard"
                 ? pathname === "/dashboard" || pathname.startsWith("/dashboard/sources")
-                : pathname.startsWith(item.href);
+                : pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link
                 key={item.href}
