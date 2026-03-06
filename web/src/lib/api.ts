@@ -48,6 +48,11 @@ async function request<T>(
   });
 
   if (!res.ok) {
+    if (res.status === 401 && typeof window !== "undefined") {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/login";
+    }
     const body = await res.json().catch(() => ({ error: res.statusText }));
     throw new APIError(res.status, body.error || body.message || res.statusText);
   }
@@ -212,6 +217,11 @@ export async function listAuditLogs(params: {
   if (params.source_id) searchParams.set("source_id", params.source_id);
   const qs = searchParams.toString();
   return request<AuditLog[]>(`/v1/audit-logs${qs ? `?${qs}` : ""}`);
+}
+
+// Token refresh
+export async function refreshToken(): Promise<{ token: string }> {
+  return request<{ token: string }>("/v1/auth/refresh", { method: "POST" });
 }
 
 export { APIError };

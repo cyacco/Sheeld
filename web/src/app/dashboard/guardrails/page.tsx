@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Guardrail, CreateGuardrailParams } from "@/lib/types";
 import * as api from "@/lib/api";
 import { GuardrailCard } from "@/components/guardrail-card";
@@ -16,6 +17,7 @@ import {
 import { toast } from "sonner";
 
 export default function GuardrailsPage() {
+  const router = useRouter();
   const [guardrails, setGuardrails] = useState<Guardrail[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -115,7 +117,7 @@ export default function GuardrailsPage() {
               href={`/dashboard/guardrails/${gr.id}`}
               deleteLabel="Delete"
               onToggle={handleToggle}
-              onEdit={() => {}} // edit happens on detail page
+              onEdit={(gr) => router.push(`/dashboard/guardrails/${gr.id}`)}
               onDelete={handleDelete}
             />
           ))}
