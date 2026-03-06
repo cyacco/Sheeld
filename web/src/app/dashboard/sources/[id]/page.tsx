@@ -42,7 +42,7 @@ export default function SourceDetailPage() {
     try {
       const [src, grs] = await Promise.all([
         api.getSource(id),
-        api.listGuardrails(id),
+        api.listGuardrailsBySource(id),
       ]);
       setSource(src);
       setGuardrails(grs ?? []);
@@ -64,7 +64,7 @@ export default function SourceDetailPage() {
   }
 
   async function handleDeleteSource() {
-    if (!confirm("Delete this source and all its guardrails?")) return;
+    if (!confirm("Delete this source?")) return;
     try {
       await api.deleteSource(id);
       toast.success("Source deleted");
@@ -76,7 +76,8 @@ export default function SourceDetailPage() {
 
   async function handleCreateGuardrail(params: CreateGuardrailParams) {
     try {
-      await api.createGuardrail(id, params);
+      const guardrail = await api.createGuardrail(params);
+      await api.attachGuardrail(guardrail.id, id);
       toast.success("Guardrail created");
       setGuardrailDialogOpen(false);
       loadData();
@@ -88,7 +89,7 @@ export default function SourceDetailPage() {
   async function handleUpdateGuardrail(params: CreateGuardrailParams) {
     if (!editingGuardrail) return;
     try {
-      await api.updateGuardrail(id, editingGuardrail.id, params);
+      await api.updateGuardrail(editingGuardrail.id, params);
       toast.success("Guardrail updated");
       setEditingGuardrail(null);
       loadData();
@@ -99,7 +100,7 @@ export default function SourceDetailPage() {
 
   async function handleToggleGuardrail(guardrail: Guardrail, enabled: boolean) {
     try {
-      await api.updateGuardrail(id, guardrail.id, {
+      await api.updateGuardrail(guardrail.id, {
         name: guardrail.name,
         guard_type: guardrail.guard_type,
         phase: guardrail.phase,
@@ -113,13 +114,13 @@ export default function SourceDetailPage() {
   }
 
   async function handleDeleteGuardrail(guardrail: Guardrail) {
-    if (!confirm(`Delete guardrail "${guardrail.name}"?`)) return;
+    if (!confirm(`Remove guardrail "${guardrail.name}" from this source?`)) return;
     try {
-      await api.deleteGuardrail(id, guardrail.id);
-      toast.success("Guardrail deleted");
+      await api.detachGuardrail(guardrail.id, id);
+      toast.success("Guardrail removed");
       loadData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete guardrail");
+      toast.error(err instanceof Error ? err.message : "Failed to remove guardrail");
     }
   }
 

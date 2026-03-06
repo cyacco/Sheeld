@@ -42,6 +42,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Proactive token refresh every 30 minutes
+  useEffect(() => {
+    if (!state.token) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const result = await api.refreshToken();
+        localStorage.setItem("token", result.token);
+        setState((prev) => ({ ...prev, token: result.token }));
+      } catch {
+        // 401 will be handled by the interceptor in api.ts
+      }
+    }, 30 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [state.token]);
+
   const loginFn = useCallback(async (email: string, password: string) => {
     const result = await api.login(email, password);
     localStorage.setItem("token", result.token);

@@ -194,6 +194,11 @@ func (s *AuthService) ValidateAPIKey(ctx context.Context, rawKey string) (uuid.U
 	return apiKey.OrganizationID, nil
 }
 
+// RefreshToken generates a new JWT for the given claims.
+func (s *AuthService) RefreshToken(claims *TokenClaims) (string, error) {
+	return s.generateToken(claims.UserID, claims.OrgID)
+}
+
 func (s *AuthService) generateToken(userID, orgID uuid.UUID) (string, error) {
 	claims := &TokenClaims{
 		UserID: userID,

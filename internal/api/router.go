@@ -90,6 +90,7 @@ func NewRouter(
 			// Protected auth routes (JWT)
 			r.Group(func(r chi.Router) {
 				r.Use(middleware.JWTAuth(authService))
+				r.Post("/refresh", authHandler.Refresh)
 				r.Post("/api-keys", authHandler.CreateAPIKey)
 				r.Get("/api-keys", authHandler.ListAPIKeys)
 				r.Delete("/api-keys/{id}", authHandler.RevokeAPIKey)

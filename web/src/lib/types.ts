@@ -54,7 +54,7 @@ export type UpdateSourceParams = CreateSourceParams;
 
 export interface Guardrail {
   id: string;
-  source_id: string;
+  organization_id: string;
   name: string;
   guard_type: string;
   phase: string;
@@ -112,6 +112,12 @@ export interface GuardResultEntry {
 export interface ModelInfo {
   id: string;
   provider: string;
+}
+
+export interface SourceSummary {
+  id: string;
+  name: string;
+  route: string;
 }
 
 // Guard config types

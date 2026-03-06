@@ -20,7 +20,7 @@ type Config struct {
 
 	// Auth
 	JWTSecret     string        `envconfig:"JWT_SECRET" required:"true"`
-	JWTExpiration time.Duration `envconfig:"JWT_EXPIRATION" default:"24h"`
+	JWTExpiration time.Duration `envconfig:"JWT_EXPIRATION" default:"72h"`
 
 	// Encryption key for LLM API keys at rest (hex-encoded 32 bytes for AES-256)
 	EncryptionKey string `envconfig:"ENCRYPTION_KEY" required:"true"`

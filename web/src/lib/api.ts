@@ -11,6 +11,7 @@ import type {
   CreateAPIKeyResult,
   AuditLog,
   ModelInfo,
+  SourceSummary,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -47,6 +48,11 @@ async function request<T>(
   });
 
   if (!res.ok) {
+    if (res.status === 401 && typeof window !== "undefined") {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/login";
+    }
     const body = await res.json().catch(() => ({ error: res.statusText }));
     throw new APIError(res.status, body.error || body.message || res.statusText);
   }
@@ -113,50 +119,64 @@ export async function deleteSource(id: string): Promise<void> {
 }
 
 // Guardrails
-export async function listGuardrails(
+export async function listGuardrails(): Promise<Guardrail[]> {
+  return request<Guardrail[]>("/v1/guardrails");
+}
+
+export async function listGuardrailsBySource(
   sourceId: string,
 ): Promise<Guardrail[]> {
   return request<Guardrail[]>(`/v1/sources/${sourceId}/guardrails`);
 }
 
-export async function getGuardrail(
-  sourceId: string,
-  guardrailId: string,
-): Promise<Guardrail> {
-  return request<Guardrail>(
-    `/v1/sources/${sourceId}/guardrails/${guardrailId}`,
-  );
+export async function getGuardrail(id: string): Promise<Guardrail> {
+  return request<Guardrail>(`/v1/guardrails/${id}`);
 }
 
 export async function createGuardrail(
-  sourceId: string,
   params: CreateGuardrailParams,
 ): Promise<Guardrail> {
-  return request<Guardrail>(`/v1/sources/${sourceId}/guardrails`, {
+  return request<Guardrail>("/v1/guardrails", {
     method: "POST",
     body: JSON.stringify(params),
   });
 }
 
 export async function updateGuardrail(
-  sourceId: string,
-  guardrailId: string,
+  id: string,
   params: UpdateGuardrailParams,
 ): Promise<Guardrail> {
-  return request<Guardrail>(
-    `/v1/sources/${sourceId}/guardrails/${guardrailId}`,
-    {
-      method: "PUT",
-      body: JSON.stringify(params),
-    },
-  );
+  return request<Guardrail>(`/v1/guardrails/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(params),
+  });
 }
 
-export async function deleteGuardrail(
-  sourceId: string,
+export async function deleteGuardrail(id: string): Promise<void> {
+  return request<void>(`/v1/guardrails/${id}`, { method: "DELETE" });
+}
+
+export async function attachGuardrail(
   guardrailId: string,
+  sourceId: string,
 ): Promise<void> {
-  return request<void>(`/v1/sources/${sourceId}/guardrails/${guardrailId}`, {
+  return request<void>(`/v1/guardrails/${guardrailId}/sources`, {
+    method: "POST",
+    body: JSON.stringify({ source_id: sourceId }),
+  });
+}
+
+export async function listGuardrailSources(
+  guardrailId: string,
+): Promise<SourceSummary[]> {
+  return request<SourceSummary[]>(`/v1/guardrails/${guardrailId}/sources`);
+}
+
+export async function detachGuardrail(
+  guardrailId: string,
+  sourceId: string,
+): Promise<void> {
+  return request<void>(`/v1/guardrails/${guardrailId}/sources/${sourceId}`, {
     method: "DELETE",
   });
 }
@@ -197,6 +217,11 @@ export async function listAuditLogs(params: {
   if (params.source_id) searchParams.set("source_id", params.source_id);
   const qs = searchParams.toString();
   return request<AuditLog[]>(`/v1/audit-logs${qs ? `?${qs}` : ""}`);
+}
+
+// Token refresh
+export async function refreshToken(): Promise<{ token: string }> {
+  return request<{ token: string }>("/v1/auth/refresh", { method: "POST" });
 }
 
 export { APIError };

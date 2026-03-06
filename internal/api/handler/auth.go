@@ -134,6 +134,29 @@ func (h *AuthHandler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, keys)
 }
 
+// Refresh handles POST /v1/auth/refresh.
+func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.UserIDFromContext(r.Context())
+	orgID := middleware.OrgIDFromContext(r.Context())
+	if userID == uuid.Nil || orgID == uuid.Nil {
+		response.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	claims := &service.TokenClaims{
+		UserID: userID,
+		OrgID:  orgID,
+	}
+
+	token, err := h.authService.RefreshToken(claims)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "failed to refresh token")
+		return
+	}
+
+	response.JSON(w, http.StatusOK, map[string]string{"token": token})
+}
+
 // RevokeAPIKey handles DELETE /v1/auth/api-keys/:id.
 func (h *AuthHandler) RevokeAPIKey(w http.ResponseWriter, r *http.Request) {
 	orgID := middleware.OrgIDFromContext(r.Context())

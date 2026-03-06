@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { Guardrail } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,14 +12,24 @@ interface Props {
   onToggle: (guardrail: Guardrail, enabled: boolean) => void;
   onEdit: (guardrail: Guardrail) => void;
   onDelete: (guardrail: Guardrail) => void;
+  href?: string;
+  deleteLabel?: string;
 }
 
-export function GuardrailCard({ guardrail, onToggle, onEdit, onDelete }: Props) {
+export function GuardrailCard({ guardrail, onToggle, onEdit, onDelete, href, deleteLabel = "Remove" }: Props) {
+  const title = href ? (
+    <Link href={href} className="hover:underline">
+      {guardrail.name}
+    </Link>
+  ) : (
+    guardrail.name
+  );
+
   return (
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{guardrail.name}</CardTitle>
+          <CardTitle className="text-base">{title}</CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant="outline">{guardrail.guard_type}</Badge>
             <Badge variant="secondary">{guardrail.phase}</Badge>
@@ -41,7 +52,7 @@ export function GuardrailCard({ guardrail, onToggle, onEdit, onDelete }: Props) 
               Edit
             </Button>
             <Button variant="destructive" size="sm" onClick={() => onDelete(guardrail)}>
-              Delete
+              {deleteLabel}
             </Button>
           </div>
         </div>
