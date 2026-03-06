@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import type { BlocklistConfig } from "@/lib/types";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,17 +18,24 @@ interface Props {
 }
 
 export function BlocklistConfigForm({ config, onChange }: Props) {
+  const [text, setText] = useState(config.words.join("\n"));
+
+  useEffect(() => {
+    setText(config.words.join("\n"));
+  }, [config.words]);
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
         <Label>Words (one per line)</Label>
         <Textarea
           rows={4}
-          value={config.words.join("\n")}
-          onChange={(e) =>
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={() =>
             onChange({
               ...config,
-              words: e.target.value.split("\n").filter((w) => w.trim()),
+              words: text.split("\n").filter((w) => w.trim()),
             })
           }
         />
