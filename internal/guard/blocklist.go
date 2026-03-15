@@ -6,17 +6,15 @@ import (
 	"time"
 )
 
-// BlocklistGuard checks input against a list of blocked or allowed words.
+// BlocklistGuard rejects input that contains any word in the blocklist.
 type BlocklistGuard struct {
 	name  string
 	words map[string]struct{}
-	mode  string // "block" = reject if any word found, "allow" = reject if any word NOT found
 }
 
 // BlocklistConfig holds the configuration for a BlocklistGuard.
 type BlocklistConfig struct {
 	Words []string `json:"words"`
-	Mode  string   `json:"mode"` // "block" (default) or "allow"
 }
 
 // NewBlocklistGuard creates a new BlocklistGuard from configuration.
@@ -26,15 +24,9 @@ func NewBlocklistGuard(name string, cfg BlocklistConfig) *BlocklistGuard {
 		words[strings.ToLower(strings.TrimSpace(w))] = struct{}{}
 	}
 
-	mode := cfg.Mode
-	if mode == "" {
-		mode = "block"
-	}
-
 	return &BlocklistGuard{
 		name:  name,
 		words: words,
-		mode:  mode,
 	}
 }
 
@@ -58,55 +50,21 @@ func (g *BlocklistGuard) Validate(_ context.Context, input string) (*Result, err
 
 	duration := time.Since(start)
 
-	if g.mode == "block" {
-		// Block mode: fail if any blocked word is found
-		if len(matchedWords) > 0 {
-			return &Result{
-				GuardName: g.name,
-				GuardType: g.Type(),
-				Passed:    false,
-				Message:   "input contains blocked words",
-				Details:   map[string]interface{}{"matched_words": matchedWords},
-				Duration:  duration,
-			}, nil
-		}
-		return &Result{
-			GuardName: g.name,
-			GuardType: g.Type(),
-			Passed:    true,
-			Message:   "no blocked words found",
-			Duration:  duration,
-		}, nil
-	}
-
-	// Allow mode: fail if input contains words NOT in the allow list
-	var disallowedWords []string
-	for _, word := range inputWords {
-		cleaned := strings.Trim(word, ".,!?;:\"'()-[]{}…")
-		if cleaned == "" {
-			continue
-		}
-		if _, found := g.words[cleaned]; !found {
-			disallowedWords = append(disallowedWords, cleaned)
-		}
-	}
-
-	if len(disallowedWords) > 0 {
+	if len(matchedWords) > 0 {
 		return &Result{
 			GuardName: g.name,
 			GuardType: g.Type(),
 			Passed:    false,
-			Message:   "input contains words not in the allow list",
-			Details:   map[string]interface{}{"disallowed_words": disallowedWords},
+			Message:   "input contains blocked words",
+			Details:   map[string]interface{}{"matched_words": matchedWords},
 			Duration:  duration,
 		}, nil
 	}
-
 	return &Result{
 		GuardName: g.name,
 		GuardType: g.Type(),
 		Passed:    true,
-		Message:   "all words are in the allow list",
+		Message:   "no blocked words found",
 		Duration:  duration,
 	}, nil
 }

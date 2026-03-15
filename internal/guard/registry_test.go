@@ -30,7 +30,7 @@ func TestRegistry_BuiltInTypes(t *testing.T) {
 func TestRegistry_CreateBlocklist(t *testing.T) {
 	r := NewRegistry()
 
-	config := json.RawMessage(`{"words": ["bad", "evil"], "mode": "block"}`)
+	config := json.RawMessage(`{"words": ["bad", "evil"]}`)
 	g, err := r.Create("blocklist", "test-blocklist", config)
 	if err != nil {
 		t.Fatalf("failed to create blocklist guard: %v", err)
@@ -81,7 +81,7 @@ func TestRegistry_CustomType(t *testing.T) {
 
 	// Register a custom factory
 	r.Register("custom", func(name string, config json.RawMessage) (Guard, error) {
-		return NewBlocklistGuard(name, BlocklistConfig{Words: []string{"custom"}, Mode: "block"}), nil
+		return NewBlocklistGuard(name, BlocklistConfig{Words: []string{"custom"}}), nil
 	})
 
 	g, err := r.Create("custom", "my-custom", json.RawMessage(`{}`))

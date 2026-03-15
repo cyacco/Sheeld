@@ -4,13 +4,6 @@ import { useState, useEffect } from "react";
 import type { BlocklistConfig } from "@/lib/types";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface Props {
   config: BlocklistConfig;
@@ -32,25 +25,21 @@ export function BlocklistConfigForm({ config, onChange }: Props) {
           rows={4}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          onBlur={() =>
-            onChange({
-              ...config,
-              words: text.split("\n").filter((w) => w.trim()),
-            })
-          }
+          onBlur={() => {
+            const seen = new Set<string>();
+            const unique = text
+              .split("\n")
+              .filter((w) => w.trim())
+              .filter((w) => {
+                const key = w.trim().toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              });
+            setText(unique.join("\n"));
+            onChange({ ...config, words: unique });
+          }}
         />
-      </div>
-      <div className="space-y-2">
-        <Label>Mode</Label>
-        <Select value={config.mode || "block"} onValueChange={(v) => onChange({ ...config, mode: v })}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="block">Block (reject if word found)</SelectItem>
-            <SelectItem value="allow">Allow (reject if word NOT found)</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
     </div>
   );
