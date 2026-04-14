@@ -42,6 +42,27 @@ type CreateAPIKeyResult struct {
 	RawKey string           `json:"raw_key"` // Only returned once at creation time
 }
 
+// API key format constants.
+//
+// Every Sheeld API key is formatted as:
+//
+//	apiKeyRawPrefix ("shld_") || 8 hex chars (public identifier) || 56 hex chars (secret)
+//
+// The first apiKeyPrefixLen characters form the public prefix that is stored
+// in api_keys.key_prefix and used as the non-secret lookup key in
+// ValidateAPIKey. Anything beyond apiKeyPrefixLen contributes entropy to the
+// SHA-256 hash but is never stored or compared directly.
+//
+// These constants are the single source of truth for the prefix length:
+// CreateAPIKey uses apiKeyPrefixLen to slice the stored prefix, and
+// ValidateAPIKey uses it as both the lookup bound and the minimum-length
+// check on submitted keys. Changing any of these MUST be done together.
+const (
+	apiKeyRawPrefix    = "shld_"
+	apiKeyPrefixHexLen = 8
+	apiKeyPrefixLen    = len(apiKeyRawPrefix) + apiKeyPrefixHexLen // 13
+)
+
 // AuthService handles authentication and authorization.
 type AuthService struct {
 	queries       *generated.Queries
@@ -124,14 +145,15 @@ func (s *AuthService) CreateAPIKey(ctx context.Context, orgID uuid.UUID, name st
 	if _, err := rand.Read(rawBytes); err != nil {
 		return nil, fmt.Errorf("generating random key: %w", err)
 	}
-	rawKey := "shld_" + hex.EncodeToString(rawBytes)
+	rawKey := apiKeyRawPrefix + hex.EncodeToString(rawBytes)
 
 	// Hash the key for storage
 	hash := sha256.Sum256([]byte(rawKey))
 	keyHash := hex.EncodeToString(hash[:])
 
-	// Store first 8 chars as prefix for identification
-	keyPrefix := rawKey[:13] // "shld_" + 8 hex chars
+	// Public prefix: apiKeyRawPrefix + first apiKeyPrefixHexLen hex chars.
+	// This is the non-secret lookup key used by ValidateAPIKey.
+	keyPrefix := rawKey[:apiKeyPrefixLen]
 
 	apiKey, err := s.queries.CreateAPIKey(ctx, generated.CreateAPIKeyParams{
 		OrganizationID: orgID,
@@ -184,16 +206,21 @@ func (s *AuthService) ValidateToken(tokenString string) (*TokenClaims, error) {
 
 // ValidateAPIKey validates an API key and returns the organization ID.
 //
-// Lookup is done by the public key prefix (not the secret hash), and the full
-// SHA-256 hash is compared in Go using crypto/subtle.ConstantTimeCompare to
-// avoid leaking timing information through Postgres string comparison.
+// Lookup is done by the public key prefix (not the secret hash), and the
+// full SHA-256 hash is compared in Go using crypto/subtle.ConstantTimeCompare
+// to avoid leaking timing information through Postgres string comparison.
+//
+// The prefix length and format are defined by the apiKey* constants above
+// and set at key creation time in CreateAPIKey — those are the single source
+// of truth for the slice bound used here.
 func (s *AuthService) ValidateAPIKey(ctx context.Context, rawKey string) (uuid.UUID, error) {
-	// Submitted key must be at least as long as the stored prefix
-	// ("shld_" + 8 hex chars = 13 chars) — see CreateAPIKey.
-	if len(rawKey) < 13 {
+	// Explicit bounds check before slicing. A submitted key shorter than the
+	// public prefix (apiKeyRawPrefix + apiKeyPrefixHexLen hex chars) cannot
+	// possibly match any stored key — reject it without hitting the database.
+	if len(rawKey) < apiKeyPrefixLen {
 		return uuid.Nil, fmt.Errorf("invalid API key")
 	}
-	keyPrefix := rawKey[:13]
+	keyPrefix := rawKey[:apiKeyPrefixLen]
 
 	apiKey, err := s.queries.GetAPIKeyByPrefix(ctx, keyPrefix)
 	if err != nil {

@@ -64,9 +64,10 @@ func (f *fakeDBTX) QueryRow(ctx context.Context, sql string, args ...any) pgx.Ro
 }
 
 // makeStoredKey builds the prefix + hash for a given raw key, matching
-// CreateAPIKey's logic.
+// CreateAPIKey's logic. Uses the same apiKeyPrefixLen constant that
+// CreateAPIKey and ValidateAPIKey share.
 func makeStoredKey(rawKey string) (prefix, hash string) {
-	prefix = rawKey[:13]
+	prefix = rawKey[:apiKeyPrefixLen]
 	sum := sha256.Sum256([]byte(rawKey))
 	hash = hex.EncodeToString(sum[:])
 	return
