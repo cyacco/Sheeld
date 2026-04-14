@@ -276,6 +276,55 @@ func TestEngine_GuardError(t *testing.T) {
 	}
 }
 
+func TestEngine_PerGuardDuration(t *testing.T) {
+	// A successful guard that takes ~5ms and an erroring guard that takes
+	// ~15ms should each report their own per-guard duration, not the
+	// aggregate wall-clock time of the engine run.
+	guards := []Guard{
+		&mockGuard{name: "fast-ok", guardType: "mock", passed: true, delay: 5 * time.Millisecond},
+		&mockGuard{name: "slow-err", guardType: "mock", err: fmt.Errorf("boom"), delay: 15 * time.Millisecond},
+	}
+
+	engine := NewEngine(NewRegistry())
+	result, err := engine.Run(context.Background(), guards, "test", EvalConfig{
+		Criteria: CriteriaAll,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(result.Results))
+	}
+
+	var okRes, errRes *Result
+	for _, r := range result.Results {
+		switch r.GuardName {
+		case "fast-ok":
+			okRes = r
+		case "slow-err":
+			errRes = r
+		}
+	}
+	if okRes == nil || errRes == nil {
+		t.Fatalf("missing expected result: ok=%v err=%v", okRes, errRes)
+	}
+
+	// Successful guard should report ~5ms, well under 10ms.
+	if okRes.Duration >= 10*time.Millisecond {
+		t.Errorf("fast-ok guard Duration=%v, expected <10ms", okRes.Duration)
+	}
+	// Erroring guard should report ~15ms of its own work, well under 25ms.
+	// Before the fix this was time.Since(engineStart), which would creep
+	// up toward the aggregate wall-clock as more guards ran in parallel.
+	if errRes.Duration >= 25*time.Millisecond {
+		t.Errorf("slow-err guard Duration=%v, expected <25ms (must reflect per-guard time, not aggregate)", errRes.Duration)
+	}
+	// And it should still actually have measured something (sanity check).
+	if errRes.Duration <= 0 {
+		t.Errorf("slow-err guard Duration=%v, expected >0", errRes.Duration)
+	}
+}
+
 func TestEngine_ConcurrentExecution(t *testing.T) {
 	// Verify guards run concurrently by checking that total time is ~delay, not ~N*delay
 	delay := 50 * time.Millisecond
