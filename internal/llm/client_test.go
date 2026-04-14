@@ -3,8 +3,10 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -126,6 +128,167 @@ func TestClient_ChatCompletion_Timeout(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected timeout error")
+	}
+}
+
+func TestClient_StreamChatCompletion_Success(t *testing.T) {
+	// Three content chunks + a final chunk carrying finish_reason, then [DONE].
+	frames := []string{
+		`{"id":"chatcmpl-stream-1","object":"chat.completion.chunk","created":1700000000,"model":"gpt-4o","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"}}]}`,
+		`{"id":"chatcmpl-stream-1","object":"chat.completion.chunk","created":1700000000,"model":"gpt-4o","choices":[{"index":0,"delta":{"content":", "}}]}`,
+		`{"id":"chatcmpl-stream-1","object":"chat.completion.chunk","created":1700000000,"model":"gpt-4o","choices":[{"index":0,"delta":{"content":"world!"},"finish_reason":"stop"}]}`,
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/chat/completions" {
+			t.Errorf("expected /chat/completions, got %s", r.URL.Path)
+		}
+		if got := r.Header.Get("Accept"); got != "text/event-stream" {
+			t.Errorf("expected Accept text/event-stream, got %s", got)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer test-key" {
+			t.Errorf("expected Bearer test-key, got %s", got)
+		}
+
+		// Verify the outgoing payload had stream=true forced on.
+		var sent ChatRequest
+		if err := json.NewDecoder(r.Body).Decode(&sent); err != nil {
+			t.Errorf("failed to decode request body: %v", err)
+		}
+		if sent.Stream == nil || !*sent.Stream {
+			t.Errorf("expected stream=true to be forced on outgoing request")
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		flusher, _ := w.(http.Flusher)
+		for _, f := range frames {
+			fmt.Fprintf(w, "data: %s\n\n", f)
+			if flusher != nil {
+				flusher.Flush()
+			}
+		}
+		fmt.Fprint(w, "data: [DONE]\n\n")
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, 5*time.Second)
+
+	var chunkCount int
+	resp, err := client.StreamChatCompletion(
+		context.Background(),
+		"test-key",
+		&ChatRequest{
+			Model:    "openai/gpt-4o",
+			Messages: []Message{{Role: "user", Content: "Hi"}},
+		},
+		func(_ *ChatResponseChunk) error {
+			chunkCount++
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if chunkCount != 3 {
+		t.Errorf("expected 3 chunk callbacks, got %d", chunkCount)
+	}
+	if resp == nil {
+		t.Fatal("expected reconstructed response, got nil")
+	}
+	if resp.ID != "chatcmpl-stream-1" {
+		t.Errorf("got id=%q, want chatcmpl-stream-1", resp.ID)
+	}
+	if resp.Object != "chat.completion" {
+		t.Errorf("got object=%q, want chat.completion", resp.Object)
+	}
+	if resp.Model != "gpt-4o" {
+		t.Errorf("got model=%q, want gpt-4o", resp.Model)
+	}
+	if len(resp.Choices) != 1 {
+		t.Fatalf("got %d choices, want 1", len(resp.Choices))
+	}
+	if got, want := resp.Choices[0].Message.Content, "Hello, world!"; got != want {
+		t.Errorf("got reconstructed content=%q, want %q", got, want)
+	}
+	if resp.Choices[0].Message.Role != "assistant" {
+		t.Errorf("got role=%q, want assistant", resp.Choices[0].Message.Role)
+	}
+	if resp.Choices[0].FinishReason != "stop" {
+		t.Errorf("got finish_reason=%q, want stop", resp.Choices[0].FinishReason)
+	}
+}
+
+func TestClient_StreamChatCompletion_ContextCancellation(t *testing.T) {
+	// Server emits one frame, flushes, then sleeps long enough that the test
+	// can cancel ctx mid-stream. The client should bail out promptly.
+	serverDone := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer close(serverDone)
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		flusher, _ := w.(http.Flusher)
+
+		fmt.Fprint(w, `data: {"id":"x","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"role":"assistant","content":"hi"}}]}`+"\n\n")
+		if flusher != nil {
+			flusher.Flush()
+		}
+		// Hold the connection open. The client-side ctx cancellation will
+		// tear down the request.
+		select {
+		case <-r.Context().Done():
+		case <-time.After(5 * time.Second):
+		}
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, 5*time.Second)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var sawChunk int32
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := client.StreamChatCompletion(
+			ctx,
+			"test-key",
+			&ChatRequest{
+				Model:    "openai/gpt-4o",
+				Messages: []Message{{Role: "user", Content: "Hi"}},
+			},
+			func(_ *ChatResponseChunk) error {
+				atomic.StoreInt32(&sawChunk, 1)
+				// Cancel ctx on receipt of the first chunk to simulate the
+				// caller bailing out mid-stream.
+				cancel()
+				return nil
+			},
+		)
+		errCh <- err
+	}()
+
+	select {
+	case err := <-errCh:
+		if err == nil {
+			t.Fatal("expected error from cancelled stream, got nil")
+		}
+	case <-time.After(2 * time.Second):
+		cancel()
+		t.Fatal("StreamChatCompletion did not return promptly after ctx cancel")
+	}
+	if atomic.LoadInt32(&sawChunk) == 0 {
+		t.Error("expected at least one chunk callback before cancellation")
+	}
+	// Drain the server goroutine so the test doesn't leak.
+	select {
+	case <-serverDone:
+	case <-time.After(2 * time.Second):
 	}
 }
 

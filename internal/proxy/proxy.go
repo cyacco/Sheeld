@@ -153,6 +153,12 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute string
 	llmStart := time.Now()
 	log.Info("calling LLM gateway", "model", chatReq.Model)
 
+	// TODO(streaming): if chatReq.Stream is set, branch into
+	// llmClient.StreamChatCompletion here. The streaming branch needs to
+	// buffer chunks (or replay them) until output guards have evaluated the
+	// reconstructed response — only then can frames be forwarded to the
+	// client. The handler will need to switch to an SSE writer in the same
+	// branch. Tracked as a follow-up to keep this PR scoped to the client.
 	chatResp, err := p.llmClient.ChatCompletion(ctx, apiKey, chatReq)
 	if err != nil {
 		return nil, fmt.Errorf("LLM call failed: %w", err)

@@ -20,6 +20,10 @@ type ChatRequest struct {
 
 	// Stop sequences.
 	Stop []string `json:"stop,omitempty"`
+
+	// Stream enables Server-Sent Events streaming when true. Pointer so it
+	// omits cleanly when the caller doesn't care.
+	Stream *bool `json:"stream,omitempty"`
 }
 
 // Message represents a single message in the conversation.
@@ -43,6 +47,25 @@ type Choice struct {
 	Index        int     `json:"index"`
 	Message      Message `json:"message"`
 	FinishReason string  `json:"finish_reason"`
+}
+
+// ChatResponseChunk is a single SSE frame from a streaming chat completion.
+// Matches OpenAI's `chat.completion.chunk` schema.
+type ChatResponseChunk struct {
+	ID      string        `json:"id"`
+	Object  string        `json:"object"`
+	Created int64         `json:"created"`
+	Model   string        `json:"model"`
+	Choices []ChunkChoice `json:"choices"`
+}
+
+// ChunkChoice is a single choice within a streaming chunk. Delta is a
+// partial Message — Content may be empty (e.g., the first chunk often only
+// carries `role: "assistant"`).
+type ChunkChoice struct {
+	Index        int     `json:"index"`
+	Delta        Message `json:"delta"`
+	FinishReason *string `json:"finish_reason,omitempty"`
 }
 
 // Usage reports token consumption.
