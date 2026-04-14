@@ -5,12 +5,36 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/sheeld/sheeld/internal/db/generated"
 	"github.com/sheeld/sheeld/internal/guard"
 	"github.com/sheeld/sheeld/internal/llm"
 )
+
+// TestListEnabledGuardrailsBySourceParamsHasOrgScope verifies that the
+// ListEnabledGuardrailsBySource query is scoped by organization_id as a
+// defense-in-depth measure. Without this scoping, any future call site that
+// fails to pre-filter the source by org could leak guardrails across orgs.
+func TestListEnabledGuardrailsBySourceParamsHasOrgScope(t *testing.T) {
+	// Assert the generated params struct exposes an OrganizationID field of
+	// type uuid.UUID so callers must supply it explicitly.
+	pType := reflect.TypeOf(generated.ListEnabledGuardrailsBySourceParams{})
+	field, ok := pType.FieldByName("OrganizationID")
+	if !ok {
+		t.Fatal("ListEnabledGuardrailsBySourceParams must include an OrganizationID field for org scoping")
+	}
+	if field.Type != reflect.TypeOf(uuid.UUID{}) {
+		t.Errorf("OrganizationID field has type %v, want uuid.UUID", field.Type)
+	}
+	if _, ok := pType.FieldByName("SourceID"); !ok {
+		t.Fatal("ListEnabledGuardrailsBySourceParams must still include a SourceID field")
+	}
+}
 
 // mockGuard is a test guard that returns a predetermined result.
 type mockGuard struct {

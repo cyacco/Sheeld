@@ -21,7 +21,7 @@ ORDER BY g.created_at ASC;
 -- name: ListEnabledGuardrailsBySource :many
 SELECT g.* FROM guardrails g
 JOIN source_guardrails sg ON sg.guardrail_id = g.id
-WHERE sg.source_id = $1 AND g.enabled = true
+WHERE sg.source_id = $1 AND g.organization_id = $2 AND g.enabled = true
 ORDER BY g.created_at ASC;
 
 -- name: UpdateGuardrail :one

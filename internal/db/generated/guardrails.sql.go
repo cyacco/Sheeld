@@ -96,12 +96,17 @@ func (q *Queries) GetGuardrail(ctx context.Context, arg GetGuardrailParams) (Gua
 const listEnabledGuardrailsBySource = `-- name: ListEnabledGuardrailsBySource :many
 SELECT g.id, g.name, g.guard_type, g.phase, g.config, g.enabled, g.created_at, g.updated_at, g.organization_id FROM guardrails g
 JOIN source_guardrails sg ON sg.guardrail_id = g.id
-WHERE sg.source_id = $1 AND g.enabled = true
+WHERE sg.source_id = $1 AND g.organization_id = $2 AND g.enabled = true
 ORDER BY g.created_at ASC
 `
 
-func (q *Queries) ListEnabledGuardrailsBySource(ctx context.Context, sourceID uuid.UUID) ([]Guardrail, error) {
-	rows, err := q.db.Query(ctx, listEnabledGuardrailsBySource, sourceID)
+type ListEnabledGuardrailsBySourceParams struct {
+	SourceID       uuid.UUID `json:"source_id"`
+	OrganizationID uuid.UUID `json:"organization_id"`
+}
+
+func (q *Queries) ListEnabledGuardrailsBySource(ctx context.Context, arg ListEnabledGuardrailsBySourceParams) ([]Guardrail, error) {
+	rows, err := q.db.Query(ctx, listEnabledGuardrailsBySource, arg.SourceID, arg.OrganizationID)
 	if err != nil {
 		return nil, err
 	}

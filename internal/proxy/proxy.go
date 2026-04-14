@@ -85,8 +85,11 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute string
 		return nil, fmt.Errorf("source %q is disabled", sourceRoute)
 	}
 
-	// 2. Load enabled guardrails
-	guardrails, err := p.queries.ListEnabledGuardrailsBySource(ctx, source.ID)
+	// 2. Load enabled guardrails (org-scoped for defense in depth)
+	guardrails, err := p.queries.ListEnabledGuardrailsBySource(ctx, generated.ListEnabledGuardrailsBySourceParams{
+		SourceID:       source.ID,
+		OrganizationID: orgID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("loading guardrails: %w", err)
 	}

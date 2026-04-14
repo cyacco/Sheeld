@@ -73,9 +73,13 @@ func (s *GuardrailService) ListBySource(ctx context.Context, sourceID uuid.UUID)
 	return s.queries.ListGuardrailsBySource(ctx, sourceID)
 }
 
-// ListEnabledBySource returns only enabled guardrails attached to a source.
-func (s *GuardrailService) ListEnabledBySource(ctx context.Context, sourceID uuid.UUID) ([]generated.Guardrail, error) {
-	return s.queries.ListEnabledGuardrailsBySource(ctx, sourceID)
+// ListEnabledBySource returns only enabled guardrails attached to a source,
+// scoped to an organization for defense in depth.
+func (s *GuardrailService) ListEnabledBySource(ctx context.Context, orgID, sourceID uuid.UUID) ([]generated.Guardrail, error) {
+	return s.queries.ListEnabledGuardrailsBySource(ctx, generated.ListEnabledGuardrailsBySourceParams{
+		SourceID:       sourceID,
+		OrganizationID: orgID,
+	})
 }
 
 // Update updates a guardrail, scoped to an organization.
