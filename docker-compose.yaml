@@ -5,7 +5,7 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_USER: sheeld
-      POSTGRES_PASSWORD: sheeld_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sheeld_dev}
       POSTGRES_DB: sheeld
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -33,9 +33,9 @@ services:
       - "8080:8080"
     environment:
       SHEELD_PORT: "8080"
-      SHEELD_DATABASE_URL: "postgres://sheeld:sheeld_dev@db:5432/sheeld?sslmode=disable"
-      SHEELD_JWT_SECRET: "dev-secret-change-in-production"
-      SHEELD_ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      SHEELD_DATABASE_URL: "postgres://sheeld:${POSTGRES_PASSWORD:-sheeld_dev}@db:5432/sheeld?sslmode=disable"
+      SHEELD_JWT_SECRET: "${SHEELD_JWT_SECRET:-change-me}"
+      SHEELD_ENCRYPTION_KEY: "${SHEELD_ENCRYPTION_KEY}"
       SHEELD_LLM_GATEWAY_URL: "http://litellm:4000"
       SHEELD_LLM_REQUEST_TIMEOUT: "30s"
       SHEELD_CORS_ALLOWED_ORIGINS: "http://localhost:3000"
