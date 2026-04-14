@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -13,9 +15,15 @@ import (
 	"github.com/sheeld/sheeld/internal/proxy"
 )
 
+// proxyExecutor is the minimal interface the handler needs from a proxy.
+// Defined here so the handler can be tested with a fake.
+type proxyExecutor interface {
+	Execute(ctx context.Context, orgID uuid.UUID, sourceRoute string, chatReq *llm.ChatRequest) (*proxy.ProxyResult, error)
+}
+
 // ProxyHandler handles the main proxy endpoint.
 type ProxyHandler struct {
-	proxy *proxy.Proxy
+	proxy proxyExecutor
 }
 
 // NewProxyHandler creates a new ProxyHandler.
@@ -50,7 +58,17 @@ func (h *ProxyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.proxy.Execute(r.Context(), orgID, sourceRoute, &chatReq)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, err.Error())
+		// Log full error server-side with request context, but never leak
+		// internal error details (e.g. "sql: no rows", "crypto/cipher: ...")
+		// to clients — that would be an information disclosure and
+		// enumeration oracle. Return a generic message instead.
+		reqID, _ := r.Context().Value(middleware.RequestIDKey).(string)
+		slog.ErrorContext(r.Context(), "proxy execute failed",
+			"request_id", reqID,
+			"source", sourceRoute,
+			"error", err,
+		)
+		response.Error(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
