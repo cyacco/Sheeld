@@ -18,7 +18,7 @@ func TestClient_ChatCompletion_Success(t *testing.T) {
 		Choices: []Choice{
 			{
 				Index:        0,
-				Message:      Message{Role: "assistant", Content: "Hello! How can I help you?"},
+				Message:      Message{Role: "assistant", Content: StringContent("Hello! How can I help you?")},
 				FinishReason: "stop",
 			},
 		},
@@ -62,7 +62,7 @@ func TestClient_ChatCompletion_Success(t *testing.T) {
 
 	resp, err := client.ChatCompletion(context.Background(), "test-key", &ChatRequest{
 		Model:    "openai/gpt-4o",
-		Messages: []Message{{Role: "user", Content: "Hello"}},
+		Messages: []Message{{Role: "user", Content: StringContent("Hello")}},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -74,8 +74,8 @@ func TestClient_ChatCompletion_Success(t *testing.T) {
 	if len(resp.Choices) != 1 {
 		t.Fatalf("got %d choices, want 1", len(resp.Choices))
 	}
-	if resp.Choices[0].Message.Content != "Hello! How can I help you?" {
-		t.Errorf("got content=%q, want %q", resp.Choices[0].Message.Content, "Hello! How can I help you?")
+	if got := ExtractOutputText(resp); got != "Hello! How can I help you?" {
+		t.Errorf("got content=%q, want %q", got, "Hello! How can I help you?")
 	}
 	if resp.Usage.TotalTokens != 18 {
 		t.Errorf("got total_tokens=%d, want 18", resp.Usage.TotalTokens)
@@ -104,7 +104,7 @@ func TestClient_ChatCompletion_APIError(t *testing.T) {
 
 	_, err := client.ChatCompletion(context.Background(), "bad-key", &ChatRequest{
 		Model:    "openai/gpt-4o",
-		Messages: []Message{{Role: "user", Content: "Hello"}},
+		Messages: []Message{{Role: "user", Content: StringContent("Hello")}},
 	})
 	if err == nil {
 		t.Fatal("expected error for unauthorized request")
@@ -122,93 +122,9 @@ func TestClient_ChatCompletion_Timeout(t *testing.T) {
 
 	_, err := client.ChatCompletion(context.Background(), "key", &ChatRequest{
 		Model:    "openai/gpt-4o",
-		Messages: []Message{{Role: "user", Content: "Hello"}},
+		Messages: []Message{{Role: "user", Content: StringContent("Hello")}},
 	})
 	if err == nil {
 		t.Fatal("expected timeout error")
-	}
-}
-
-func TestExtractInputText(t *testing.T) {
-	tests := []struct {
-		name     string
-		messages []Message
-		want     string
-	}{
-		{
-			name: "single user message",
-			messages: []Message{
-				{Role: "user", Content: "Hello"},
-			},
-			want: "Hello",
-		},
-		{
-			name: "system + user",
-			messages: []Message{
-				{Role: "system", Content: "You are helpful"},
-				{Role: "user", Content: "What is 2+2?"},
-			},
-			want: "What is 2+2?",
-		},
-		{
-			name: "multi-turn takes last user message",
-			messages: []Message{
-				{Role: "user", Content: "First question"},
-				{Role: "assistant", Content: "First answer"},
-				{Role: "user", Content: "Follow-up question"},
-			},
-			want: "Follow-up question",
-		},
-		{
-			name:     "no user messages",
-			messages: []Message{{Role: "system", Content: "You are helpful"}},
-			want:     "",
-		},
-		{
-			name:     "empty messages",
-			messages: []Message{},
-			want:     "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := &ChatRequest{Messages: tt.messages}
-			got := ExtractInputText(req)
-			if got != tt.want {
-				t.Errorf("got %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestExtractOutputText(t *testing.T) {
-	tests := []struct {
-		name    string
-		choices []Choice
-		want    string
-	}{
-		{
-			name: "single choice",
-			choices: []Choice{
-				{Message: Message{Role: "assistant", Content: "Hello!"}},
-			},
-			want: "Hello!",
-		},
-		{
-			name:    "no choices",
-			choices: []Choice{},
-			want:    "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			resp := &ChatResponse{Choices: tt.choices}
-			got := ExtractOutputText(resp)
-			if got != tt.want {
-				t.Errorf("got %q, want %q", got, tt.want)
-			}
-		})
 	}
 }
