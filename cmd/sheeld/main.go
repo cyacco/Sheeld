@@ -13,6 +13,7 @@ import (
 
 	"github.com/sheeld/sheeld/internal/api"
 	"github.com/sheeld/sheeld/internal/config"
+	"github.com/sheeld/sheeld/internal/crypto"
 	"github.com/sheeld/sheeld/internal/db"
 	"github.com/sheeld/sheeld/internal/db/generated"
 	"github.com/sheeld/sheeld/internal/guard"
@@ -36,6 +37,12 @@ func run() error {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
+	}
+
+	// Validate encryption key at startup so misconfiguration fails fast
+	// instead of surfacing on the first encrypt/decrypt call.
+	if err := crypto.ValidateKey(cfg.EncryptionKey); err != nil {
+		return fmt.Errorf("validating encryption key: %w", err)
 	}
 
 	// Set up structured logging

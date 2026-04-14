@@ -8,6 +8,20 @@ import (
 	"fmt"
 )
 
+// ValidateKey verifies that hexKey decodes to exactly 32 bytes (AES-256).
+// It is intended to be called at startup so configuration errors fail fast
+// instead of surfacing on the first encrypt/decrypt call.
+func ValidateKey(hexKey string) error {
+	key, err := hex.DecodeString(hexKey)
+	if err != nil {
+		return fmt.Errorf("decoding encryption key: %w", err)
+	}
+	if len(key) != 32 {
+		return fmt.Errorf("encryption key must be 32 bytes (64 hex chars), got %d", len(key))
+	}
+	return nil
+}
+
 // Encrypt encrypts plaintext using AES-256-GCM with the given hex-encoded key.
 // Returns hex-encoded nonce+ciphertext.
 func Encrypt(plaintext string, hexKey string) (string, error) {

@@ -83,3 +83,54 @@ func TestKeyWrongLength(t *testing.T) {
 		t.Fatal("expected error for short key")
 	}
 }
+
+func TestValidateKey(t *testing.T) {
+	tests := []struct {
+		name    string
+		hexKey  string
+		wantErr bool
+	}{
+		{
+			name:    "valid 64-char hex (32 bytes)",
+			hexKey:  "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			wantErr: false,
+		},
+		{
+			name:    "short hex (16 bytes)",
+			hexKey:  "0123456789abcdef0123456789abcdef",
+			wantErr: true,
+		},
+		{
+			name:    "long hex (40 bytes)",
+			hexKey:  "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			wantErr: true,
+		},
+		{
+			name:    "invalid hex characters",
+			hexKey:  "zzzz456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			wantErr: true,
+		},
+		{
+			name:    "empty string",
+			hexKey:  "",
+			wantErr: true,
+		},
+		{
+			name:    "odd length hex",
+			hexKey:  "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateKey(tc.hexKey)
+			if tc.wantErr && err == nil {
+				t.Fatalf("ValidateKey(%q) = nil, want error", tc.hexKey)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("ValidateKey(%q) = %v, want nil", tc.hexKey, err)
+			}
+		})
+	}
+}
