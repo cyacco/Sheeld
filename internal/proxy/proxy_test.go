@@ -47,7 +47,7 @@ func mockLLMServer(t *testing.T, responseContent string) *httptest.Server {
 			Choices: []llm.Choice{
 				{
 					Index:        0,
-					Message:      llm.Message{Role: "assistant", Content: llm.StringContent(responseContent)},
+					Message:      llm.Message{Role: "assistant", Content: responseContent},
 					FinishReason: "stop",
 				},
 			},
@@ -161,7 +161,7 @@ func TestLLMClientIntegration(t *testing.T) {
 
 	resp, err := client.ChatCompletion(context.Background(), "test-key", &llm.ChatRequest{
 		Model:    "test-model",
-		Messages: []llm.Message{{Role: "user", Content: llm.StringContent("Hello")}},
+		Messages: []llm.Message{{Role: "user", Content: "Hello"}},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -237,7 +237,7 @@ func TestFullProxyFlow_OutputGuardRejects(t *testing.T) {
 	// Call LLM
 	resp, err := client.ChatCompletion(context.Background(), "test-key", &llm.ChatRequest{
 		Model:    "test-model",
-		Messages: []llm.Message{{Role: "user", Content: llm.StringContent("clean input")}},
+		Messages: []llm.Message{{Role: "user", Content: "clean input"}},
 	})
 	if err != nil {
 		t.Fatalf("LLM call failed: %v", err)
@@ -290,7 +290,7 @@ func TestFullProxyFlow_AllPass(t *testing.T) {
 	// LLM call succeeds
 	resp, err := client.ChatCompletion(context.Background(), "test-key", &llm.ChatRequest{
 		Model:    "test-model",
-		Messages: []llm.Message{{Role: "user", Content: llm.StringContent("clean question")}},
+		Messages: []llm.Message{{Role: "user", Content: "clean question"}},
 	})
 	if err != nil {
 		t.Fatalf("LLM call failed: %v", err)

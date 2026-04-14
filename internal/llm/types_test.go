@@ -14,70 +14,36 @@ func TestExtractInputText(t *testing.T) {
 		{
 			name: "single user message",
 			messages: []Message{
-				{Role: "user", Content: StringContent("Hello")},
+				{Role: "user", Content: "Hello"},
 			},
 			want: "Hello",
 		},
 		{
 			name: "system + user",
 			messages: []Message{
-				{Role: "system", Content: StringContent("You are helpful")},
-				{Role: "user", Content: StringContent("What is 2+2?")},
+				{Role: "system", Content: "You are helpful"},
+				{Role: "user", Content: "What is 2+2?"},
 			},
 			want: "What is 2+2?",
 		},
 		{
 			name: "multi-turn takes last user message",
 			messages: []Message{
-				{Role: "user", Content: StringContent("First question")},
-				{Role: "assistant", Content: StringContent("First answer")},
-				{Role: "user", Content: StringContent("Follow-up question")},
+				{Role: "user", Content: "First question"},
+				{Role: "assistant", Content: "First answer"},
+				{Role: "user", Content: "Follow-up question"},
 			},
 			want: "Follow-up question",
 		},
 		{
 			name:     "no user messages",
-			messages: []Message{{Role: "system", Content: StringContent("You are helpful")}},
+			messages: []Message{{Role: "system", Content: "You are helpful"}},
 			want:     "",
 		},
 		{
 			name:     "empty messages",
 			messages: []Message{},
 			want:     "",
-		},
-		{
-			name: "multi-part text + image content",
-			messages: []Message{
-				{
-					Role: "user",
-					Content: json.RawMessage(`[
-						{"type": "text", "text": "What is in this image?"},
-						{"type": "image_url", "image_url": {"url": "https://example.com/cat.jpg"}}
-					]`),
-				},
-			},
-			want: "What is in this image?",
-		},
-		{
-			name: "multi-part multiple text segments concatenate",
-			messages: []Message{
-				{
-					Role: "user",
-					Content: json.RawMessage(`[
-						{"type": "text", "text": "first part"},
-						{"type": "image_url", "image_url": {"url": "https://example.com/x.jpg"}},
-						{"type": "text", "text": "second part"}
-					]`),
-				},
-			},
-			want: "first part\nsecond part",
-		},
-		{
-			name: "unguardable content shape returns empty",
-			messages: []Message{
-				{Role: "user", Content: json.RawMessage(`{"weird": "object"}`)},
-			},
-			want: "",
 		},
 		{
 			name: "missing content returns empty",
@@ -108,7 +74,7 @@ func TestExtractOutputText(t *testing.T) {
 		{
 			name: "single choice with plain text",
 			choices: []Choice{
-				{Message: Message{Role: "assistant", Content: StringContent("Hello!")}},
+				{Message: Message{Role: "assistant", Content: "Hello!"}},
 			},
 			want: "Hello!",
 		},
@@ -138,39 +104,6 @@ func TestExtractOutputText(t *testing.T) {
 				},
 			},
 			want: "",
-		},
-		{
-			name: "tool calls with explicit null content",
-			choices: []Choice{
-				{
-					Message: Message{
-						Role:    "assistant",
-						Content: json.RawMessage(`null`),
-						ToolCalls: []ToolCall{
-							{
-								ID:       "call_xyz",
-								Type:     "function",
-								Function: FunctionCall{Name: "ping", Arguments: "{}"},
-							},
-						},
-					},
-				},
-			},
-			want: "",
-		},
-		{
-			name: "multi-part assistant content",
-			choices: []Choice{
-				{
-					Message: Message{
-						Role: "assistant",
-						Content: json.RawMessage(`[
-							{"type": "text", "text": "Here is your answer"}
-						]`),
-					},
-				},
-			},
-			want: "Here is your answer",
 		},
 	}
 
@@ -318,12 +251,5 @@ func TestChatRequest_ToolsRoundTrip(t *testing.T) {
 	// Sanity: the user message should still extract via ExtractInputText.
 	if got := ExtractInputText(&req2); got != "What is the weather in SF?" {
 		t.Errorf("ExtractInputText = %q, want %q", got, "What is the weather in SF?")
-	}
-}
-
-func TestStringContent(t *testing.T) {
-	got := StringContent(`hello "world"`)
-	if string(got) != `"hello \"world\""` {
-		t.Errorf("StringContent = %s, want escaped JSON string", got)
 	}
 }

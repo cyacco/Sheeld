@@ -105,7 +105,7 @@ func TestMain(m *testing.M) {
 						Index: 0,
 						Message: llm.Message{
 							Role:    "assistant",
-							Content: llm.StringContent(getMockLLMResponse()),
+							Content: getMockLLMResponse(),
 						},
 						FinishReason: "stop",
 					},

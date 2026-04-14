@@ -35,13 +35,13 @@ type ChatRequest struct {
 
 // Message represents a single message in the conversation.
 //
-// Content is stored as raw JSON to losslessly preserve both plain-string
-// content (the classic shape) and OpenAI's structured multi-part content
-// arrays (used for vision and tool results). Use ExtractInputText /
-// ExtractOutputText (or unmarshal Content yourself) to read it.
+// Content is a plain string. Multi-part content (OpenAI vision blocks,
+// structured tool-result arrays) is NOT yet supported — callers sending
+// those shapes will lose the non-string fields on unmarshal. Changing
+// Content to preserve structured shapes is a deferred decision.
 type Message struct {
-	Role    string          `json:"role"`              // "system", "user", "assistant", "tool"
-	Content json.RawMessage `json:"content,omitempty"` // string OR []ContentPart
+	Role    string `json:"role"`    // "system", "user", "assistant", "tool"
+	Content string `json:"content"` // plain text
 
 	// Name is an optional author name (e.g., for tool messages it identifies
 	// the tool, for user/assistant messages it can disambiguate participants).
@@ -115,65 +115,12 @@ type ErrorResponse struct {
 	} `json:"error"`
 }
 
-// StringContent wraps a plain string into the json.RawMessage shape expected
-// by Message.Content. Useful for tests and for callers constructing a
-// ChatRequest in Go (rather than unmarshaling from the wire).
-func StringContent(s string) json.RawMessage {
-	b, _ := json.Marshal(s)
-	return b
-}
-
-// contentPart is the multi-part content shape used by OpenAI's vision and
-// tool-result formats. Only the text variant is interesting to guards today.
-type contentPart struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
-}
-
-// messageText extracts a flat text representation from a message's Content.
-// Plain-string content is returned as-is. Multi-part content has all
-// {type:"text"} parts concatenated with newlines. Anything else returns "".
-func messageText(content json.RawMessage) string {
-	if len(content) == 0 {
-		return ""
-	}
-
-	// Try string first — this is the common case.
-	var s string
-	if err := json.Unmarshal(content, &s); err == nil {
-		return s
-	}
-
-	// Try multi-part array.
-	var parts []contentPart
-	if err := json.Unmarshal(content, &parts); err == nil {
-		var out string
-		for _, p := range parts {
-			if p.Type != "text" {
-				continue
-			}
-			if out != "" {
-				out += "\n"
-			}
-			out += p.Text
-		}
-		return out
-	}
-
-	// Unknown / unguardable shape.
-	return ""
-}
-
 // ExtractInputText pulls the last user message content from a chat request.
 // This is what gets validated by input guards.
-//
-// Supports both plain-string content and OpenAI multi-part content arrays
-// (e.g. vision messages). For multi-part content, all text parts are
-// concatenated with newlines; non-text parts (images, etc.) are ignored.
 func ExtractInputText(req *ChatRequest) string {
 	for i := len(req.Messages) - 1; i >= 0; i-- {
 		if req.Messages[i].Role == "user" {
-			return messageText(req.Messages[i].Content)
+			return req.Messages[i].Content
 		}
 	}
 	return ""
@@ -188,5 +135,5 @@ func ExtractOutputText(resp *ChatResponse) string {
 	if len(resp.Choices) == 0 {
 		return ""
 	}
-	return messageText(resp.Choices[0].Message.Content)
+	return resp.Choices[0].Message.Content
 }

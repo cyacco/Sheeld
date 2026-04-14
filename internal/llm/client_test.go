@@ -18,7 +18,7 @@ func TestClient_ChatCompletion_Success(t *testing.T) {
 		Choices: []Choice{
 			{
 				Index:        0,
-				Message:      Message{Role: "assistant", Content: StringContent("Hello! How can I help you?")},
+				Message:      Message{Role: "assistant", Content: "Hello! How can I help you?"},
 				FinishReason: "stop",
 			},
 		},
@@ -62,7 +62,7 @@ func TestClient_ChatCompletion_Success(t *testing.T) {
 
 	resp, err := client.ChatCompletion(context.Background(), "test-key", &ChatRequest{
 		Model:    "openai/gpt-4o",
-		Messages: []Message{{Role: "user", Content: StringContent("Hello")}},
+		Messages: []Message{{Role: "user", Content: "Hello"}},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -104,7 +104,7 @@ func TestClient_ChatCompletion_APIError(t *testing.T) {
 
 	_, err := client.ChatCompletion(context.Background(), "bad-key", &ChatRequest{
 		Model:    "openai/gpt-4o",
-		Messages: []Message{{Role: "user", Content: StringContent("Hello")}},
+		Messages: []Message{{Role: "user", Content: "Hello"}},
 	})
 	if err == nil {
 		t.Fatal("expected error for unauthorized request")
@@ -122,7 +122,7 @@ func TestClient_ChatCompletion_Timeout(t *testing.T) {
 
 	_, err := client.ChatCompletion(context.Background(), "key", &ChatRequest{
 		Model:    "openai/gpt-4o",
-		Messages: []Message{{Role: "user", Content: StringContent("Hello")}},
+		Messages: []Message{{Role: "user", Content: "Hello"}},
 	})
 	if err == nil {
 		t.Fatal("expected timeout error")
