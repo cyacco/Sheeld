@@ -129,7 +129,7 @@ func TestBuildGuardsPhaseFiltering(t *testing.T) {
 	// Test that the blocklist guard can be created from JSON config via registry
 	registry := guard.NewRegistry()
 
-	config := json.RawMessage(`{"words": ["bad"], "mode": "block"}`)
+	config := json.RawMessage(`{"words": ["bad"]}`)
 	g, err := registry.Create("blocklist", "test-guard", config)
 	if err != nil {
 		t.Fatalf("failed to create guard: %v", err)
@@ -188,7 +188,6 @@ func TestFullProxyFlow_InputGuardRejects(t *testing.T) {
 	inputGuards := []guard.Guard{
 		guard.NewBlocklistGuard("profanity-filter", guard.BlocklistConfig{
 			Words: []string{"bad"},
-			Mode:  "block",
 		}),
 	}
 
@@ -222,7 +221,6 @@ func TestFullProxyFlow_OutputGuardRejects(t *testing.T) {
 	inputGuards := []guard.Guard{
 		guard.NewBlocklistGuard("input-filter", guard.BlocklistConfig{
 			Words: []string{"blocked"},
-			Mode:  "block",
 		}),
 	}
 
@@ -249,7 +247,6 @@ func TestFullProxyFlow_OutputGuardRejects(t *testing.T) {
 	outputGuards := []guard.Guard{
 		guard.NewBlocklistGuard("output-filter", guard.BlocklistConfig{
 			Words: []string{"bad"},
-			Mode:  "block",
 		}),
 	}
 
@@ -277,7 +274,6 @@ func TestFullProxyFlow_AllPass(t *testing.T) {
 	inputGuards := []guard.Guard{
 		guard.NewBlocklistGuard("input-filter", guard.BlocklistConfig{
 			Words: []string{"blocked"},
-			Mode:  "block",
 		}),
 	}
 
@@ -304,7 +300,6 @@ func TestFullProxyFlow_AllPass(t *testing.T) {
 	outputGuards := []guard.Guard{
 		guard.NewBlocklistGuard("output-filter", guard.BlocklistConfig{
 			Words: []string{"blocked"},
-			Mode:  "block",
 		}),
 	}
 

@@ -35,7 +35,7 @@ const GUARD_TYPES = [
 function defaultConfig(guardType: string): Record<string, unknown> {
   switch (guardType) {
     case "blocklist":
-      return { words: [], mode: "block" } satisfies BlocklistConfig;
+      return { words: [] } satisfies BlocklistConfig;
     case "regex":
       return { patterns: [], mode: "block" } satisfies RegexConfig;
     case "openai_moderation":

@@ -123,7 +123,6 @@ export interface SourceSummary {
 // Guard config types
 export interface BlocklistConfig {
   words: string[];
-  mode: string; // "block" | "allow"
 }
 
 export interface RegexConfig {

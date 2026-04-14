@@ -75,7 +75,6 @@ func TestBlocklistGuard_BlockMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g := NewBlocklistGuard("test-blocklist", BlocklistConfig{
 				Words: tt.words,
-				Mode:  "block",
 			})
 
 			result, err := g.Validate(context.Background(), tt.input)
@@ -93,68 +92,5 @@ func TestBlocklistGuard_BlockMode(t *testing.T) {
 				t.Errorf("got type=%q, want %q", result.GuardType, "blocklist")
 			}
 		})
-	}
-}
-
-func TestBlocklistGuard_AllowMode(t *testing.T) {
-	tests := []struct {
-		name     string
-		words    []string
-		input    string
-		wantPass bool
-	}{
-		{
-			name:     "all words in allow list",
-			words:    []string{"hello", "world"},
-			input:    "hello world",
-			wantPass: true,
-		},
-		{
-			name:     "word not in allow list",
-			words:    []string{"hello", "world"},
-			input:    "hello universe",
-			wantPass: false,
-		},
-		{
-			name:     "empty input passes",
-			words:    []string{"hello"},
-			input:    "",
-			wantPass: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			g := NewBlocklistGuard("test-allowlist", BlocklistConfig{
-				Words: tt.words,
-				Mode:  "allow",
-			})
-
-			result, err := g.Validate(context.Background(), tt.input)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			if result.Passed != tt.wantPass {
-				t.Errorf("got passed=%v, want %v", result.Passed, tt.wantPass)
-			}
-		})
-	}
-}
-
-func TestBlocklistGuard_DefaultMode(t *testing.T) {
-	// Default mode should be "block"
-	g := NewBlocklistGuard("test", BlocklistConfig{
-		Words: []string{"bad"},
-		Mode:  "",
-	})
-
-	result, err := g.Validate(context.Background(), "this is bad")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if result.Passed {
-		t.Error("expected default mode (block) to reject input with blocked word")
 	}
 }
