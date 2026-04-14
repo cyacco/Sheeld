@@ -55,7 +55,7 @@ docker compose up db -d
 ```bash
 export SHEELD_DATABASE_URL="postgres://sheeld:sheeld_dev@localhost:5432/sheeld?sslmode=disable"
 export SHEELD_JWT_SECRET="dev-secret"
-export SHEELD_ENCRYPTION_KEY="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+export SHEELD_ENCRYPTION_KEY=$(openssl rand -hex 32)
 ```
 
 ### 3. Run the API
