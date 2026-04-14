@@ -142,8 +142,11 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute string
 	}
 
 	// 7. Call LLM via gateway
-	// Override model with the source's configured model
-	chatReq.Model = source.LlmModel
+	// Shallow-copy the request before overriding the model so we don't
+	// mutate the caller-supplied struct. The Messages slice is shared
+	// (read-only from here on), which is fine.
+	reqCopy := *chatReq
+	reqCopy.Model = source.LlmModel
 
 	apiKey, err := crypto.Decrypt(source.LlmApiKeyEnc, p.encryptionKey)
 	if err != nil {
@@ -151,9 +154,9 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute string
 	}
 
 	llmStart := time.Now()
-	log.Info("calling LLM gateway", "model", chatReq.Model)
+	log.Info("calling LLM gateway", "model", reqCopy.Model)
 
-	chatResp, err := p.llmClient.ChatCompletion(ctx, apiKey, chatReq)
+	chatResp, err := p.llmClient.ChatCompletion(ctx, apiKey, &reqCopy)
 	if err != nil {
 		return nil, fmt.Errorf("LLM call failed: %w", err)
 	}
