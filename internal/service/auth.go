@@ -191,6 +191,15 @@ func (s *AuthService) ValidateAPIKey(ctx context.Context, rawKey string) (uuid.U
 		return uuid.Nil, fmt.Errorf("invalid API key")
 	}
 
+	// Defense-in-depth: even though GetAPIKeyByHash filters out revoked
+	// keys at the SQL level, double-check here so that a revoked key can
+	// never authenticate. The error is intentionally identical to the
+	// not-found path to avoid leaking whether a key was revoked vs never
+	// existed.
+	if apiKey.RevokedAt.Valid {
+		return uuid.Nil, fmt.Errorf("invalid API key")
+	}
+
 	return apiKey.OrganizationID, nil
 }
 
