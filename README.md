@@ -8,7 +8,7 @@ Licensed under Apache 2.0.
 
 ## Prerequisites
 
-- [Go 1.24+](https://go.dev/dl/)
+- [Go 1.25+](https://go.dev/dl/)
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose
 - [Node.js 22+](https://nodejs.org/) (only for local dashboard development)
 
