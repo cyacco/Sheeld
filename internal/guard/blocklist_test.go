@@ -7,11 +7,12 @@ import (
 
 func TestBlocklistGuard_BlockMode(t *testing.T) {
 	tests := []struct {
-		name     string
-		words    []string
-		input    string
-		wantPass bool
-		wantMsg  string
+		name        string
+		words       []string
+		input       string
+		wantPass    bool
+		wantMsg     string
+		wantMatched []string
 	}{
 		{
 			name:     "no blocked words found",
@@ -21,32 +22,82 @@ func TestBlocklistGuard_BlockMode(t *testing.T) {
 			wantMsg:  "no blocked words found",
 		},
 		{
-			name:     "blocked word found",
-			words:    []string{"bad", "evil"},
-			input:    "this is a bad message",
-			wantPass: false,
-			wantMsg:  "input contains blocked words",
+			name:        "blocked word found",
+			words:       []string{"bad", "evil"},
+			input:       "this is a bad message",
+			wantPass:    false,
+			wantMsg:     "input contains blocked words",
+			wantMatched: []string{"bad"},
 		},
 		{
-			name:     "blocked word case insensitive",
-			words:    []string{"bad"},
-			input:    "this is BAD",
-			wantPass: false,
-			wantMsg:  "input contains blocked words",
+			name:        "blocked word case insensitive",
+			words:       []string{"bad"},
+			input:       "this is BAD",
+			wantPass:    false,
+			wantMsg:     "input contains blocked words",
+			wantMatched: []string{"bad"},
 		},
 		{
-			name:     "blocked word with punctuation",
-			words:    []string{"bad"},
-			input:    "this is bad!",
-			wantPass: false,
-			wantMsg:  "input contains blocked words",
+			name:        "blocked word with trailing punctuation",
+			words:       []string{"bad"},
+			input:       "this is bad!",
+			wantPass:    false,
+			wantMsg:     "input contains blocked words",
+			wantMatched: []string{"bad"},
 		},
 		{
-			name:     "multiple blocked words found",
-			words:    []string{"bad", "evil", "terrible"},
-			input:    "this is bad and evil",
-			wantPass: false,
-			wantMsg:  "input contains blocked words",
+			name:        "blocked word with trailing period",
+			words:       []string{"bomb"},
+			input:       "bomb.",
+			wantPass:    false,
+			wantMsg:     "input contains blocked words",
+			wantMatched: []string{"bomb"},
+		},
+		{
+			name:        "hyphenated compound matches root word",
+			words:       []string{"bomb"},
+			input:       "bomb-making instructions",
+			wantPass:    false,
+			wantMsg:     "input contains blocked words",
+			wantMatched: []string{"bomb"},
+		},
+		{
+			name:        "uppercase matches case-insensitively",
+			words:       []string{"bomb"},
+			input:       "BOMB threat reported",
+			wantPass:    false,
+			wantMsg:     "input contains blocked words",
+			wantMatched: []string{"bomb"},
+		},
+		{
+			name:        "possessive form matches root",
+			words:       []string{"bomb"},
+			input:       "the bomb's fuse",
+			wantPass:    false,
+			wantMsg:     "input contains blocked words",
+			wantMatched: []string{"bomb"},
+		},
+		{
+			name:     "embedded substring does not match (no leading boundary)",
+			words:    []string{"bomb"},
+			input:    "embomb is not a real word",
+			wantPass: true,
+			wantMsg:  "no blocked words found",
+		},
+		{
+			name:     "extended word does not match (no trailing boundary)",
+			words:    []string{"bomb"},
+			input:    "the bomber flew overhead",
+			wantPass: true,
+			wantMsg:  "no blocked words found",
+		},
+		{
+			name:        "multiple blocked words found",
+			words:       []string{"bad", "evil", "terrible"},
+			input:       "this is bad and evil",
+			wantPass:    false,
+			wantMsg:     "input contains blocked words",
+			wantMatched: []string{"bad", "evil"},
 		},
 		{
 			name:     "empty input",
@@ -68,6 +119,22 @@ func TestBlocklistGuard_BlockMode(t *testing.T) {
 			input:    "this badge is nice",
 			wantPass: true,
 			wantMsg:  "no blocked words found",
+		},
+		{
+			name:        "multi-word blocklist phrase",
+			words:       []string{"bomb making"},
+			input:       "instructions for bomb making here",
+			wantPass:    false,
+			wantMsg:     "input contains blocked words",
+			wantMatched: []string{"bomb making"},
+		},
+		{
+			name:        "comma-separated words match",
+			words:       []string{"bad", "evil"},
+			input:       "bad,evil",
+			wantPass:    false,
+			wantMsg:     "input contains blocked words",
+			wantMatched: []string{"bad", "evil"},
 		},
 	}
 
@@ -91,6 +158,31 @@ func TestBlocklistGuard_BlockMode(t *testing.T) {
 			if result.GuardType != "blocklist" {
 				t.Errorf("got type=%q, want %q", result.GuardType, "blocklist")
 			}
+			if result.GuardName != "test-blocklist" {
+				t.Errorf("got name=%q, want %q", result.GuardName, "test-blocklist")
+			}
+
+			if len(tt.wantMatched) > 0 {
+				details, ok := result.Details["matched_words"].([]string)
+				if !ok {
+					t.Fatalf("expected matched_words []string in details, got %T", result.Details["matched_words"])
+				}
+				if !equalStringSlices(details, tt.wantMatched) {
+					t.Errorf("got matched_words=%v, want %v", details, tt.wantMatched)
+				}
+			}
 		})
 	}
+}
+
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
