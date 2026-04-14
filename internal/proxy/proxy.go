@@ -136,7 +136,7 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute string
 				LatencyMs:    time.Since(start).Milliseconds(),
 			}
 			log.Info("request rejected at input phase", "total_latency_ms", result.LatencyMs)
-			p.writeAuditLog(ctx, source, orgID, inputText, guardResults, "fail", result.LatencyMs)
+			p.spawnAuditLog(ctx, source, orgID, inputText, guardResults, "fail", result.LatencyMs)
 			return result, nil
 		}
 	}
@@ -183,7 +183,7 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute string
 				LatencyMs:    time.Since(start).Milliseconds(),
 			}
 			log.Info("request rejected at output phase", "total_latency_ms", result.LatencyMs)
-			p.writeAuditLog(ctx, source, orgID, inputText, guardResults, "fail", result.LatencyMs)
+			p.spawnAuditLog(ctx, source, orgID, inputText, guardResults, "fail", result.LatencyMs)
 			return result, nil
 		}
 	}
@@ -196,7 +196,7 @@ func (p *Proxy) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute string
 		LatencyMs:    time.Since(start).Milliseconds(),
 	}
 	log.Info("proxy request completed", "status", "pass", "total_latency_ms", result.LatencyMs)
-	p.writeAuditLog(ctx, source, orgID, inputText, guardResults, "pass", result.LatencyMs)
+	p.spawnAuditLog(ctx, source, orgID, inputText, guardResults, "pass", result.LatencyMs)
 	return result, nil
 }
 
@@ -216,7 +216,30 @@ func (p *Proxy) buildGuards(guardrails []generated.Guardrail, phase string) ([]g
 	return guards, nil
 }
 
-// writeAuditLog records the proxy result asynchronously.
+// auditLogTimeout bounds how long a detached audit log write may run.
+const auditLogTimeout = 5 * time.Second
+
+// spawnAuditLog writes the audit log off the request path. It detaches the
+// caller's context (preserving values like request_id) so the write survives
+// the handler returning, and bounds the work with auditLogTimeout.
+func (p *Proxy) spawnAuditLog(
+	ctx context.Context,
+	source generated.Source,
+	orgID uuid.UUID,
+	inputText string,
+	guardResults map[string]*guard.EngineResult,
+	overallResult string,
+	latencyMs int64,
+) {
+	detached, cancel := context.WithTimeout(context.WithoutCancel(ctx), auditLogTimeout)
+	go func() {
+		defer cancel()
+		p.writeAuditLog(detached, source, orgID, inputText, guardResults, overallResult, latencyMs)
+	}()
+}
+
+// writeAuditLog records the proxy result. It is invoked from a detached
+// goroutine via spawnAuditLog so the caller does not block on the DB write.
 func (p *Proxy) writeAuditLog(
 	ctx context.Context,
 	source generated.Source,
