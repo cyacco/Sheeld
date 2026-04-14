@@ -276,6 +276,73 @@ func TestEngine_GuardError(t *testing.T) {
 	}
 }
 
+// uncooperativeGuard ignores ctx and always sleeps for the full delay.
+// Used to verify that Engine.Run returns promptly on ctx cancellation
+// even when individual guards don't cooperate.
+type uncooperativeGuard struct {
+	name      string
+	guardType string
+	delay     time.Duration
+}
+
+func (g *uncooperativeGuard) Type() string { return g.guardType }
+func (g *uncooperativeGuard) Name() string { return g.name }
+func (g *uncooperativeGuard) Validate(_ context.Context, _ string) (*Result, error) {
+	time.Sleep(g.delay)
+	return &Result{
+		GuardName: g.name,
+		GuardType: g.guardType,
+		Passed:    true,
+		Message:   "passed",
+		Duration:  g.delay,
+	}, nil
+}
+
+func TestEngine_ContextCancellation(t *testing.T) {
+	// Uncooperative slow guard that ignores ctx — proves the engine itself
+	// (not just the guard) returns promptly when ctx is cancelled.
+	guards := []Guard{
+		&uncooperativeGuard{name: "slow", guardType: "mock", delay: 500 * time.Millisecond},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	engine := NewEngine(NewRegistry())
+	start := time.Now()
+	result, err := engine.Run(ctx, guards, "test", EvalConfig{
+		Criteria: CriteriaAll,
+	})
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Run should return well before the 500ms guard delay — give it a
+	// generous 50ms budget over the 10ms cancellation deadline.
+	if elapsed > 60*time.Millisecond {
+		t.Errorf("Run took %v, expected <60ms after ctx cancellation", elapsed)
+	}
+
+	if result.Passed {
+		t.Error("expected overall failure when guards are cancelled")
+	}
+	if len(result.Results) != len(guards) {
+		t.Fatalf("got %d results, want %d", len(result.Results), len(guards))
+	}
+	r := result.Results[0]
+	if r == nil {
+		t.Fatal("result[0] is nil")
+	}
+	if r.Passed {
+		t.Errorf("result[0] (%s) passed, expected failure", r.GuardName)
+	}
+	if r.Message != "cancelled by context" {
+		t.Errorf("result[0] (%s) message=%q, want %q", r.GuardName, r.Message, "cancelled by context")
+	}
+}
+
 func TestEngine_ConcurrentExecution(t *testing.T) {
 	// Verify guards run concurrently by checking that total time is ~delay, not ~N*delay
 	delay := 50 * time.Millisecond
