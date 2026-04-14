@@ -64,6 +64,27 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, 
 	return i, err
 }
 
+const getAPIKeyByPrefix = `-- name: GetAPIKeyByPrefix :one
+SELECT id, organization_id, name, key_hash, key_prefix, created_at, revoked_at FROM api_keys
+WHERE key_prefix = $1 AND revoked_at IS NULL
+LIMIT 1
+`
+
+func (q *Queries) GetAPIKeyByPrefix(ctx context.Context, keyPrefix string) (ApiKey, error) {
+	row := q.db.QueryRow(ctx, getAPIKeyByPrefix, keyPrefix)
+	var i ApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Name,
+		&i.KeyHash,
+		&i.KeyPrefix,
+		&i.CreatedAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
 const listAPIKeysByOrganization = `-- name: ListAPIKeysByOrganization :many
 SELECT id, organization_id, name, key_hash, key_prefix, created_at, revoked_at FROM api_keys
 WHERE organization_id = $1

@@ -7,6 +7,11 @@ RETURNING *;
 SELECT * FROM api_keys
 WHERE key_hash = $1 AND revoked_at IS NULL;
 
+-- name: GetAPIKeyByPrefix :one
+SELECT * FROM api_keys
+WHERE key_prefix = $1 AND revoked_at IS NULL
+LIMIT 1;
+
 -- name: ListAPIKeysByOrganization :many
 SELECT * FROM api_keys
 WHERE organization_id = $1
