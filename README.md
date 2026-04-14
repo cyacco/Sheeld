@@ -14,7 +14,15 @@ Licensed under Apache 2.0.
 
 ## Quick Start (Docker Compose)
 
-Start the full stack with a single command:
+Copy the example env file and fill in your secrets:
+
+```bash
+cp .env.example .env
+# Edit .env — at minimum, generate a real encryption key:
+#   openssl rand -hex 32
+```
+
+Then start the full stack:
 
 ```bash
 docker compose up -d --build
