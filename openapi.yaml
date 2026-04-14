@@ -105,6 +105,26 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /v1/auth/refresh:
+    post:
+      summary: Refresh a JWT token
+      operationId: refreshToken
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /v1/auth/api-keys:
     post:
       summary: Create an API key
@@ -180,6 +200,31 @@ paths:
                   status:
                     type: string
                     example: revoked
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/models:
+    get:
+      summary: List supported LLM models
+      operationId: listModels
+      tags: [Models]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: provider
+          in: query
+          schema:
+            type: string
+          description: Filter by provider (e.g. "openai", "anthropic")
+      responses:
+        "200":
+          description: Model list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ModelInfo"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -308,10 +353,10 @@ paths:
           $ref: "#/components/responses/Unauthorized"
 
   /v1/sources/{sourceID}/guardrails:
-    post:
-      summary: Create a guardrail
-      operationId: createGuardrail
-      tags: [Guardrails]
+    get:
+      summary: List guardrails attached to a source
+      operationId: listGuardrailsBySource
+      tags: [Sources, Guardrails]
       security:
         - bearerAuth: []
       parameters:
@@ -321,6 +366,25 @@ paths:
           schema:
             type: string
             format: uuid
+      responses:
+        "200":
+          description: Guardrail list for this source
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Guardrail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/guardrails:
+    post:
+      summary: Create a guardrail
+      operationId: createGuardrail
+      tags: [Guardrails]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -339,18 +403,11 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
     get:
-      summary: List guardrails for a source
+      summary: List all guardrails for the organization
       operationId: listGuardrails
       tags: [Guardrails]
       security:
         - bearerAuth: []
-      parameters:
-        - name: sourceID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
       responses:
         "200":
           description: Guardrail list
@@ -363,7 +420,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /v1/sources/{sourceID}/guardrails/{id}:
+  /v1/guardrails/{id}:
     get:
       summary: Get a guardrail
       operationId: getGuardrail
@@ -371,12 +428,6 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - name: sourceID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
         - name: id
           in: path
           required: true
@@ -401,12 +452,6 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - name: sourceID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
         - name: id
           in: path
           required: true
@@ -437,12 +482,6 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - name: sourceID
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
         - name: id
           in: path
           required: true
@@ -460,6 +499,105 @@ paths:
                   status:
                     type: string
                     example: deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/guardrails/{id}/sources:
+    post:
+      summary: Attach a guardrail to a source
+      operationId: attachGuardrailToSource
+      tags: [Guardrails]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source_id]
+              properties:
+                source_id:
+                  type: string
+                  format: uuid
+      responses:
+        "201":
+          description: Attached
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: attached
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      summary: List sources attached to a guardrail
+      operationId: listGuardrailSources
+      tags: [Guardrails]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Source summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SourceSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/guardrails/{id}/sources/{sourceID}:
+    delete:
+      summary: Detach a guardrail from a source
+      operationId: detachGuardrailFromSource
+      tags: [Guardrails]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: sourceID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Detached
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: detached
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -652,6 +790,14 @@ components:
           format: date-time
           nullable: true
 
+    ModelInfo:
+      type: object
+      properties:
+        provider:
+          type: string
+        id:
+          type: string
+
     SourceInput:
       type: object
       required: [name, route, llm_provider, llm_model, llm_api_key]
@@ -712,6 +858,17 @@ components:
           type: string
           format: date-time
 
+    SourceSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        route:
+          type: string
+
     GuardrailInput:
       type: object
       required: [name, guard_type]
@@ -737,7 +894,7 @@ components:
         id:
           type: string
           format: uuid
-        source_id:
+        organization_id:
           type: string
           format: uuid
         name:
