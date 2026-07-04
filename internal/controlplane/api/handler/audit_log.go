@@ -1,24 +1,35 @@
 package handler
 
 import (
+	"io"
+	"log/slog"
 	"net/http"
-	"strconv"
+	"net/url"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/sheeld/sheeld/internal/shared/middleware"
 	"github.com/sheeld/sheeld/internal/shared/response"
-	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
 )
 
-// AuditLogHandler handles audit log HTTP requests.
+// AuditLogHandler proxies audit-log queries to the data plane, which owns
+// the audit database. The caller's org ID is injected server-side so a
+// dashboard user can only see their own logs.
 type AuditLogHandler struct {
-	queries *generated.Queries
+	dataPlaneURL string
+	token        string
+	client       *http.Client
 }
 
-// NewAuditLogHandler creates a new AuditLogHandler.
-func NewAuditLogHandler(queries *generated.Queries) *AuditLogHandler {
-	return &AuditLogHandler{queries: queries}
+// NewAuditLogHandler creates a new AuditLogHandler forwarding to the data
+// plane at dataPlaneURL using the shared static token.
+func NewAuditLogHandler(dataPlaneURL, token string) *AuditLogHandler {
+	return &AuditLogHandler{
+		dataPlaneURL: dataPlaneURL,
+		token:        token,
+		client:       &http.Client{Timeout: 10 * time.Second},
+	}
 }
 
 // List handles GET /v1/audit-logs.
@@ -29,51 +40,36 @@ func (h *AuditLogHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit := int32(50)
-	if v := r.URL.Query().Get("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
-			limit = int32(n)
-		}
-	}
-
-	offset := int32(0)
-	if v := r.URL.Query().Get("offset"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-			offset = int32(n)
-		}
-	}
-
-	sourceIDStr := r.URL.Query().Get("source_id")
-
-	if sourceIDStr != "" {
-		sourceID, err := uuid.Parse(sourceIDStr)
-		if err != nil {
-			response.Error(w, http.StatusBadRequest, "invalid source_id")
-			return
-		}
-		logs, err := h.queries.ListAuditLogsBySource(r.Context(), generated.ListAuditLogsBySourceParams{
-			SourceID:       sourceID,
-			OrganizationID: orgID,
-			Limit:          limit,
-			Offset:         offset,
-		})
-		if err != nil {
-			response.Error(w, http.StatusInternalServerError, "failed to list audit logs")
-			return
-		}
-		response.JSON(w, http.StatusOK, logs)
+	if h.dataPlaneURL == "" {
+		response.Error(w, http.StatusServiceUnavailable, "data plane not configured")
 		return
 	}
 
-	logs, err := h.queries.ListAuditLogsByOrganization(r.Context(), generated.ListAuditLogsByOrganizationParams{
-		OrganizationID: orgID,
-		Limit:          limit,
-		Offset:         offset,
-	})
+	q := url.Values{}
+	q.Set("org_id", orgID.String())
+	for _, param := range []string{"source_id", "limit", "offset"} {
+		if v := r.URL.Query().Get(param); v != "" {
+			q.Set(param, v)
+		}
+	}
+
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet,
+		h.dataPlaneURL+"/v1/internal/audit-logs?"+q.Encode(), nil)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "failed to list audit logs")
+		response.Error(w, http.StatusInternalServerError, "failed to build audit query")
 		return
 	}
+	req.Header.Set("Authorization", "Bearer "+h.token)
 
-	response.JSON(w, http.StatusOK, logs)
+	resp, err := h.client.Do(req)
+	if err != nil {
+		slog.Error("audit-log query to data plane failed", "error", err)
+		response.Error(w, http.StatusBadGateway, "audit log query failed")
+		return
+	}
+	defer resp.Body.Close()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
 }

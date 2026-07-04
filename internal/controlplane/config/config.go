@@ -29,6 +29,10 @@ type Config struct {
 	// audit-log queries). Empty disables the data-plane endpoints.
 	DataPlaneToken string `envconfig:"DATAPLANE_TOKEN"`
 
+	// Base URL of a data plane, used to proxy audit-log queries for the
+	// dashboard. Empty disables audit-log queries.
+	DataPlaneURL string `envconfig:"DATAPLANE_URL"`
+
 	// LLM Gateway (LiteLLM)
 	LLMGatewayURL     string        `envconfig:"LLM_GATEWAY_URL" default:"http://localhost:4000"`
 	LLMRequestTimeout time.Duration `envconfig:"LLM_REQUEST_TIMEOUT" default:"30s"`

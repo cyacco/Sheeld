@@ -9,8 +9,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/sheeld/sheeld/internal/dataplane/auditstore"
 	"github.com/sheeld/sheeld/internal/dataplane/backendconfig"
 	"github.com/sheeld/sheeld/internal/dataplane/config"
+	"github.com/sheeld/sheeld/internal/dataplane/db"
+	"github.com/sheeld/sheeld/internal/dataplane/db/generated"
 	"github.com/sheeld/sheeld/internal/dataplane/gateway"
 	"github.com/sheeld/sheeld/internal/dataplane/processor"
 	"github.com/sheeld/sheeld/internal/shared/guard"
@@ -49,6 +54,27 @@ func run() error {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	slog.SetDefault(logger)
 
+	// Connect to the data-plane database (audit logs)
+	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("connecting to database: %w", err)
+	}
+	defer pool.Close()
+
+	if err := pool.Ping(ctx); err != nil {
+		return fmt.Errorf("pinging database: %w", err)
+	}
+	slog.Info("connected to database")
+
+	if err := db.RunMigrations(ctx, pool); err != nil {
+		return fmt.Errorf("running migrations: %w", err)
+	}
+	slog.Info("database migrations applied")
+
+	queries := generated.New(pool)
+	auditWriter := auditstore.NewWriter(queries)
+	defer auditWriter.Close()
+
 	// Config store + poller
 	guardRegistry := guard.NewRegistry()
 	store := backendconfig.NewStore()
@@ -63,11 +89,11 @@ func run() error {
 	// Processor: guards + LLM client, config from the in-memory store
 	guardEngine := guard.NewEngine(guardRegistry)
 	llmClient := llm.NewClient(cfg.LLMGatewayURL, cfg.LLMRequestTimeout)
-	proc := processor.NewProcessor(store, guardEngine, llmClient, nil)
+	proc := processor.NewProcessor(store, guardEngine, llmClient, auditWriter)
 	slog.Info("LLM gateway configured", "url", cfg.LLMGatewayURL, "timeout", cfg.LLMRequestTimeout)
 
 	// Build HTTP router
-	router := gateway.NewRouter(cfg, store, proc)
+	router := gateway.NewRouter(cfg, store, proc, auditstore.NewHandler(queries))
 
 	// Start HTTP server
 	srv := &http.Server{

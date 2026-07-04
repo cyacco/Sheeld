@@ -73,7 +73,7 @@ func NewRouter(
 	authHandler := handler.NewAuthHandler(authService)
 	sourceHandler := handler.NewSourceHandler(sourceService)
 	guardrailHandler := handler.NewGuardrailHandler(guardrailService)
-	auditLogHandler := handler.NewAuditLogHandler(queries)
+	auditLogHandler := handler.NewAuditLogHandler(cfg.DataPlaneURL, cfg.DataPlaneToken)
 	modelsHandler := handler.NewModelsHandler()
 
 	// API v1
