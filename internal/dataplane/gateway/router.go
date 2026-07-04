@@ -54,6 +54,9 @@ func NewRouter(cfg *config.Config, store *backendconfig.Store, proc *processor.P
 		r.Use(rateLimiter.Middleware)
 		r.Use(chimiddleware.Timeout(cfg.ProxyTimeout))
 		r.Post("/{sourceRoute}", proxyHandler.Handle)
+		// Drop-in for OpenAI SDKs: set base_url to .../v1/proxy/{route}
+		// and the SDK appends /chat/completions itself.
+		r.Post("/{sourceRoute}/chat/completions", proxyHandler.Handle)
 	})
 
 	return r
