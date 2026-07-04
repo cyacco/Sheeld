@@ -8,7 +8,9 @@ info:
 
 servers:
   - url: http://localhost:8080
-    description: Local development
+    description: Control plane (auth, config CRUD, audit logs) — local development
+  - url: http://localhost:8081
+    description: Data plane (proxy) — local development. Only /v1/proxy/* and /healthz are served here.
 
 security: []
 
@@ -601,9 +603,38 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /v1/internal/workspace-config:
+    get:
+      summary: Workspace configuration payload for data planes
+      description: >
+        Served by the control plane and polled by data planes (~5s) using
+        the shared static data-plane token. Supports ETag/If-None-Match with
+        304 responses. The payload contains plaintext LLM API keys — it must
+        never be logged, and the channel requires TLS outside development.
+      operationId: getWorkspaceConfig
+      tags: [Internal]
+      security:
+        - dataPlaneToken: []
+      parameters:
+        - name: If-None-Match
+          in: header
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Full workspace configuration
+          headers:
+            ETag:
+              schema:
+                type: string
+        "304":
+          description: Configuration unchanged
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /v1/proxy/{sourceRoute}:
     post:
-      summary: Proxy an LLM request through guardrails
+      summary: Proxy an LLM request through guardrails (served by the data plane)
       operationId: proxy
       tags: [Proxy]
       security:
@@ -692,6 +723,10 @@ components:
       type: http
       scheme: bearer
       description: API key (shld_* prefix)
+    dataPlaneToken:
+      type: http
+      scheme: bearer
+      description: Shared static token authenticating data planes (SHEELD_DATAPLANE_TOKEN)
 
   responses:
     BadRequest:

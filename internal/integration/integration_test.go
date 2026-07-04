@@ -25,17 +25,26 @@ import (
 	"github.com/sheeld/sheeld/internal/controlplane/config"
 	"github.com/sheeld/sheeld/internal/controlplane/db"
 	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
+	"github.com/sheeld/sheeld/internal/controlplane/service"
+	"github.com/sheeld/sheeld/internal/dataplane/auditstore"
+	"github.com/sheeld/sheeld/internal/dataplane/backendconfig"
+	dpconfig "github.com/sheeld/sheeld/internal/dataplane/config"
+	dpdb "github.com/sheeld/sheeld/internal/dataplane/db"
+	dpgenerated "github.com/sheeld/sheeld/internal/dataplane/db/generated"
+	"github.com/sheeld/sheeld/internal/dataplane/gateway"
+	"github.com/sheeld/sheeld/internal/dataplane/processor"
 	"github.com/sheeld/sheeld/internal/shared/guard"
 	"github.com/sheeld/sheeld/internal/shared/llm"
-	"github.com/sheeld/sheeld/internal/proxy"
-	"github.com/sheeld/sheeld/internal/controlplane/service"
 )
 
 // Package-level test infrastructure
 var (
-	testServer *httptest.Server
-	pool       *pgxpool.Pool
-	pgCtr      *postgres.PostgresContainer
+	testServer  *httptest.Server // control plane
+	dpServer    *httptest.Server // data plane
+	poller      *backendconfig.Poller
+	auditWriter *auditstore.Writer
+	pool        *pgxpool.Pool
+	pgCtr       *postgres.PostgresContainer
 
 	// mockLLMResponseContent controls what the mock LLM server returns.
 	mockLLMResponseContent   = "Hello! I'm a helpful assistant."
@@ -123,8 +132,50 @@ func TestMain(m *testing.M) {
 		http.NotFound(w, r)
 	}))
 
-	// 4. Build full router
+	// 4. Create a second database for the data plane in the same container
+	// and run its migrations.
+	if _, err := pool.Exec(ctx, "CREATE DATABASE sheeld_dp_test"); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create data-plane database: %v\n", err)
+		os.Exit(1)
+	}
+	dpConnStr := strings.Replace(connStr, "/sheeld_test", "/sheeld_dp_test", 1)
+	dpPool, err := pgxpool.New(ctx, dpConnStr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to connect to data-plane database: %v\n", err)
+		os.Exit(1)
+	}
+	if err := dpdb.RunMigrations(ctx, dpPool); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to run data-plane migrations: %v\n", err)
+		os.Exit(1)
+	}
+
+	// 5. Build the two routers. The data plane starts first so its URL can
+	// be configured on the control plane; the poller (which needs the
+	// control-plane URL) is created after both are up.
 	encryptionKey := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	const dataPlaneToken = "test-dataplane-token"
+
+	dpCfg := &dpconfig.Config{
+		ControlPlaneURL:   "set-below",
+		Token:             dataPlaneToken,
+		PollInterval:      time.Hour, // tests refresh explicitly via FetchOnce
+		AllowInsecureCP:   true,
+		LLMRequestTimeout: 10 * time.Second,
+		RateLimitRPS:      1000,
+		RateLimitBurst:    2000,
+		MaxBodyBytes:      1048576,
+		ProxyTimeout:      60 * time.Second,
+	}
+
+	dpQueries := dpgenerated.New(dpPool)
+	auditWriter = auditstore.NewWriter(dpQueries)
+	store := backendconfig.NewStore()
+	guardRegistry := guard.NewRegistry()
+	guardEngine := guard.NewEngine(guardRegistry)
+	llmClient := llm.NewClient(mockLLM.URL, dpCfg.LLMRequestTimeout)
+	proc := processor.NewProcessor(store, guardEngine, llmClient, auditWriter)
+	dpServer = httptest.NewServer(gateway.NewRouter(dpCfg, store, proc, auditstore.NewHandler(dpQueries)))
+
 	cfg := &config.Config{
 		Port:               0,
 		ReadTimeout:        30 * time.Second,
@@ -141,6 +192,8 @@ func TestMain(m *testing.M) {
 		MaxBodyBytes:       1048576,
 		ProxyTimeout:       60 * time.Second,
 		CORSAllowedOrigins: []string{"*"},
+		DataPlaneToken:     dataPlaneToken,
+		DataPlaneURL:       dpServer.URL,
 	}
 
 	queries := generated.New(pool)
@@ -148,20 +201,22 @@ func TestMain(m *testing.M) {
 	sourceService := service.NewSourceService(queries, cfg.EncryptionKey)
 	guardrailService := service.NewGuardrailService(queries)
 
-	guardRegistry := guard.NewRegistry()
-	guardEngine := guard.NewEngine(guardRegistry)
-	llmClient := llm.NewClient(cfg.LLMGatewayURL, cfg.LLMRequestTimeout)
-	proxyService := proxy.NewProxy(queries, guardEngine, llmClient, cfg.EncryptionKey)
-
-	router := api.NewRouter(cfg, pool, authService, sourceService, guardrailService, proxyService, queries)
+	router := api.NewRouter(cfg, pool, authService, sourceService, guardrailService, queries)
 	testServer = httptest.NewServer(router)
 
-	// 5. Run tests
+	// Poller against the live control-plane test server. Tests trigger
+	// refreshes explicitly via refreshConfig.
+	poller = backendconfig.NewPoller(testServer.URL, dataPlaneToken, dpCfg.PollInterval, store, guardRegistry)
+
+	// 6. Run tests
 	code := m.Run()
 
-	// 6. Cleanup
+	// 7. Cleanup
+	auditWriter.Close()
 	testServer.Close()
+	dpServer.Close()
 	mockLLM.Close()
+	dpPool.Close()
 	pool.Close()
 	pgCtr.Terminate(ctx)
 
@@ -181,7 +236,15 @@ func doRequest(t *testing.T, method, path string, body interface{}, authToken st
 		bodyReader = bytes.NewReader(b)
 	}
 
-	req, err := http.NewRequest(method, testServer.URL+path, bodyReader)
+	// Proxy requests are served by the data plane; sync its config first so
+	// control-plane changes made earlier in the test are visible.
+	baseURL := testServer.URL
+	if strings.HasPrefix(path, "/v1/proxy") {
+		refreshConfig(t)
+		baseURL = dpServer.URL
+	}
+
+	req, err := http.NewRequest(method, baseURL+path, bodyReader)
 	if err != nil {
 		t.Fatalf("create request: %v", err)
 	}
@@ -201,6 +264,15 @@ func doRequest(t *testing.T, method, path string, body interface{}, authToken st
 		t.Fatalf("do request: %v", err)
 	}
 	return resp
+}
+
+// refreshConfig synchronously pulls the latest workspace config into the
+// data plane's store.
+func refreshConfig(t *testing.T) {
+	t.Helper()
+	if err := poller.FetchOnce(context.Background()); err != nil {
+		t.Fatalf("refreshing workspace config: %v", err)
+	}
 }
 
 func expectStatus(t *testing.T, resp *http.Response, wantCode int) {
@@ -931,6 +1003,10 @@ func TestAuditLogs(t *testing.T) {
 	}
 
 	setMockLLMResponse("Hello! I'm a helpful assistant.")
+
+	// The audit writer batches asynchronously (1s flush interval); wait for
+	// the proxy entries above to land before querying.
+	time.Sleep(1500 * time.Millisecond)
 
 	t.Run("list audit logs", func(t *testing.T) {
 		resp := doRequest(t, "GET", "/v1/audit-logs", nil, token)

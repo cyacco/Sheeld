@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sheeld/sheeld/internal/shared/response"
 	"github.com/sheeld/sheeld/internal/controlplane/service"
 	sharedmw "github.com/sheeld/sheeld/internal/shared/middleware"
+	"github.com/sheeld/sheeld/internal/shared/response"
 )
 
 // Context keys and FromContext helpers live in shared/middleware so both

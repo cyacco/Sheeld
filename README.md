@@ -2,7 +2,22 @@
 
 Segment for LLM guardrails — a full LLM proxy that validates input, proxies LLM calls, and validates output.
 
-**Architecture**: User's App → Sheeld API → Input Guards (fan-out) → LLM Provider → Output Guards (fan-out) → Response
+**Architecture** (rudder-server style control/data plane split):
+
+```
+                       ┌──────────────────────────┐
+  Dashboard / users ──▶│ Control Plane (:8080)    │──▶ cp-db (users, orgs, config)
+                       │ auth, sources, guardrails │
+                       └────────────▲─────────────┘
+                                    │ polls workspace config (~5s)
+                       ┌────────────┴─────────────┐
+  User's App ─────────▶│ Data Plane (:8081)       │──▶ dp-db (audit logs)
+   (API key)           │ input guards → LLM →      │──▶ LiteLLM → LLM provider
+                       │ output guards             │
+                       └──────────────────────────┘
+```
+
+The data plane holds its full config in memory and keeps serving proxy traffic even if the control plane goes down. No control-plane DB access happens on the request path.
 
 Licensed under Apache 2.0.
 
@@ -28,20 +43,23 @@ Then start the full stack:
 docker compose up -d --build
 ```
 
-This starts all four services:
+This starts six services:
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| **API** | http://localhost:8080 | Sheeld proxy API |
+| **control-plane** | http://localhost:8080 | Config API, auth, dashboard backend |
+| **sheeld-server** | http://localhost:8081 | Data plane: proxy + guard engine |
 | **Dashboard** | http://localhost:3000 | Next.js management UI |
 | **LiteLLM** | http://localhost:4000 | LLM gateway proxy |
-| **PostgreSQL** | localhost:5432 | Database |
+| **cp-db** | localhost:5432 | Control-plane PostgreSQL (users, orgs, config) |
+| **dp-db** | localhost:5433 | Data-plane PostgreSQL (audit logs) |
 
 Verify everything is running:
 
 ```bash
 docker compose ps
-curl http://localhost:8080/healthz
+curl http://localhost:8080/healthz   # control plane
+curl http://localhost:8081/healthz   # data plane (includes config version)
 ```
 
 To stop all services:
@@ -52,27 +70,32 @@ docker compose down
 
 ## Local Development (without Docker)
 
-### 1. Start the database
+### 1. Start the databases
 
 ```bash
-docker compose up db -d
+docker compose up cp-db dp-db -d
 ```
 
-### 2. Set environment variables
+### 2. Run the control plane
 
 ```bash
 export SHEELD_DATABASE_URL="postgres://sheeld:sheeld_dev@localhost:5432/sheeld?sslmode=disable"
 export SHEELD_JWT_SECRET="dev-secret"
 export SHEELD_ENCRYPTION_KEY=$(openssl rand -hex 32)
+export SHEELD_DATAPLANE_TOKEN="dev-dataplane-token"
+export SHEELD_DATAPLANE_URL="http://localhost:8081"
+go run ./cmd/control-plane
 ```
 
-### 3. Run the API
+### 3. Run the data plane
 
 ```bash
-go run ./cmd/sheeld
+export SHEELD_DP_DATABASE_URL="postgres://sheeld:sheeld_dev@localhost:5433/sheeld?sslmode=disable"
+export SHEELD_DP_CONTROL_PLANE_URL="http://localhost:8080"
+export SHEELD_DP_ALLOW_INSECURE_CP=true   # plain HTTP is for local dev only
+export SHEELD_DP_TOKEN="dev-dataplane-token"
+go run ./cmd/sheeld-server
 ```
-
-The API will be available at http://localhost:8080.
 
 ### 4. Run the dashboard (optional)
 
@@ -88,30 +111,33 @@ The dashboard will be available at http://localhost:3000.
 
 ```
 sheeld/
-├── cmd/sheeld/              # Binary entrypoint
+├── cmd/
+│   ├── control-plane/       # Control-plane entrypoint
+│   └── sheeld-server/       # Data-plane entrypoint
 ├── internal/
-│   ├── api/                 # HTTP handlers + middleware (chi router)
-│   │   ├── router.go        # Route definitions
-│   │   ├── middleware/       # Auth (JWT + API key), logging, request ID
-│   │   └── handler/         # Auth, source, destination handlers
-│   ├── config/              # envconfig-based configuration
-│   ├── db/
-│   │   ├── migrations/      # goose SQL migrations
-│   │   ├── queries/         # sqlc .sql files
-│   │   └── generated/       # sqlc-generated Go code (DO NOT EDIT)
-│   ├── domain/              # Core domain types
-│   ├── guard/               # Guardrail engine
-│   ├── llm/                 # LLM provider proxy
-│   ├── proxy/               # Proxy orchestration
-│   └── service/             # Business logic
+│   ├── controlplane/
+│   │   ├── api/             # chi router, CRUD handlers, auth middleware
+│   │   ├── service/         # Business logic (auth, source, guardrail)
+│   │   ├── db/              # goose migrations + sqlc (users, orgs, config)
+│   │   ├── crypto/          # AES-256-GCM for LLM keys at rest
+│   │   └── workspaceconfig/ # Builds + serves the config payload
+│   ├── dataplane/
+│   │   ├── gateway/         # HTTP layer: in-memory API-key auth, proxy route
+│   │   ├── processor/       # Input guards → LLM → output guards
+│   │   ├── backendconfig/   # Config poller + atomic in-memory store
+│   │   ├── auditstore/      # Async batched audit writer + query API
+│   │   └── db/              # goose migrations + sqlc (audit logs)
+│   └── shared/              # guard engine, LLM client, domain types, middleware
 ├── web/                     # Next.js dashboard
 ├── docker-compose.yaml
-├── Dockerfile
+├── Dockerfile               # Multi-stage; targets: control-plane, sheeld-server
 ├── openapi.yaml             # API specification
 └── sqlc.yaml
 ```
 
 ## API Endpoints
+
+### Control plane (:8080)
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
@@ -119,8 +145,17 @@ sheeld/
 | `POST` | `/v1/auth/register` | None | Register a new account |
 | `POST` | `/v1/auth/login` | None | Login |
 | `CRUD` | `/v1/sources` | JWT | Source management |
-| `CRUD` | `/v1/sources/:id/destinations` | JWT | Destination management |
+| `CRUD` | `/v1/guardrails` | JWT | Guardrail management + source attachment |
+| `GET` | `/v1/audit-logs` | JWT | Audit logs (proxied from the data plane) |
+| `GET` | `/v1/internal/workspace-config` | DP token | Config payload for data planes |
+
+### Data plane (:8081)
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/healthz` | None | Health + config version |
 | `POST` | `/v1/proxy/:source_route` | API Key | Main proxy endpoint |
+| `GET` | `/v1/internal/audit-logs` | DP token | Audit-log queries for the control plane |
 
 See [`openapi.yaml`](openapi.yaml) for the full API specification.
 
@@ -133,30 +168,57 @@ go build ./...
 # Test
 go test ./...
 
+# Integration tests (requires Docker)
+go test -tags integration ./internal/integration/
+
 # Lint
 go vet ./...
 
 # Format
 gofmt -w .
 
-# Regenerate sqlc code
+# Regenerate sqlc code (both planes)
 ~/go/bin/sqlc generate
 ```
 
 ## Configuration
 
-Sheeld is configured via environment variables with the `SHEELD_` prefix:
+### Control plane (`SHEELD_` prefix)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SHEELD_PORT` | API server port | `8080` |
+| `SHEELD_PORT` | Server port | `8080` |
 | `SHEELD_DATABASE_URL` | PostgreSQL connection string | required |
 | `SHEELD_JWT_SECRET` | Secret for JWT signing | required |
-| `SHEELD_ENCRYPTION_KEY` | 64-char hex key for encrypting secrets | required |
-| `SHEELD_LLM_GATEWAY_URL` | LiteLLM gateway URL | `http://localhost:4000` |
-| `SHEELD_LLM_REQUEST_TIMEOUT` | Timeout for LLM requests | `30s` |
-| `SHEELD_CORS_ALLOWED_ORIGINS` | Comma-separated CORS origins | — |
+| `SHEELD_ENCRYPTION_KEY` | 64-char hex key for encrypting LLM keys at rest | required |
+| `SHEELD_DATAPLANE_TOKEN` | Static token authenticating data planes | — (disables data-plane endpoints) |
+| `SHEELD_DATAPLANE_URL` | Data-plane base URL for audit-log queries | — (disables audit queries) |
+| `SHEELD_CORS_ALLOWED_ORIGINS` | Comma-separated CORS origins | `http://localhost:3000` |
 | `SHEELD_LOG_LEVEL` | Log level (debug, info, warn, error) | `info` |
+
+### Data plane (`SHEELD_DP_` prefix)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SHEELD_DP_PORT` | Server port | `8081` |
+| `SHEELD_DP_DATABASE_URL` | PostgreSQL connection string (audit logs) | required |
+| `SHEELD_DP_CONTROL_PLANE_URL` | Control-plane base URL | required |
+| `SHEELD_DP_TOKEN` | Shared static token (matches `SHEELD_DATAPLANE_TOKEN`) | required |
+| `SHEELD_DP_ALLOW_INSECURE_CP` | Allow http:// control-plane URL (local dev only) | `false` |
+| `SHEELD_DP_POLL_INTERVAL` | Workspace-config poll interval | `5s` |
+| `SHEELD_DP_STARTUP_TIMEOUT` | Max wait for initial config at startup | `60s` |
+| `SHEELD_DP_LLM_GATEWAY_URL` | LiteLLM gateway URL | `http://localhost:4000` |
+| `SHEELD_DP_LLM_REQUEST_TIMEOUT` | Timeout for LLM requests | `30s` |
+| `SHEELD_DP_LOG_LEVEL` | Log level (debug, info, warn, error) | `info` |
+
+## Operational notes
+
+- **Secrets in the config channel**: the workspace-config payload contains plaintext LLM API keys (decrypted by the control plane, rudder-style). The channel is token-authenticated; use TLS between planes in any real deployment — plain HTTP is acceptable only inside the compose network, and the data plane refuses http:// URLs unless `SHEELD_DP_ALLOW_INSECURE_CP=true`. Never log the payload.
+- **Config propagation lag**: config changes (including API-key revocations) take up to one poll interval (~5s) to reach data planes.
+- **Control-plane outages**: data planes keep serving proxy traffic from the in-memory config; only config changes and audit-log dashboard queries are unavailable until it returns.
+- **Migrations**: each binary runs its own goose migrations at startup — fine for single replicas; run migrations as a separate step when deploying multiple replicas.
+- **Rate limits are per data-plane replica** (in-memory), so effective limits scale with replica count.
+- **Migrating from the single-binary layout**: audit logs moved to the data-plane DB. To keep existing rows, dump them before the control plane applies migration 007: `pg_dump -t audit_logs <cp-db-url> | psql <dp-db-url>`.
 
 ## Key Technologies
 
