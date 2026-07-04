@@ -1,0 +1,145 @@
+package workspaceconfig
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/sheeld/sheeld/internal/controlplane/crypto"
+	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
+	"github.com/sheeld/sheeld/internal/shared/domain"
+)
+
+// Builder assembles the workspace-config payload served to data planes.
+type Builder struct {
+	queries       *generated.Queries
+	encryptionKey string
+}
+
+// NewBuilder creates a workspace-config builder.
+func NewBuilder(queries *generated.Queries, encryptionKey string) *Builder {
+	return &Builder{queries: queries, encryptionKey: encryptionKey}
+}
+
+// Build assembles the full config for all organizations, decrypting LLM API
+// keys. The returned config's Version is the sha256 of the payload with
+// Version and GeneratedAt zeroed, so identical config yields identical
+// versions across rebuilds.
+func (b *Builder) Build(ctx context.Context) (*domain.WorkspaceConfig, error) {
+	orgIDs, err := b.queries.ListAllOrganizationIDs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing organizations: %w", err)
+	}
+	apiKeys, err := b.queries.ListAllActiveAPIKeys(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing api keys: %w", err)
+	}
+	sources, err := b.queries.ListAllSources(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing sources: %w", err)
+	}
+	guardrails, err := b.queries.ListAllEnabledGuardrails(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing guardrails: %w", err)
+	}
+	attachments, err := b.queries.ListAllSourceGuardrails(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing source guardrails: %w", err)
+	}
+
+	guardrailsBySource := make(map[uuid.UUID][]uuid.UUID)
+	for _, a := range attachments {
+		guardrailsBySource[a.SourceID] = append(guardrailsBySource[a.SourceID], a.GuardrailID)
+	}
+
+	orgs := make(map[uuid.UUID]*domain.OrgConfig, len(orgIDs))
+	ordered := make([]uuid.UUID, 0, len(orgIDs))
+	for _, id := range orgIDs {
+		orgs[id] = &domain.OrgConfig{
+			ID:         id,
+			APIKeys:    []domain.APIKeyConfig{},
+			Sources:    []domain.SourceConfig{},
+			Guardrails: []domain.GuardrailConfig{},
+		}
+		ordered = append(ordered, id)
+	}
+
+	for _, k := range apiKeys {
+		if org, ok := orgs[k.OrganizationID]; ok {
+			org.APIKeys = append(org.APIKeys, domain.APIKeyConfig{KeyHash: k.KeyHash})
+		}
+	}
+
+	for _, s := range sources {
+		org, ok := orgs[s.OrganizationID]
+		if !ok {
+			continue
+		}
+		apiKey, err := crypto.Decrypt(s.LlmApiKeyEnc, b.encryptionKey)
+		if err != nil {
+			return nil, fmt.Errorf("decrypting LLM key for source %s: %w", s.ID, err)
+		}
+		src := domain.SourceConfig{
+			ID:           s.ID,
+			Route:        s.Route,
+			Enabled:      s.Enabled,
+			LLMModel:     s.LlmModel,
+			LLMAPIKey:    apiKey,
+			PassCriteria: domain.PassCriteria(s.PassCriteria),
+			GuardrailIDs: guardrailsBySource[s.ID],
+		}
+		if src.GuardrailIDs == nil {
+			src.GuardrailIDs = []uuid.UUID{}
+		}
+		if s.PassThreshold.Valid {
+			t := int(s.PassThreshold.Int32)
+			src.PassThreshold = &t
+		}
+		org.Sources = append(org.Sources, src)
+	}
+
+	for _, g := range guardrails {
+		if org, ok := orgs[g.OrganizationID]; ok {
+			org.Guardrails = append(org.Guardrails, domain.GuardrailConfig{
+				ID:        g.ID,
+				Name:      g.Name,
+				GuardType: domain.GuardType(g.GuardType),
+				Phase:     domain.GuardPhase(g.Phase),
+				Config:    g.Config,
+			})
+		}
+	}
+
+	cfg := &domain.WorkspaceConfig{
+		Organizations: make([]domain.OrgConfig, 0, len(ordered)),
+	}
+	for _, id := range ordered {
+		cfg.Organizations = append(cfg.Organizations, *orgs[id])
+	}
+
+	version, err := computeVersion(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("computing config version: %w", err)
+	}
+	cfg.Version = version
+	cfg.GeneratedAt = time.Now().UTC()
+	return cfg, nil
+}
+
+// computeVersion hashes the payload with Version and GeneratedAt zeroed.
+func computeVersion(cfg *domain.WorkspaceConfig) (string, error) {
+	canonical := *cfg
+	canonical.Version = ""
+	canonical.GeneratedAt = time.Time{}
+	data, err := json.Marshal(&canonical)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:]), nil
+}

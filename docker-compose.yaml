@@ -1,5 +1,5 @@
 services:
-  db:
+  cp-db:
     image: postgres:16-alpine
     ports:
       - "5432:5432"
@@ -8,7 +8,23 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sheeld_dev}
       POSTGRES_DB: sheeld
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - cp_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sheeld"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  dp-db:
+    image: postgres:16-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: sheeld
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sheeld_dev}
+      POSTGRES_DB: sheeld
+    volumes:
+      - dp_pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sheeld"]
       interval: 5s
@@ -27,26 +43,57 @@ services:
       retries: 6
       start_period: 15s
 
-  api:
-    build: .
+  control-plane:
+    build:
+      context: .
+      target: control-plane
     ports:
       - "8080:8080"
     environment:
       SHEELD_PORT: "8080"
-      SHEELD_DATABASE_URL: "postgres://sheeld:${POSTGRES_PASSWORD:-sheeld_dev}@db:5432/sheeld?sslmode=disable"
+      SHEELD_DATABASE_URL: "postgres://sheeld:${POSTGRES_PASSWORD:-sheeld_dev}@cp-db:5432/sheeld?sslmode=disable"
       SHEELD_JWT_SECRET: "${SHEELD_JWT_SECRET:-change-me}"
       SHEELD_ENCRYPTION_KEY: "${SHEELD_ENCRYPTION_KEY}"
-      SHEELD_LLM_GATEWAY_URL: "http://litellm:4000"
-      SHEELD_LLM_REQUEST_TIMEOUT: "30s"
+      SHEELD_DATAPLANE_TOKEN: "${SHEELD_DATAPLANE_TOKEN:-change-me-too}"
+      SHEELD_DATAPLANE_URL: "http://sheeld-server:8081"
       SHEELD_CORS_ALLOWED_ORIGINS: "http://localhost:3000"
       SHEELD_LOG_LEVEL: "debug"
     depends_on:
-      db:
+      cp-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  sheeld-server:
+    build:
+      context: .
+      target: sheeld-server
+    ports:
+      - "8081:8081"
+    environment:
+      SHEELD_DP_PORT: "8081"
+      SHEELD_DP_DATABASE_URL: "postgres://sheeld:${POSTGRES_PASSWORD:-sheeld_dev}@dp-db:5432/sheeld?sslmode=disable"
+      SHEELD_DP_CONTROL_PLANE_URL: "http://control-plane:8080"
+      # Plain HTTP is acceptable only on the compose-internal network;
+      # real deployments must use TLS between planes.
+      SHEELD_DP_ALLOW_INSECURE_CP: "true"
+      SHEELD_DP_TOKEN: "${SHEELD_DATAPLANE_TOKEN:-change-me-too}"
+      SHEELD_DP_LLM_GATEWAY_URL: "http://litellm:4000"
+      SHEELD_DP_LLM_REQUEST_TIMEOUT: "30s"
+      SHEELD_DP_LOG_LEVEL: "debug"
+    depends_on:
+      dp-db:
+        condition: service_healthy
+      control-plane:
         condition: service_healthy
       litellm:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/healthz"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -59,9 +106,10 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: "http://localhost:8080"
     depends_on:
-      api:
+      control-plane:
         condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  pgdata:
+  cp_pgdata:
+  dp_pgdata:
