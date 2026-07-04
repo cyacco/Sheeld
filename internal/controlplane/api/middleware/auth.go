@@ -5,36 +5,17 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/google/uuid"
-
-	"github.com/sheeld/sheeld/internal/api/response"
-	"github.com/sheeld/sheeld/internal/service"
+	"github.com/sheeld/sheeld/internal/controlplane/api/response"
+	"github.com/sheeld/sheeld/internal/controlplane/service"
+	sharedmw "github.com/sheeld/sheeld/internal/shared/middleware"
 )
 
-type authContextKey string
-
+// Context keys and FromContext helpers live in shared/middleware so both
+// planes can extract identity without importing control-plane packages.
 const (
-	// UserIDKey stores the authenticated user's ID in context.
-	UserIDKey authContextKey = "user_id"
-	// OrgIDKey stores the authenticated user's organization ID in context.
-	OrgIDKey authContextKey = "org_id"
+	UserIDKey = sharedmw.UserIDKey
+	OrgIDKey  = sharedmw.OrgIDKey
 )
-
-// OrgIDFromContext extracts the organization ID from the request context.
-func OrgIDFromContext(ctx context.Context) uuid.UUID {
-	if id, ok := ctx.Value(OrgIDKey).(uuid.UUID); ok {
-		return id
-	}
-	return uuid.Nil
-}
-
-// UserIDFromContext extracts the user ID from the request context.
-func UserIDFromContext(ctx context.Context) uuid.UUID {
-	if id, ok := ctx.Value(UserIDKey).(uuid.UUID); ok {
-		return id
-	}
-	return uuid.Nil
-}
 
 // JWTAuth validates JWT tokens from the Authorization header (for dashboard users).
 func JWTAuth(authSvc *service.AuthService) func(http.Handler) http.Handler {

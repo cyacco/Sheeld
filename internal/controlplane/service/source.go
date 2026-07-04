@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/sheeld/sheeld/internal/crypto"
-	"github.com/sheeld/sheeld/internal/db/generated"
+	"github.com/sheeld/sheeld/internal/controlplane/crypto"
+	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
 )
 
 // CreateSourceParams holds the input for creating a source.

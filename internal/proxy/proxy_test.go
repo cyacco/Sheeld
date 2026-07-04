@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sheeld/sheeld/internal/guard"
-	"github.com/sheeld/sheeld/internal/llm"
+	"github.com/sheeld/sheeld/internal/shared/guard"
+	"github.com/sheeld/sheeld/internal/shared/llm"
 )
 
 // mockGuard is a test guard that returns a predetermined result.

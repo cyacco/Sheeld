@@ -6,7 +6,7 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/sheeld/sheeld/internal/api/response"
+	"github.com/sheeld/sheeld/internal/controlplane/api/response"
 )
 
 // RateLimiter provides per-key rate limiting using an in-memory token bucket.

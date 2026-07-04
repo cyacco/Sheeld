@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/sheeld/sheeld/internal/db/generated"
+	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
 )
 
 // CreateGuardrailParams holds the input for creating a guardrail.

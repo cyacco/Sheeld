@@ -12,11 +12,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/sheeld/sheeld/internal/api/middleware"
-	"github.com/sheeld/sheeld/internal/crypto"
-	"github.com/sheeld/sheeld/internal/db/generated"
-	"github.com/sheeld/sheeld/internal/guard"
-	"github.com/sheeld/sheeld/internal/llm"
+	"github.com/sheeld/sheeld/internal/shared/middleware"
+	"github.com/sheeld/sheeld/internal/controlplane/crypto"
+	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
+	"github.com/sheeld/sheeld/internal/shared/guard"
+	"github.com/sheeld/sheeld/internal/shared/llm"
 )
 
 // ProxyResult is the full result of a proxy request.

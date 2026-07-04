@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/sheeld/sheeld/internal/api/middleware"
-	"github.com/sheeld/sheeld/internal/api/response"
-	"github.com/sheeld/sheeld/internal/db/generated"
+	"github.com/sheeld/sheeld/internal/shared/middleware"
+	"github.com/sheeld/sheeld/internal/controlplane/api/response"
+	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
 )
 
 // AuditLogHandler handles audit log HTTP requests.

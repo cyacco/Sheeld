@@ -21,14 +21,14 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/sheeld/sheeld/internal/api"
-	"github.com/sheeld/sheeld/internal/config"
-	"github.com/sheeld/sheeld/internal/db"
-	"github.com/sheeld/sheeld/internal/db/generated"
-	"github.com/sheeld/sheeld/internal/guard"
-	"github.com/sheeld/sheeld/internal/llm"
+	"github.com/sheeld/sheeld/internal/controlplane/api"
+	"github.com/sheeld/sheeld/internal/controlplane/config"
+	"github.com/sheeld/sheeld/internal/controlplane/db"
+	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
+	"github.com/sheeld/sheeld/internal/shared/guard"
+	"github.com/sheeld/sheeld/internal/shared/llm"
 	"github.com/sheeld/sheeld/internal/proxy"
-	"github.com/sheeld/sheeld/internal/service"
+	"github.com/sheeld/sheeld/internal/controlplane/service"
 )
 
 // Package-level test infrastructure

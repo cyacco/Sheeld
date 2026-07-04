@@ -7,10 +7,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/sheeld/sheeld/internal/api/middleware"
-	"github.com/sheeld/sheeld/internal/api/response"
-	"github.com/sheeld/sheeld/internal/db/generated"
-	"github.com/sheeld/sheeld/internal/service"
+	"github.com/sheeld/sheeld/internal/shared/middleware"
+	"github.com/sheeld/sheeld/internal/controlplane/api/response"
+	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
+	"github.com/sheeld/sheeld/internal/controlplane/service"
 )
 
 // GuardrailHandler handles guardrail-related HTTP requests.

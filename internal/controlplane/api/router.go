@@ -10,13 +10,14 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/sheeld/sheeld/internal/api/handler"
-	"github.com/sheeld/sheeld/internal/api/middleware"
-	"github.com/sheeld/sheeld/internal/api/response"
-	"github.com/sheeld/sheeld/internal/config"
-	"github.com/sheeld/sheeld/internal/db/generated"
+	"github.com/sheeld/sheeld/internal/controlplane/api/handler"
+	cpmw "github.com/sheeld/sheeld/internal/controlplane/api/middleware"
+	"github.com/sheeld/sheeld/internal/controlplane/api/response"
+	"github.com/sheeld/sheeld/internal/controlplane/config"
+	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
+	"github.com/sheeld/sheeld/internal/controlplane/service"
 	"github.com/sheeld/sheeld/internal/proxy"
-	"github.com/sheeld/sheeld/internal/service"
+	"github.com/sheeld/sheeld/internal/shared/middleware"
 )
 
 // NewRouter creates and configures the chi router with all routes and middleware.
@@ -89,7 +90,7 @@ func NewRouter(
 
 			// Protected auth routes (JWT)
 			r.Group(func(r chi.Router) {
-				r.Use(middleware.JWTAuth(authService))
+				r.Use(cpmw.JWTAuth(authService))
 				r.Post("/refresh", authHandler.Refresh)
 				r.Post("/api-keys", authHandler.CreateAPIKey)
 				r.Get("/api-keys", authHandler.ListAPIKeys)
@@ -99,13 +100,13 @@ func NewRouter(
 
 		// Models list (JWT for dashboard)
 		r.Group(func(r chi.Router) {
-			r.Use(middleware.JWTAuth(authService))
+			r.Use(cpmw.JWTAuth(authService))
 			r.Get("/models", modelsHandler.List)
 		})
 
 		// Protected source routes (JWT for dashboard)
 		r.Route("/sources", func(r chi.Router) {
-			r.Use(middleware.JWTAuth(authService))
+			r.Use(cpmw.JWTAuth(authService))
 
 			r.Post("/", sourceHandler.Create)
 			r.Get("/", sourceHandler.List)
@@ -119,7 +120,7 @@ func NewRouter(
 
 		// Guardrail routes (org-scoped via JWT)
 		r.Route("/guardrails", func(r chi.Router) {
-			r.Use(middleware.JWTAuth(authService))
+			r.Use(cpmw.JWTAuth(authService))
 
 			r.Post("/", guardrailHandler.Create)
 			r.Get("/", guardrailHandler.List)
@@ -135,13 +136,13 @@ func NewRouter(
 
 		// Audit log routes (JWT for dashboard)
 		r.Route("/audit-logs", func(r chi.Router) {
-			r.Use(middleware.JWTAuth(authService))
+			r.Use(cpmw.JWTAuth(authService))
 			r.Get("/", auditLogHandler.List)
 		})
 
 		// Proxy route (API key auth for machine-to-machine)
 		r.Route("/proxy", func(r chi.Router) {
-			r.Use(middleware.APIKeyAuth(authService))
+			r.Use(cpmw.APIKeyAuth(authService))
 			r.Use(rateLimiter.Middleware)
 			r.Use(chimiddleware.Timeout(cfg.ProxyTimeout))
 			r.Post("/{sourceRoute}", proxyHandler.Handle)

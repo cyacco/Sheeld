@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/sheeld/sheeld/internal/api/response"
+	"github.com/sheeld/sheeld/internal/controlplane/api/response"
 )
 
 // MaxBodySize returns middleware that limits the request body size.
