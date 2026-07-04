@@ -635,6 +635,13 @@ paths:
   /v1/proxy/{sourceRoute}:
     post:
       summary: Proxy an LLM request through guardrails (served by the data plane)
+      description: >
+        OpenAI-compatible. On pass, returns the raw chat completion, so an
+        OpenAI SDK can use base_url `.../v1/proxy/{sourceRoute}` unmodified
+        (the SDK appends /chat/completions, which is served as an alias).
+        On guardrail rejection, returns 422 with an OpenAI-style error of
+        type `guardrail_rejection`; full guard results are available only
+        via audit logs (correlate with the X-Request-ID response header).
       operationId: proxy
       tags: [Proxy]
       security:
@@ -653,19 +660,33 @@ paths:
               $ref: "#/components/schemas/ChatRequest"
       responses:
         "200":
-          description: Request passed all guards
+          description: Request passed all guards; raw OpenAI chat completion
+          headers:
+            X-Sheeld-Status:
+              schema:
+                type: string
+                enum: [pass]
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ProxyResult"
-        "403":
-          description: Request rejected by guards
+                $ref: "#/components/schemas/ChatCompletion"
+        "422":
+          description: Request rejected by guardrails
+          headers:
+            X-Sheeld-Status:
+              schema:
+                type: string
+                enum: [rejected]
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ProxyResult"
+                $ref: "#/components/schemas/OpenAIError"
         "401":
-          $ref: "#/components/responses/Unauthorized"
+          description: Invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenAIError"
         "429":
           description: Rate limit exceeded
           headers:
@@ -676,6 +697,39 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+
+  /v1/proxy/{sourceRoute}/chat/completions:
+    post:
+      summary: Alias of /v1/proxy/{sourceRoute} for OpenAI SDK base_url compatibility
+      operationId: proxyChatCompletions
+      tags: [Proxy]
+      security:
+        - apiKeyAuth: []
+      parameters:
+        - name: sourceRoute
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Request passed all guards; raw OpenAI chat completion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatCompletion"
+        "422":
+          description: Request rejected by guardrails
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenAIError"
 
   /v1/audit-logs:
     get:
@@ -918,6 +972,11 @@ components:
           default: input
         config:
           type: object
+          description: >
+            Guard-type-specific configuration. All guard types also accept
+            "on_error": "fail_open" | "fail_closed" (default fail_closed) —
+            fail_open treats guard execution errors (e.g. an external
+            moderation API outage) as passed instead of blocking traffic.
           additionalProperties: true
         enabled:
           type: boolean
@@ -978,59 +1037,63 @@ components:
           items:
             type: string
 
-    ProxyResult:
+    ChatCompletion:
       type: object
+      description: Raw OpenAI-format chat completion response
       properties:
-        status:
+        id:
           type: string
-          enum: [pass, rejected]
-        phase:
+        object:
           type: string
-          enum: [input, output]
-          nullable: true
-        llm_response:
-          type: object
-          nullable: true
-          properties:
-            id:
-              type: string
-            object:
-              type: string
-            created:
-              type: integer
-            model:
-              type: string
-            choices:
-              type: array
-              items:
+          example: chat.completion
+        created:
+          type: integer
+        model:
+          type: string
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              index:
+                type: integer
+              message:
                 type: object
                 properties:
-                  index:
-                    type: integer
-                  message:
-                    type: object
-                    properties:
-                      role:
-                        type: string
-                      content:
-                        type: string
-                  finish_reason:
+                  role:
                     type: string
-            usage:
-              type: object
-              properties:
-                prompt_tokens:
-                  type: integer
-                completion_tokens:
-                  type: integer
-                total_tokens:
-                  type: integer
-        guard_results:
+                  content:
+                    type: string
+              finish_reason:
+                type: string
+        usage:
           type: object
-          additionalProperties:
-            $ref: "#/components/schemas/GuardEngineResult"
-        latency_ms:
-          type: integer
+          properties:
+            prompt_tokens:
+              type: integer
+            completion_tokens:
+              type: integer
+            total_tokens:
+              type: integer
+
+    OpenAIError:
+      type: object
+      description: OpenAI-compatible error envelope
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            type:
+              type: string
+              example: guardrail_rejection
+            code:
+              type: string
+              example: input_rejected
+            param:
+              type: string
+              nullable: true
 
     GuardEngineResult:
       type: object

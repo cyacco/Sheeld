@@ -11,7 +11,8 @@ import (
 	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
 )
 
-// CreateSourceParams holds the input for creating a source.
+// CreateSourceParams holds the input for creating a source. Enabled is a
+// pointer to distinguish an omitted field from an explicit false.
 type CreateSourceParams struct {
 	Name          string  `json:"name"`
 	Route         string  `json:"route"`
@@ -21,7 +22,7 @@ type CreateSourceParams struct {
 	LLMAPIKey     string  `json:"llm_api_key"`
 	PassCriteria  string  `json:"pass_criteria"`
 	PassThreshold *int32  `json:"pass_threshold,omitempty"`
-	Enabled       bool    `json:"enabled"`
+	Enabled       *bool   `json:"enabled"`
 }
 
 // UpdateSourceParams holds the input for updating a source.
@@ -34,7 +35,20 @@ type UpdateSourceParams struct {
 	LLMAPIKey     string  `json:"llm_api_key"`
 	PassCriteria  string  `json:"pass_criteria"`
 	PassThreshold *int32  `json:"pass_threshold,omitempty"`
-	Enabled       bool    `json:"enabled"`
+	Enabled       *bool   `json:"enabled"`
+}
+
+// sourceDefaults applies the documented defaults for omitted optional
+// fields: enabled=true, pass_criteria="all".
+func sourceDefaults(passCriteria string, enabled *bool) (string, bool) {
+	if passCriteria == "" {
+		passCriteria = "all"
+	}
+	e := true
+	if enabled != nil {
+		e = *enabled
+	}
+	return passCriteria, e
 }
 
 // SourceService handles source business logic.
@@ -68,6 +82,8 @@ func (s *SourceService) Create(ctx context.Context, orgID uuid.UUID, params Crea
 		threshold = pgtype.Int4{Int32: *params.PassThreshold, Valid: true}
 	}
 
+	passCriteria, enabled := sourceDefaults(params.PassCriteria, params.Enabled)
+
 	return s.queries.CreateSource(ctx, generated.CreateSourceParams{
 		OrganizationID: orgID,
 		Name:           params.Name,
@@ -76,9 +92,9 @@ func (s *SourceService) Create(ctx context.Context, orgID uuid.UUID, params Crea
 		LlmProvider:    params.LLMProvider,
 		LlmModel:       params.LLMModel,
 		LlmApiKeyEnc:   encryptedKey,
-		PassCriteria:   params.PassCriteria,
+		PassCriteria:   passCriteria,
 		PassThreshold:  threshold,
-		Enabled:        params.Enabled,
+		Enabled:        enabled,
 	})
 }
 
@@ -120,6 +136,8 @@ func (s *SourceService) Update(ctx context.Context, orgID, sourceID uuid.UUID, p
 		threshold = pgtype.Int4{Int32: *params.PassThreshold, Valid: true}
 	}
 
+	passCriteria, enabled := sourceDefaults(params.PassCriteria, params.Enabled)
+
 	return s.queries.UpdateSource(ctx, generated.UpdateSourceParams{
 		ID:             sourceID,
 		OrganizationID: orgID,
@@ -129,9 +147,9 @@ func (s *SourceService) Update(ctx context.Context, orgID, sourceID uuid.UUID, p
 		LlmProvider:    params.LLMProvider,
 		LlmModel:       params.LLMModel,
 		LlmApiKeyEnc:   encryptedKey,
-		PassCriteria:   params.PassCriteria,
+		PassCriteria:   passCriteria,
 		PassThreshold:  threshold,
-		Enabled:        params.Enabled,
+		Enabled:        enabled,
 	})
 }
 

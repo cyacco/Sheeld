@@ -835,13 +835,33 @@ func TestProxy(t *testing.T) {
 			},
 		}, apiKey)
 		expectStatus(t, resp, http.StatusOK)
+		if got := resp.Header.Get("X-Sheeld-Status"); got != "pass" {
+			t.Errorf("expected X-Sheeld-Status 'pass', got %q", got)
+		}
 		var result map[string]interface{}
 		decodeBody(t, resp, &result)
-		if result["status"] != "pass" {
-			t.Errorf("expected status 'pass', got %v", result["status"])
+		// Response is the raw OpenAI chat completion
+		if result["object"] != "chat.completion" {
+			t.Errorf("expected raw chat.completion response, got %v", result["object"])
 		}
-		if result["llm_response"] == nil {
-			t.Error("expected llm_response in result")
+		if result["choices"] == nil {
+			t.Error("expected choices in raw LLM response")
+		}
+	})
+
+	t.Run("openai sdk style path", func(t *testing.T) {
+		apiKey := createAPIKey(t, token, "sdk-path-key")
+		resp := doRequest(t, "POST", "/v1/proxy/proxy-happy/chat/completions", map[string]interface{}{
+			"model": "gpt-4o",
+			"messages": []map[string]string{
+				{"role": "user", "content": "Hello via SDK path"},
+			},
+		}, apiKey)
+		expectStatus(t, resp, http.StatusOK)
+		var result map[string]interface{}
+		decodeBody(t, resp, &result)
+		if result["object"] != "chat.completion" {
+			t.Errorf("expected raw chat.completion response, got %v", result["object"])
 		}
 	})
 
@@ -864,17 +884,17 @@ func TestProxy(t *testing.T) {
 				{"role": "user", "content": "This message contains forbidden content"},
 			},
 		}, apiKey)
-		expectStatus(t, resp, http.StatusForbidden)
-		var result map[string]interface{}
+		expectStatus(t, resp, http.StatusUnprocessableEntity)
+		if got := resp.Header.Get("X-Sheeld-Status"); got != "rejected" {
+			t.Errorf("expected X-Sheeld-Status 'rejected', got %q", got)
+		}
+		var result map[string]map[string]interface{}
 		decodeBody(t, resp, &result)
-		if result["status"] != "rejected" {
-			t.Errorf("expected status 'rejected', got %v", result["status"])
+		if result["error"]["type"] != "guardrail_rejection" {
+			t.Errorf("expected error type 'guardrail_rejection', got %v", result["error"]["type"])
 		}
-		if result["phase"] != "input" {
-			t.Errorf("expected phase 'input', got %v", result["phase"])
-		}
-		if result["llm_response"] != nil {
-			t.Error("expected no llm_response on input rejection")
+		if result["error"]["code"] != "input_rejected" {
+			t.Errorf("expected error code 'input_rejected', got %v", result["error"]["code"])
 		}
 	})
 
@@ -899,14 +919,14 @@ func TestProxy(t *testing.T) {
 				{"role": "user", "content": "Tell me something nice"},
 			},
 		}, apiKey)
-		expectStatus(t, resp, http.StatusForbidden)
-		var result map[string]interface{}
+		expectStatus(t, resp, http.StatusUnprocessableEntity)
+		var result map[string]map[string]interface{}
 		decodeBody(t, resp, &result)
-		if result["status"] != "rejected" {
-			t.Errorf("expected status 'rejected', got %v", result["status"])
+		if result["error"]["type"] != "guardrail_rejection" {
+			t.Errorf("expected error type 'guardrail_rejection', got %v", result["error"]["type"])
 		}
-		if result["phase"] != "output" {
-			t.Errorf("expected phase 'output', got %v", result["phase"])
+		if result["error"]["code"] != "output_rejected" {
+			t.Errorf("expected error code 'output_rejected', got %v", result["error"]["code"])
 		}
 
 		setMockLLMResponse("Hello! I'm a helpful assistant.")
@@ -946,11 +966,8 @@ func TestProxy(t *testing.T) {
 		expectStatus(t, resp, http.StatusOK)
 		var result map[string]interface{}
 		decodeBody(t, resp, &result)
-		if result["status"] != "pass" {
-			t.Errorf("expected status 'pass', got %v", result["status"])
-		}
-		if result["llm_response"] == nil {
-			t.Error("expected llm_response in result")
+		if result["object"] != "chat.completion" {
+			t.Errorf("expected raw chat.completion response, got %v", result["object"])
 		}
 
 		setMockLLMResponse("Hello! I'm a helpful assistant.")

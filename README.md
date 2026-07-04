@@ -154,8 +154,17 @@ sheeld/
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/healthz` | None | Health + config version |
-| `POST` | `/v1/proxy/:source_route` | API Key | Main proxy endpoint |
+| `POST` | `/v1/proxy/:source_route` | API Key | Main proxy endpoint (OpenAI-compatible) |
+| `POST` | `/v1/proxy/:source_route/chat/completions` | API Key | Alias for OpenAI SDK base_url compatibility |
 | `GET` | `/v1/internal/audit-logs` | DP token | Audit-log queries for the control plane |
+
+The proxy is a drop-in OpenAI replacement: point your SDK's `base_url` at `http://<data-plane>/v1/proxy/<route>` with your Sheeld API key and the response is a raw chat completion. Guardrail rejections return HTTP 422 with an OpenAI-style error (`"type": "guardrail_rejection"`); full guard results are in the audit logs, correlated by the `X-Request-ID` response header.
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:8081/v1/proxy/feedback", api_key="shld_...")
+resp = client.chat.completions.create(model="ignored", messages=[{"role": "user", "content": "Hi"}])
+```
 
 See [`openapi.yaml`](openapi.yaml) for the full API specification.
 

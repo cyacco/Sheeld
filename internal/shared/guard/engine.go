@@ -51,16 +51,24 @@ func (e *Engine) Run(ctx context.Context, guards []Guard, input string, cfg Eval
 		wg.Add(1)
 		go func(idx int, guard Guard) {
 			defer wg.Done()
+			guardStart := time.Now()
 			result, err := guard.Validate(ctx, input)
 			if err != nil {
 				errs[idx] = fmt.Errorf("guard %q (%s) failed: %w", guard.Name(), guard.Type(), err)
-				// Record the error as a failed result
+				// Errors fail closed unless the guard is marked fail-open,
+				// in which case an outage of the guard's dependency doesn't
+				// block traffic.
+				passed := false
+				if fo, ok := guard.(FailOpenGuard); ok && fo.FailOpen() {
+					passed = true
+				}
 				results[idx] = &Result{
 					GuardName: guard.Name(),
 					GuardType: guard.Type(),
-					Passed:    false,
+					Passed:    passed,
 					Message:   fmt.Sprintf("guard error: %v", err),
-					Duration:  time.Since(start),
+					Details:   map[string]interface{}{"errored": true},
+					Duration:  time.Since(guardStart),
 				}
 				return
 			}
