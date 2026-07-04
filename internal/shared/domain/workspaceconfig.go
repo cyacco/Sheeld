@@ -1,0 +1,55 @@
+package domain
+
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+// WorkspaceConfig is the full configuration payload served by the control
+// plane and polled by data planes. It carries plaintext LLM API keys over
+// the token-authenticated channel — it must never be logged.
+type WorkspaceConfig struct {
+	// Version is the sha256 of the canonical payload (excluding Version and
+	// GeneratedAt), used as the ETag for cheap polling.
+	Version       string      `json:"version"`
+	GeneratedAt   time.Time   `json:"generated_at"`
+	Organizations []OrgConfig `json:"organizations"`
+}
+
+// OrgConfig holds one organization's proxy-relevant configuration.
+type OrgConfig struct {
+	ID         uuid.UUID         `json:"id"`
+	APIKeys    []APIKeyConfig    `json:"api_keys"`
+	Sources    []SourceConfig    `json:"sources"`
+	Guardrails []GuardrailConfig `json:"guardrails"`
+}
+
+// APIKeyConfig carries only the hash of an active API key; the data plane
+// authenticates proxy calls by hashing the presented key and matching.
+type APIKeyConfig struct {
+	KeyHash string `json:"key_hash"`
+}
+
+// SourceConfig is a source as seen by the data plane.
+type SourceConfig struct {
+	ID            uuid.UUID    `json:"id"`
+	Route         string       `json:"route"`
+	Enabled       bool         `json:"enabled"`
+	LLMModel      string       `json:"llm_model"`
+	LLMAPIKey     string       `json:"llm_api_key"` // plaintext, decrypted by the control plane
+	PassCriteria  PassCriteria `json:"pass_criteria"`
+	PassThreshold *int         `json:"pass_threshold,omitempty"`
+	GuardrailIDs  []uuid.UUID  `json:"guardrail_ids"`
+}
+
+// GuardrailConfig is a guardrail as seen by the data plane. Only enabled
+// guardrails are included in the payload.
+type GuardrailConfig struct {
+	ID        uuid.UUID       `json:"id"`
+	Name      string          `json:"name"`
+	GuardType GuardType       `json:"guard_type"`
+	Phase     GuardPhase      `json:"phase"`
+	Config    json.RawMessage `json:"config"`
+}

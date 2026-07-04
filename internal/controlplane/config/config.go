@@ -25,6 +25,10 @@ type Config struct {
 	// Encryption key for LLM API keys at rest (hex-encoded 32 bytes for AES-256)
 	EncryptionKey string `envconfig:"ENCRYPTION_KEY" required:"true"`
 
+	// Static token authenticating data-plane requests (workspace-config,
+	// audit-log queries). Empty disables the data-plane endpoints.
+	DataPlaneToken string `envconfig:"DATAPLANE_TOKEN"`
+
 	// LLM Gateway (LiteLLM)
 	LLMGatewayURL     string        `envconfig:"LLM_GATEWAY_URL" default:"http://localhost:4000"`
 	LLMRequestTimeout time.Duration `envconfig:"LLM_REQUEST_TIMEOUT" default:"30s"`

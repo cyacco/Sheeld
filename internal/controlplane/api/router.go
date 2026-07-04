@@ -16,6 +16,7 @@ import (
 	"github.com/sheeld/sheeld/internal/controlplane/config"
 	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
 	"github.com/sheeld/sheeld/internal/controlplane/service"
+	"github.com/sheeld/sheeld/internal/controlplane/workspaceconfig"
 	"github.com/sheeld/sheeld/internal/proxy"
 	"github.com/sheeld/sheeld/internal/shared/middleware"
 )
@@ -138,6 +139,13 @@ func NewRouter(
 		r.Route("/audit-logs", func(r chi.Router) {
 			r.Use(cpmw.JWTAuth(authService))
 			r.Get("/", auditLogHandler.List)
+		})
+
+		// Internal routes for data planes (static shared token)
+		r.Route("/internal", func(r chi.Router) {
+			r.Use(cpmw.DataPlaneAuth(cfg.DataPlaneToken))
+			wcHandler := workspaceconfig.NewHandler(workspaceconfig.NewBuilder(queries, cfg.EncryptionKey))
+			r.Get("/workspace-config", wcHandler.Get)
 		})
 
 		// Proxy route (API key auth for machine-to-machine)
