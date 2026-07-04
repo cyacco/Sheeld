@@ -15,9 +15,6 @@ import (
 	"github.com/sheeld/sheeld/internal/controlplane/config"
 	"github.com/sheeld/sheeld/internal/controlplane/db"
 	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
-	"github.com/sheeld/sheeld/internal/shared/guard"
-	"github.com/sheeld/sheeld/internal/shared/llm"
-	"github.com/sheeld/sheeld/internal/proxy"
 	"github.com/sheeld/sheeld/internal/controlplane/service"
 )
 
@@ -78,16 +75,8 @@ func run() error {
 	sourceService := service.NewSourceService(queries, cfg.EncryptionKey)
 	guardrailService := service.NewGuardrailService(queries)
 
-	// Initialize guardrail engine and LLM client
-	guardRegistry := guard.NewRegistry()
-	guardEngine := guard.NewEngine(guardRegistry)
-	llmClient := llm.NewClient(cfg.LLMGatewayURL, cfg.LLMRequestTimeout)
-	proxyService := proxy.NewProxy(queries, guardEngine, llmClient, cfg.EncryptionKey)
-
-	slog.Info("LLM gateway configured", "url", cfg.LLMGatewayURL, "timeout", cfg.LLMRequestTimeout)
-
 	// Build HTTP router
-	router := api.NewRouter(cfg, pool, authService, sourceService, guardrailService, proxyService, queries)
+	router := api.NewRouter(cfg, pool, authService, sourceService, guardrailService, queries)
 
 	// Start HTTP server
 	srv := &http.Server{

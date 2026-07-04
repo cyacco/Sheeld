@@ -12,7 +12,9 @@ import (
 	"github.com/sheeld/sheeld/internal/dataplane/backendconfig"
 	"github.com/sheeld/sheeld/internal/dataplane/config"
 	"github.com/sheeld/sheeld/internal/dataplane/gateway"
+	"github.com/sheeld/sheeld/internal/dataplane/processor"
 	"github.com/sheeld/sheeld/internal/shared/guard"
+	"github.com/sheeld/sheeld/internal/shared/llm"
 )
 
 func main() {
@@ -58,8 +60,14 @@ func run() error {
 	}
 	go poller.Run(ctx)
 
+	// Processor: guards + LLM client, config from the in-memory store
+	guardEngine := guard.NewEngine(guardRegistry)
+	llmClient := llm.NewClient(cfg.LLMGatewayURL, cfg.LLMRequestTimeout)
+	proc := processor.NewProcessor(store, guardEngine, llmClient, nil)
+	slog.Info("LLM gateway configured", "url", cfg.LLMGatewayURL, "timeout", cfg.LLMRequestTimeout)
+
 	// Build HTTP router
-	router := gateway.NewRouter(cfg, store)
+	router := gateway.NewRouter(cfg, store, proc)
 
 	// Start HTTP server
 	srv := &http.Server{

@@ -12,13 +12,12 @@ import (
 
 	"github.com/sheeld/sheeld/internal/controlplane/api/handler"
 	cpmw "github.com/sheeld/sheeld/internal/controlplane/api/middleware"
-	"github.com/sheeld/sheeld/internal/controlplane/api/response"
 	"github.com/sheeld/sheeld/internal/controlplane/config"
 	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
 	"github.com/sheeld/sheeld/internal/controlplane/service"
 	"github.com/sheeld/sheeld/internal/controlplane/workspaceconfig"
-	"github.com/sheeld/sheeld/internal/proxy"
 	"github.com/sheeld/sheeld/internal/shared/middleware"
+	"github.com/sheeld/sheeld/internal/shared/response"
 )
 
 // NewRouter creates and configures the chi router with all routes and middleware.
@@ -28,7 +27,6 @@ func NewRouter(
 	authService *service.AuthService,
 	sourceService *service.SourceService,
 	guardrailService *service.GuardrailService,
-	proxyService *proxy.Proxy,
 	queries *generated.Queries,
 ) http.Handler {
 	r := chi.NewRouter()
@@ -75,12 +73,8 @@ func NewRouter(
 	authHandler := handler.NewAuthHandler(authService)
 	sourceHandler := handler.NewSourceHandler(sourceService)
 	guardrailHandler := handler.NewGuardrailHandler(guardrailService)
-	proxyHandler := handler.NewProxyHandler(proxyService)
 	auditLogHandler := handler.NewAuditLogHandler(queries)
 	modelsHandler := handler.NewModelsHandler()
-
-	// Rate limiter for proxy routes
-	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)
 
 	// API v1
 	r.Route("/v1", func(r chi.Router) {
@@ -148,13 +142,6 @@ func NewRouter(
 			r.Get("/workspace-config", wcHandler.Get)
 		})
 
-		// Proxy route (API key auth for machine-to-machine)
-		r.Route("/proxy", func(r chi.Router) {
-			r.Use(cpmw.APIKeyAuth(authService))
-			r.Use(rateLimiter.Middleware)
-			r.Use(chimiddleware.Timeout(cfg.ProxyTimeout))
-			r.Post("/{sourceRoute}", proxyHandler.Handle)
-		})
 	})
 
 	return r

@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/sheeld/sheeld/internal/shared/middleware"
-	"github.com/sheeld/sheeld/internal/controlplane/api/response"
+	"github.com/sheeld/sheeld/internal/shared/response"
 	"github.com/sheeld/sheeld/internal/controlplane/service"
 )
 

@@ -1,4 +1,4 @@
-package handler
+package gateway
 
 import (
 	"encoding/json"
@@ -7,20 +7,20 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/sheeld/sheeld/internal/shared/middleware"
-	"github.com/sheeld/sheeld/internal/controlplane/api/response"
+	"github.com/sheeld/sheeld/internal/dataplane/processor"
 	"github.com/sheeld/sheeld/internal/shared/llm"
-	"github.com/sheeld/sheeld/internal/proxy"
+	"github.com/sheeld/sheeld/internal/shared/middleware"
+	"github.com/sheeld/sheeld/internal/shared/response"
 )
 
 // ProxyHandler handles the main proxy endpoint.
 type ProxyHandler struct {
-	proxy *proxy.Proxy
+	processor *processor.Processor
 }
 
 // NewProxyHandler creates a new ProxyHandler.
-func NewProxyHandler(p *proxy.Proxy) *ProxyHandler {
-	return &ProxyHandler{proxy: p}
+func NewProxyHandler(p *processor.Processor) *ProxyHandler {
+	return &ProxyHandler{processor: p}
 }
 
 // Handle processes POST /v1/proxy/:sourceRoute.
@@ -48,7 +48,7 @@ func (h *ProxyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.proxy.Execute(r.Context(), orgID, sourceRoute, &chatReq)
+	result, err := h.processor.Execute(r.Context(), orgID, sourceRoute, &chatReq)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, err.Error())
 		return

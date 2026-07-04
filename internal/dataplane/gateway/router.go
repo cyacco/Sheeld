@@ -8,11 +8,12 @@ import (
 
 	"github.com/sheeld/sheeld/internal/dataplane/backendconfig"
 	"github.com/sheeld/sheeld/internal/dataplane/config"
+	"github.com/sheeld/sheeld/internal/dataplane/processor"
 	"github.com/sheeld/sheeld/internal/shared/middleware"
 )
 
 // NewRouter creates the data-plane HTTP router.
-func NewRouter(cfg *config.Config, store *backendconfig.Store) http.Handler {
+func NewRouter(cfg *config.Config, store *backendconfig.Store, proc *processor.Processor) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -32,6 +33,16 @@ func NewRouter(cfg *config.Config, store *backendconfig.Store) http.Handler {
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok","config":"loaded","version":"` + store.Version() + `"}`))
+	})
+
+	// Proxy route (API key auth against the in-memory config store)
+	proxyHandler := NewProxyHandler(proc)
+	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)
+	r.Route("/v1/proxy", func(r chi.Router) {
+		r.Use(APIKeyAuth(store))
+		r.Use(rateLimiter.Middleware)
+		r.Use(chimiddleware.Timeout(cfg.ProxyTimeout))
+		r.Post("/{sourceRoute}", proxyHandler.Handle)
 	})
 
 	return r

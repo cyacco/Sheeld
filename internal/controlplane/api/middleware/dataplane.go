@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sheeld/sheeld/internal/controlplane/api/response"
+	"github.com/sheeld/sheeld/internal/shared/response"
 )
 
 // DataPlaneAuth authenticates data-plane requests using a static shared

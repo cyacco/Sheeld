@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/sheeld/sheeld/internal/controlplane/api/response"
+	"github.com/sheeld/sheeld/internal/shared/response"
 )
 
 // ModelInfo represents a supported LLM model.

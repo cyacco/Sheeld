@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sheeld/sheeld/internal/controlplane/api/response"
+	"github.com/sheeld/sheeld/internal/shared/response"
 	"github.com/sheeld/sheeld/internal/controlplane/service"
 	sharedmw "github.com/sheeld/sheeld/internal/shared/middleware"
 )
