@@ -42,6 +42,28 @@ type Result struct {
 	Duration time.Duration `json:"duration_ms"`
 }
 
+// FailOpenGuard is implemented by guards that should be treated as passed
+// when they error (e.g. an external moderation API outage), instead of the
+// default fail-closed behavior.
+type FailOpenGuard interface {
+	Guard
+	FailOpen() bool
+}
+
+// failOpen wraps a guard to mark it fail-open on error.
+type failOpen struct {
+	Guard
+}
+
+// FailOpen reports that errors from this guard should count as passed.
+func (failOpen) FailOpen() bool { return true }
+
+// WithFailOpen wraps a guard so that execution errors count as passed
+// (marked as errored in the result) rather than failing the request.
+func WithFailOpen(g Guard) Guard {
+	return failOpen{g}
+}
+
 // PassCriteria defines how multiple guard results are evaluated.
 type PassCriteria string
 

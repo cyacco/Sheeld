@@ -972,6 +972,11 @@ components:
           default: input
         config:
           type: object
+          description: >
+            Guard-type-specific configuration. All guard types also accept
+            "on_error": "fail_open" | "fail_closed" (default fail_closed) —
+            fail_open treats guard execution errors (e.g. an external
+            moderation API outage) as passed instead of blocking traffic.
           additionalProperties: true
         enabled:
           type: boolean

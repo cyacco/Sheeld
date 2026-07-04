@@ -3,6 +3,7 @@ package backendconfig
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"sync/atomic"
 
@@ -125,6 +126,9 @@ func (s *Store) Apply(cfg *domain.WorkspaceConfig, registry *guard.Registry) err
 				if err != nil {
 					return fmt.Errorf("building guard %q for source %q: %w", gc.Name, src.Route, err)
 				}
+				if isFailOpen(gc.Config) {
+					g = guard.WithFailOpen(g)
+				}
 				if gc.Phase == domain.GuardPhaseInput || gc.Phase == domain.GuardPhaseBoth {
 					resolved.InputGuards = append(resolved.InputGuards, g)
 				}
@@ -138,4 +142,17 @@ func (s *Store) Apply(cfg *domain.WorkspaceConfig, registry *guard.Registry) err
 
 	s.current.Store(snap)
 	return nil
+}
+
+// isFailOpen reads the optional on_error field from a guardrail's config.
+// Guards fail closed by default; "fail_open" means execution errors count
+// as passed.
+func isFailOpen(config json.RawMessage) bool {
+	var c struct {
+		OnError string `json:"on_error"`
+	}
+	if err := json.Unmarshal(config, &c); err != nil {
+		return false
+	}
+	return c.OnError == "fail_open"
 }
