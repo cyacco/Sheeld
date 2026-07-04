@@ -10,13 +10,14 @@ import (
 	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
 )
 
-// CreateGuardrailParams holds the input for creating a guardrail.
+// CreateGuardrailParams holds the input for creating a guardrail. Enabled is
+// a pointer to distinguish an omitted field from an explicit false.
 type CreateGuardrailParams struct {
 	Name      string                 `json:"name"`
 	GuardType string                 `json:"guard_type"`
 	Phase     string                 `json:"phase"`
 	Config    map[string]interface{} `json:"config"`
-	Enabled   bool                   `json:"enabled"`
+	Enabled   *bool                  `json:"enabled"`
 }
 
 // UpdateGuardrailParams holds the input for updating a guardrail.
@@ -25,7 +26,20 @@ type UpdateGuardrailParams struct {
 	GuardType string                 `json:"guard_type"`
 	Phase     string                 `json:"phase"`
 	Config    map[string]interface{} `json:"config"`
-	Enabled   bool                   `json:"enabled"`
+	Enabled   *bool                  `json:"enabled"`
+}
+
+// guardrailDefaults applies the documented defaults for omitted optional
+// fields: enabled=true, phase="input".
+func guardrailDefaults(phase string, enabled *bool) (string, bool) {
+	if phase == "" {
+		phase = "input"
+	}
+	e := true
+	if enabled != nil {
+		e = *enabled
+	}
+	return phase, e
 }
 
 // GuardrailService handles guardrail business logic.
@@ -45,13 +59,15 @@ func (s *GuardrailService) Create(ctx context.Context, orgID uuid.UUID, params C
 		return generated.Guardrail{}, fmt.Errorf("marshaling config: %w", err)
 	}
 
+	phase, enabled := guardrailDefaults(params.Phase, params.Enabled)
+
 	return s.queries.CreateGuardrail(ctx, generated.CreateGuardrailParams{
 		OrganizationID: orgID,
 		Name:           params.Name,
 		GuardType:      params.GuardType,
-		Phase:          params.Phase,
+		Phase:          phase,
 		Config:         configJSON,
-		Enabled:        params.Enabled,
+		Enabled:        enabled,
 	})
 }
 
@@ -85,14 +101,16 @@ func (s *GuardrailService) Update(ctx context.Context, orgID, guardrailID uuid.U
 		return generated.Guardrail{}, fmt.Errorf("marshaling config: %w", err)
 	}
 
+	phase, enabled := guardrailDefaults(params.Phase, params.Enabled)
+
 	return s.queries.UpdateGuardrail(ctx, generated.UpdateGuardrailParams{
 		ID:             guardrailID,
 		OrganizationID: orgID,
 		Name:           params.Name,
 		GuardType:      params.GuardType,
-		Phase:          params.Phase,
+		Phase:          phase,
 		Config:         configJSON,
-		Enabled:        params.Enabled,
+		Enabled:        enabled,
 	})
 }
 
