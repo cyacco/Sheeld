@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "PATH=/Users/christopheryacco/.nvm/versions/node/v25.6.1/bin:/usr/bin:/bin",
+        "NEXT_PUBLIC_API_URL=http://localhost:8090",
+        "npm",
+        "run",
+        "dev",
+        "--prefix",
+        "web"
+      ],
+      "port": 3000
+    }
+  ]
+}

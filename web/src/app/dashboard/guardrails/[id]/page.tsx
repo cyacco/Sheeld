@@ -35,6 +35,7 @@ export default function GuardrailDetailPage() {
   }, [id, router]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch on mount; state updates happen after awaits
     load();
   }, [load]);
 

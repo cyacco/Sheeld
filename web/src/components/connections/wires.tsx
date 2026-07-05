@@ -57,6 +57,9 @@ export function Wires({ containerRef, nodeRefs, wires, version }: WiresProps) {
   }, [containerRef, nodeRefs, wires]);
 
   useEffect(() => {
+    // Measure-after-render is intentional: wire endpoints depend on final
+    // card layout.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     measure();
     const container = containerRef.current;
     if (!container) return;

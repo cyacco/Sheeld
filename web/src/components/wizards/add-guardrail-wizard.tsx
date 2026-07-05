@@ -39,18 +39,26 @@ export function AddGuardrailWizard({
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<GuardrailDraft | null>(null);
   const [sources, setSources] = useState<Source[]>([]);
-  const [attachIds, setAttachIds] = useState<Set<string>>(new Set());
+  const [attachIds, setAttachIds] = useState<Set<string>>(
+    () => new Set(fixedSourceId ? [fixedSourceId] : []),
+  );
 
-  // Reset per open; load sources for the attach step.
+  // Load sources for the attach step when opening; reset state on close so
+  // the next open starts fresh.
   useEffect(() => {
-    if (!open) return;
-    setStep(0);
-    setDraft(null);
-    setAttachIds(new Set(fixedSourceId ? [fixedSourceId] : []));
-    if (!fixedSourceId) {
+    if (open && !fixedSourceId) {
       listSources().then(setSources).catch(() => setSources([]));
     }
   }, [open, fixedSourceId]);
+
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      setStep(0);
+      setDraft(null);
+      setAttachIds(new Set(fixedSourceId ? [fixedSourceId] : []));
+    }
+    onOpenChange(next);
+  }
 
   const steps: WizardStep[] = [
     {
@@ -130,7 +138,7 @@ export function AddGuardrailWizard({
         await attachGuardrail(guardrail.id, sourceId);
       }
       toast.success(`Guardrail "${guardrail.name}" created`);
-      onOpenChange(false);
+      handleOpenChange(false);
       onCreated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create guardrail");
@@ -138,7 +146,7 @@ export function AddGuardrailWizard({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="flex h-[85vh] max-w-3xl flex-col sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Add guardrail</DialogTitle>
@@ -149,7 +157,7 @@ export function AddGuardrailWizard({
           onStepChange={setStep}
           finishLabel="Create guardrail"
           onFinish={handleFinish}
-          onCancel={() => onOpenChange(false)}
+          onCancel={() => handleOpenChange(false)}
         />
       </DialogContent>
     </Dialog>

@@ -124,29 +124,46 @@ export function AuditLogTable({ sourceId, sources }: AuditLogTableProps) {
                     colSpan={showSourceColumn ? 5 : 4}
                     className="bg-muted/50"
                   >
-                    <div className="space-y-2 p-2">
-                      <h4 className="text-sm font-medium">Guard Results</h4>
-                      {(log.guard_results ?? []).map(
-                        (gr: GuardResultEntry, i: number) => (
-                          <div key={i} className="flex items-center gap-3 text-sm">
-                            <Badge
-                              variant={gr.passed ? "default" : "destructive"}
-                              className="w-12 justify-center"
-                            >
-                              {gr.passed ? "pass" : "fail"}
-                            </Badge>
-                            <span className="font-mono">{gr.guard_name}</span>
-                            <span className="text-muted-foreground">
-                              ({gr.guard_type})
-                            </span>
-                            <span className="text-muted-foreground">
-                              {gr.message}
-                            </span>
-                            <span className="ml-auto text-muted-foreground">
-                              {gr.duration_ms}ms
-                            </span>
+                    <div className="space-y-3 p-2">
+                      {Object.entries(log.guard_results ?? {}).map(
+                        ([phase, phaseResult]) => (
+                          <div key={phase} className="space-y-2">
+                            <h4 className="text-sm font-medium capitalize">
+                              {phase} guards ({phaseResult.pass_count} passed,{" "}
+                              {phaseResult.fail_count} failed)
+                            </h4>
+                            {(phaseResult.results ?? []).map(
+                              (gr: GuardResultEntry, i: number) => (
+                                <div
+                                  key={i}
+                                  className="flex items-center gap-3 text-sm"
+                                >
+                                  <Badge
+                                    variant={gr.passed ? "default" : "destructive"}
+                                    className="w-12 justify-center"
+                                  >
+                                    {gr.passed ? "pass" : "fail"}
+                                  </Badge>
+                                  <span className="font-mono">{gr.guard_name}</span>
+                                  <span className="text-muted-foreground">
+                                    ({gr.guard_type})
+                                  </span>
+                                  <span className="text-muted-foreground">
+                                    {gr.message}
+                                  </span>
+                                  <span className="ml-auto text-muted-foreground">
+                                    {gr.duration_ms}ms
+                                  </span>
+                                </div>
+                              ),
+                            )}
                           </div>
                         ),
+                      )}
+                      {Object.keys(log.guard_results ?? {}).length === 0 && (
+                        <p className="text-sm text-muted-foreground">
+                          No guards ran for this request.
+                        </p>
                       )}
                     </div>
                   </TableCell>

@@ -35,13 +35,22 @@ export function AddSourceWizard({ open, onOpenChange, onCreated }: AddSourceWiza
   const [guardrails, setGuardrails] = useState<Guardrail[]>([]);
   const [attachIds, setAttachIds] = useState<Set<string>>(new Set());
 
+  // Load guardrails for the attach step when opening; reset state on close
+  // so the next open starts fresh.
   useEffect(() => {
-    if (!open) return;
-    setStep(0);
-    setDraft(emptySourceDraft());
-    setAttachIds(new Set());
-    listGuardrails().then(setGuardrails).catch(() => setGuardrails([]));
+    if (open) {
+      listGuardrails().then(setGuardrails).catch(() => setGuardrails([]));
+    }
   }, [open]);
+
+  function handleOpenChange(next: boolean) {
+    if (!next) {
+      setStep(0);
+      setDraft(emptySourceDraft());
+      setAttachIds(new Set());
+    }
+    onOpenChange(next);
+  }
 
   const steps: WizardStep[] = [
     {
@@ -113,7 +122,7 @@ export function AddSourceWizard({ open, onOpenChange, onCreated }: AddSourceWiza
         await attachGuardrail(guardrailId, source.id);
       }
       toast.success(`Source "${source.name}" created`);
-      onOpenChange(false);
+      handleOpenChange(false);
       onCreated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create source");
@@ -121,7 +130,7 @@ export function AddSourceWizard({ open, onOpenChange, onCreated }: AddSourceWiza
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="flex h-[85vh] max-w-3xl flex-col sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Add source</DialogTitle>
@@ -132,7 +141,7 @@ export function AddSourceWizard({ open, onOpenChange, onCreated }: AddSourceWiza
           onStepChange={setStep}
           finishLabel="Create source"
           onFinish={handleFinish}
-          onCancel={() => onOpenChange(false)}
+          onCancel={() => handleOpenChange(false)}
         />
       </DialogContent>
     </Dialog>
