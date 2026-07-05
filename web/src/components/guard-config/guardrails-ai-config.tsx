@@ -3,7 +3,6 @@
 import type { GuardrailsAIConfig } from "@/lib/types";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 
 interface Props {
   config: GuardrailsAIConfig;
@@ -42,14 +41,6 @@ export function GuardrailsAIConfigForm({ config, onChange }: Props) {
             onChange({ ...config, timeout_seconds: Number(e.target.value) })
           }
         />
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Switch
-          checked={config.fail_open ?? false}
-          onCheckedChange={(v) => onChange({ ...config, fail_open: v })}
-        />
-        <Label>Fail Open (pass on error)</Label>
       </div>
     </div>
   );

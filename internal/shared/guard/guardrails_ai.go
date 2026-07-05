@@ -23,11 +23,6 @@ type GuardrailsAIConfig struct {
 
 	// TimeoutSeconds is the HTTP timeout for calls to the guardrails.ai server. Defaults to 10.
 	TimeoutSeconds int `json:"timeout_seconds"`
-
-	// FailOpen controls behavior when the remote server returns an error.
-	// true  = treat error as pass (fail-open)
-	// false = treat error as fail (fail-closed, default)
-	FailOpen bool `json:"fail_open"`
 }
 
 // GuardrailsAIGuard calls a user-hosted guardrails.ai server to validate input text.
@@ -84,17 +79,17 @@ func (g *GuardrailsAIGuard) Validate(ctx context.Context, input string) (*Result
 
 	resp, err := g.client.Do(req)
 	if err != nil {
-		return g.handleError(start, fmt.Errorf("guardrails_ai: connection failed: %w", err))
+		return nil, fmt.Errorf("guardrails_ai: connection failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return g.handleError(start, fmt.Errorf("guardrails_ai: server returned status %d", resp.StatusCode))
+		return nil, fmt.Errorf("guardrails_ai: server returned status %d", resp.StatusCode)
 	}
 
 	var grResp guardrailsAIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&grResp); err != nil {
-		return g.handleError(start, fmt.Errorf("guardrails_ai: decode response: %w", err))
+		return nil, fmt.Errorf("guardrails_ai: decode response: %w", err)
 	}
 
 	duration := time.Since(start)
@@ -125,21 +120,4 @@ func (g *GuardrailsAIGuard) Validate(ctx context.Context, input string) (*Result
 		Message:   "input passed guardrails.ai validation",
 		Duration:  duration,
 	}, nil
-}
-
-// handleError applies fail-open or fail-closed behavior for connection/server errors.
-func (g *GuardrailsAIGuard) handleError(start time.Time, err error) (*Result, error) {
-	if g.cfg.FailOpen {
-		// Fail-open: treat the error as a pass so the request is not blocked.
-		return &Result{
-			GuardName: g.name,
-			GuardType: g.Type(),
-			Passed:    true,
-			Message:   "guardrails.ai unreachable — passing (fail-open)",
-			Details:   map[string]interface{}{"error": err.Error()},
-			Duration:  time.Since(start),
-		}, nil
-	}
-	// Fail-closed: surface the error so the engine treats this guard as failed.
-	return nil, err
 }

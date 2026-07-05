@@ -3,6 +3,7 @@ package guard
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"sync"
 )
 
@@ -26,6 +27,7 @@ func NewRegistry() *Registry {
 	r.Register("regex", regexFactory)
 	r.Register("openai_moderation", openAIModerationFactory)
 	r.Register("guardrails_ai", guardrailsAIFactory)
+	r.Register("webhook", webhookFactory)
 
 	return r
 }
@@ -103,4 +105,19 @@ func guardrailsAIFactory(name string, config json.RawMessage) (Guard, error) {
 		return nil, fmt.Errorf("guardrails_ai: guard_name is required")
 	}
 	return NewGuardrailsAIGuard(name, cfg), nil
+}
+
+func webhookFactory(name string, config json.RawMessage) (Guard, error) {
+	var cfg WebhookConfig
+	if err := json.Unmarshal(config, &cfg); err != nil {
+		return nil, fmt.Errorf("invalid webhook config: %w", err)
+	}
+	if cfg.URL == "" {
+		return nil, fmt.Errorf("webhook: url is required")
+	}
+	u, err := url.Parse(cfg.URL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return nil, fmt.Errorf("webhook: url must be a valid http(s) URL")
+	}
+	return NewWebhookGuard(name, cfg), nil
 }

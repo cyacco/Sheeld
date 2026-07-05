@@ -87,7 +87,8 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 	guardResults := make(map[string]*guard.EngineResult)
 	if len(source.InputGuards) > 0 {
 		guardStart := time.Now()
-		inputResult, err := p.engine.Run(ctx, source.InputGuards, inputText, evalCfg)
+		inputCtx := guard.WithCallMeta(ctx, guard.CallMeta{Phase: "input", SourceRoute: source.Route})
+		inputResult, err := p.engine.Run(inputCtx, source.InputGuards, inputText, evalCfg)
 		if err != nil {
 			return nil, fmt.Errorf("running input guards: %w", err)
 		}
@@ -128,7 +129,8 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 	if len(source.OutputGuards) > 0 {
 		guardStart := time.Now()
 		outputText := llm.ExtractOutputText(chatResp)
-		outputResult, err := p.engine.Run(ctx, source.OutputGuards, outputText, evalCfg)
+		outputCtx := guard.WithCallMeta(ctx, guard.CallMeta{Phase: "output", SourceRoute: source.Route})
+		outputResult, err := p.engine.Run(outputCtx, source.OutputGuards, outputText, evalCfg)
 		if err != nil {
 			return nil, fmt.Errorf("running output guards: %w", err)
 		}

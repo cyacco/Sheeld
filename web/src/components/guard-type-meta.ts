@@ -1,9 +1,10 @@
-import { Ban, Regex, ShieldCheck, Server, type LucideIcon } from "lucide-react";
+import { Ban, Regex, ShieldCheck, Server, Webhook, type LucideIcon } from "lucide-react";
 import type {
   BlocklistConfig,
   RegexConfig,
   OpenAIModerationConfig,
   GuardrailsAIConfig,
+  WebhookConfig,
 } from "@/lib/types";
 
 export interface GuardTypeMeta {
@@ -39,6 +40,12 @@ export const GUARD_TYPES: GuardTypeMeta[] = [
     description: "Validate with a guard hosted on a Guardrails AI server.",
     icon: Server,
   },
+  {
+    value: "webhook",
+    label: "Webhook",
+    description: "Call your own HTTP endpoint to validate text.",
+    icon: Webhook,
+  },
 ];
 
 export function guardTypeMeta(value: string): GuardTypeMeta | undefined {
@@ -63,8 +70,13 @@ export function defaultConfig(guardType: string): Record<string, unknown> {
         server_url: "",
         guard_name: "",
         timeout_seconds: 10,
-        fail_open: false,
       } satisfies GuardrailsAIConfig;
+    case "webhook":
+      return {
+        url: "",
+        headers: {},
+        timeout_seconds: 10,
+      } satisfies WebhookConfig;
     default:
       return {};
   }

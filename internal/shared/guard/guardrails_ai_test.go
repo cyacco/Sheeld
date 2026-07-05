@@ -76,7 +76,6 @@ func TestGuardrailsAIGuard_ServerError_FailClosed(t *testing.T) {
 	g := NewGuardrailsAIGuard("gr", GuardrailsAIConfig{
 		ServerURL: srv.URL,
 		GuardName: "my-guard",
-		FailOpen:  false, // fail-closed (default)
 	})
 
 	_, err := g.Validate(context.Background(), "test")
@@ -85,7 +84,7 @@ func TestGuardrailsAIGuard_ServerError_FailClosed(t *testing.T) {
 	}
 }
 
-func TestGuardrailsAIGuard_ServerError_FailOpen(t *testing.T) {
+func TestGuardrailsAIGuard_ServerError_FailOpenViaEngine(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 	}))
@@ -94,36 +93,33 @@ func TestGuardrailsAIGuard_ServerError_FailOpen(t *testing.T) {
 	g := NewGuardrailsAIGuard("gr", GuardrailsAIConfig{
 		ServerURL: srv.URL,
 		GuardName: "my-guard",
-		FailOpen:  true,
 	})
 
-	result, err := g.Validate(context.Background(), "test")
+	// Fail-open now lives in the engine via the generic on_error policy.
+	engine := NewEngine(NewRegistry())
+	res, err := engine.Run(context.Background(), []Guard{WithFailOpen(g)}, "test", EvalConfig{Criteria: CriteriaAll})
 	if err != nil {
-		t.Fatalf("unexpected error in fail-open mode: %v", err)
+		t.Fatalf("unexpected engine error: %v", err)
 	}
-	if !result.Passed {
-		t.Error("expected pass in fail-open mode when server errors")
+	if !res.Passed {
+		t.Error("expected fail-open errored guard to pass overall")
+	}
+	if res.Results[0].Details["errored"] != true {
+		t.Error("expected result marked as errored")
 	}
 }
 
-func TestGuardrailsAIGuard_ConnectionFailure_FailOpen(t *testing.T) {
+func TestGuardrailsAIGuard_ConnectionFailure_ReturnsError(t *testing.T) {
 	// Point at a port nothing is listening on.
 	g := NewGuardrailsAIGuard("gr", GuardrailsAIConfig{
 		ServerURL:      "http://127.0.0.1:19999",
 		GuardName:      "my-guard",
-		FailOpen:       true,
 		TimeoutSeconds: 1,
 	})
 
-	result, err := g.Validate(context.Background(), "test")
-	if err != nil {
-		t.Fatalf("unexpected error in fail-open mode: %v", err)
-	}
-	if !result.Passed {
-		t.Error("expected pass in fail-open mode on connection failure")
-	}
-	if _, ok := result.Details["error"]; !ok {
-		t.Error("expected error detail to be populated")
+	_, err := g.Validate(context.Background(), "test")
+	if err == nil {
+		t.Error("expected error on connection failure (fail-open is now an engine policy)")
 	}
 }
 
@@ -131,7 +127,6 @@ func TestGuardrailsAIGuard_ConnectionFailure_FailClosed(t *testing.T) {
 	g := NewGuardrailsAIGuard("gr", GuardrailsAIConfig{
 		ServerURL:      "http://127.0.0.1:19999",
 		GuardName:      "my-guard",
-		FailOpen:       false,
 		TimeoutSeconds: 1,
 	})
 
