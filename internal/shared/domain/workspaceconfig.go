@@ -20,10 +20,11 @@ type WorkspaceConfig struct {
 
 // OrgConfig holds one organization's proxy-relevant configuration.
 type OrgConfig struct {
-	ID         uuid.UUID         `json:"id"`
-	APIKeys    []APIKeyConfig    `json:"api_keys"`
-	Sources    []SourceConfig    `json:"sources"`
-	Guardrails []GuardrailConfig `json:"guardrails"`
+	ID           uuid.UUID           `json:"id"`
+	APIKeys      []APIKeyConfig      `json:"api_keys"`
+	Sources      []SourceConfig      `json:"sources"`
+	Guardrails   []GuardrailConfig   `json:"guardrails"`
+	Transformers []TransformerConfig `json:"transformers"`
 }
 
 // APIKeyConfig carries only the hash of an active API key; the data plane
@@ -42,6 +43,20 @@ type SourceConfig struct {
 	PassCriteria  PassCriteria `json:"pass_criteria"`
 	PassThreshold *int         `json:"pass_threshold,omitempty"`
 	GuardrailIDs  []uuid.UUID  `json:"guardrail_ids"`
+
+	// TransformerIDs is ORDERED: the data plane runs transformers in this
+	// sequence (source_transformers.position order).
+	TransformerIDs []uuid.UUID `json:"transformer_ids"`
+}
+
+// TransformerConfig is a transformer as seen by the data plane. Only
+// enabled transformers are included in the payload.
+type TransformerConfig struct {
+	ID              uuid.UUID       `json:"id"`
+	Name            string          `json:"name"`
+	TransformerType string          `json:"transformer_type"`
+	Phase           string          `json:"phase"`
+	Config          json.RawMessage `json:"config"`
 }
 
 // GuardrailConfig is a guardrail as seen by the data plane. Only enabled

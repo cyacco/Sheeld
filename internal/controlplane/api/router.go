@@ -27,6 +27,7 @@ func NewRouter(
 	authService *service.AuthService,
 	sourceService *service.SourceService,
 	guardrailService *service.GuardrailService,
+	transformerService *service.TransformerService,
 	queries *generated.Queries,
 ) http.Handler {
 	r := chi.NewRouter()
@@ -73,6 +74,7 @@ func NewRouter(
 	authHandler := handler.NewAuthHandler(authService)
 	sourceHandler := handler.NewSourceHandler(sourceService)
 	guardrailHandler := handler.NewGuardrailHandler(guardrailService)
+	transformerHandler := handler.NewTransformerHandler(transformerService)
 	auditLogHandler := handler.NewAuditLogHandler(cfg.DataPlaneURL, cfg.DataPlaneToken)
 	modelsHandler := handler.NewModelsHandler()
 
@@ -111,6 +113,10 @@ func NewRouter(
 
 			// List guardrails for a source
 			r.Get("/{sourceID}/guardrails", guardrailHandler.ListBySource)
+
+			// Transformer chain for a source (ordered)
+			r.Get("/{sourceID}/transformers", transformerHandler.ListBySource)
+			r.Put("/{sourceID}/transformers", transformerHandler.SetSourceTransformers)
 		})
 
 		// Guardrail routes (org-scoped via JWT)
@@ -134,6 +140,20 @@ func NewRouter(
 			r.Use(cpmw.JWTAuth(authService))
 			connectionsHandler := handler.NewConnectionsHandler(queries)
 			r.Get("/connections", connectionsHandler.List)
+		})
+
+		// Transformer routes (org-scoped via JWT)
+		r.Route("/transformers", func(r chi.Router) {
+			r.Use(cpmw.JWTAuth(authService))
+
+			r.Post("/", transformerHandler.Create)
+			r.Get("/", transformerHandler.List)
+			r.Get("/{id}", transformerHandler.Get)
+			r.Put("/{id}", transformerHandler.Update)
+			r.Delete("/{id}", transformerHandler.Delete)
+
+			r.Post("/{id}/sources", transformerHandler.AttachToSource)
+			r.Delete("/{id}/sources/{sourceID}", transformerHandler.DetachFromSource)
 		})
 
 		// Audit log routes (JWT for dashboard)
