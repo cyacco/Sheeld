@@ -8,6 +8,7 @@ import type {
   RegexConfig,
   OpenAIModerationConfig,
   GuardrailsAIConfig,
+  WebhookConfig,
 } from "@/lib/types";
 import { GUARD_TYPES, defaultConfig } from "@/components/guard-type-meta";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ import { BlocklistConfigForm } from "@/components/guard-config/blocklist-config"
 import { RegexConfigForm } from "@/components/guard-config/regex-config";
 import { OpenAIModConfigForm } from "@/components/guard-config/openai-mod-config";
 import { GuardrailsAIConfigForm } from "@/components/guard-config/guardrails-ai-config";
+import { WebhookConfigForm } from "@/components/guard-config/webhook-config";
 
 // GuardrailDraft is the shared editing state for the guardrail form and
 // the add-guardrail wizard.
@@ -143,6 +145,31 @@ export function GuardConfigFields({ draft, onChange }: FieldGroupProps) {
           onChange={(c) => setConfig(c as unknown as Record<string, unknown>)}
         />
       )}
+      {draft.guardType === "webhook" && (
+        <WebhookConfigForm
+          config={draft.config as unknown as WebhookConfig}
+          onChange={(c) => setConfig(c as unknown as Record<string, unknown>)}
+        />
+      )}
+
+      <div className="space-y-2 pt-2">
+        <Label>On error</Label>
+        <Select
+          value={(draft.config.on_error as string) ?? "fail_closed"}
+          onValueChange={(v) => setConfig({ ...draft.config, on_error: v })}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="fail_closed">Fail closed (block request)</SelectItem>
+            <SelectItem value="fail_open">Fail open (allow request)</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          What happens when this guard errors (e.g. its service is unreachable).
+        </p>
+      </div>
     </div>
   );
 }

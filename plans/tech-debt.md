@@ -47,4 +47,7 @@ Items logged here should be addressed before production. Each item includes cont
 - **Resolved in**: api-fixes branch — proxy returns raw chat completions on pass, 422 OpenAI-style `guardrail_rejection` errors on rejection, with a /chat/completions alias for SDK base_url compatibility
 
 ### 5. Per-Guard Error Policy (fail open/closed)
-- **Resolved in**: api-fixes branch — `on_error: fail_open` in guardrail config wraps the guard so execution errors count as passed (marked `errored` in audit results); default remains fail_closed
+- **Resolved in**: api-fixes branch — `on_error: fail_open` in guardrail config wraps the guard so execution errors count as passed (marked `errored` in audit results); default remains fail_closed. The webhook-guard branch later removed guardrails_ai's redundant bespoke `fail_open` field in favor of this mechanism.
+
+### 6. Self-Hosted Integrations Limited to guardrails.ai
+- **Resolved in**: webhook-guard branch — generic `webhook` guard type POSTs to any http(s) endpoint with a documented contract and optional static auth headers

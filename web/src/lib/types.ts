@@ -158,5 +158,10 @@ export interface GuardrailsAIConfig {
   server_url: string;
   guard_name: string;
   timeout_seconds: number;
-  fail_open: boolean;
+}
+
+export interface WebhookConfig {
+  url: string;
+  headers: Record<string, string>;
+  timeout_seconds: number;
 }
