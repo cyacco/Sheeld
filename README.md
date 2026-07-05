@@ -17,6 +17,8 @@ Segment for LLM guardrails — a full LLM proxy that validates input, proxies LL
                        └──────────────────────────┘
 ```
 
+The proxy pipeline is: request → transformers (sequential rewrites, e.g. redaction — input phase, "Transformations" in the UI) → input guards (concurrent) → LLM → output guards (concurrent) → response.
+
 The data plane holds its full config in memory and keeps serving proxy traffic even if the control plane goes down. No control-plane DB access happens on the request path.
 
 Licensed under Apache 2.0.

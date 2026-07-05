@@ -35,6 +35,7 @@ import (
 	"github.com/sheeld/sheeld/internal/dataplane/processor"
 	"github.com/sheeld/sheeld/internal/shared/guard"
 	"github.com/sheeld/sheeld/internal/shared/llm"
+	"github.com/sheeld/sheeld/internal/shared/transform"
 )
 
 // Package-level test infrastructure
@@ -61,6 +62,23 @@ func getMockLLMResponse() string {
 	mockLLMResponseContentMu.Lock()
 	defer mockLLMResponseContentMu.Unlock()
 	return mockLLMResponseContent
+}
+
+var (
+	mockLLMLastRequest   llm.ChatRequest
+	mockLLMLastRequestMu sync.Mutex
+)
+
+func setMockLLMLastRequest(req llm.ChatRequest) {
+	mockLLMLastRequestMu.Lock()
+	defer mockLLMLastRequestMu.Unlock()
+	mockLLMLastRequest = req
+}
+
+func getMockLLMLastRequest() llm.ChatRequest {
+	mockLLMLastRequestMu.Lock()
+	defer mockLLMLastRequestMu.Unlock()
+	return mockLLMLastRequest
 }
 
 func TestMain(m *testing.M) {
@@ -104,6 +122,9 @@ func TestMain(m *testing.M) {
 	// 3. Start mock LLM server
 	mockLLM := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/chat/completions") {
+			var req llm.ChatRequest
+			json.NewDecoder(r.Body).Decode(&req)
+			setMockLLMLastRequest(req)
 			resp := llm.ChatResponse{
 				ID:      "chatcmpl-test-123",
 				Object:  "chat.completion",
@@ -171,6 +192,10 @@ func TestMain(m *testing.M) {
 	auditWriter = auditstore.NewWriter(dpQueries)
 	store := backendconfig.NewStore()
 	guardRegistry := guard.NewRegistry()
+	// The integration suite registers the test transformer type; prod
+	// registries ship empty in v1.
+	transformRegistry := transform.NewRegistry()
+	transformRegistry.Register("test_replace", transform.TestReplaceFactory)
 	guardEngine := guard.NewEngine(guardRegistry)
 	llmClient := llm.NewClient(mockLLM.URL, dpCfg.LLMRequestTimeout)
 	proc := processor.NewProcessor(store, guardEngine, llmClient, auditWriter)
@@ -200,13 +225,14 @@ func TestMain(m *testing.M) {
 	authService := service.NewAuthService(queries, cfg.JWTSecret, cfg.JWTExpiration)
 	sourceService := service.NewSourceService(queries, cfg.EncryptionKey)
 	guardrailService := service.NewGuardrailService(queries)
+	transformerService := service.NewTransformerService(queries, pool, transformRegistry)
 
-	router := api.NewRouter(cfg, pool, authService, sourceService, guardrailService, queries)
+	router := api.NewRouter(cfg, pool, authService, sourceService, guardrailService, transformerService, queries)
 	testServer = httptest.NewServer(router)
 
 	// Poller against the live control-plane test server. Tests trigger
 	// refreshes explicitly via refreshConfig.
-	poller = backendconfig.NewPoller(testServer.URL, dataPlaneToken, dpCfg.PollInterval, store, guardRegistry)
+	poller = backendconfig.NewPoller(testServer.URL, dataPlaneToken, dpCfg.PollInterval, store, guardRegistry, transformRegistry)
 
 	// 6. Run tests
 	code := m.Run()
@@ -1167,6 +1193,104 @@ func TestProxyWebhookGuard(t *testing.T) {
 		decodeBody(t, resp, &result)
 		if result["error"]["type"] != "guardrail_rejection" {
 			t.Errorf("expected guardrail_rejection, got %v", result["error"]["type"])
+		}
+	})
+}
+
+func TestTransformers(t *testing.T) {
+	token := registerUser(t, "Transformer Org", "transformer@example.com", "strongpassword123")
+	setMockLLMResponse("Hello! I'm a helpful assistant.")
+
+	sourceID := createSource(t, token, "Transform Source", "transform-source")
+
+	t.Run("create validates type against registry", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/transformers", map[string]interface{}{
+			"name":             "Bogus",
+			"transformer_type": "does_not_exist",
+		}, token)
+		expectStatus(t, resp, http.StatusUnprocessableEntity)
+		resp.Body.Close()
+	})
+
+	t.Run("create rejects non-input phase", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/transformers", map[string]interface{}{
+			"name":             "OutPhase",
+			"transformer_type": "test_replace",
+			"phase":            "output",
+			"config":           map[string]interface{}{"find": "x"},
+		}, token)
+		expectStatus(t, resp, http.StatusUnprocessableEntity)
+		resp.Body.Close()
+	})
+
+	// Create two transformers: a→b then b→c proves chain ordering.
+	mkTransformer := func(name, find, replace string) string {
+		resp := doRequest(t, "POST", "/v1/transformers", map[string]interface{}{
+			"name":             name,
+			"transformer_type": "test_replace",
+			"config":           map[string]interface{}{"find": find, "replace": replace},
+		}, token)
+		expectStatus(t, resp, http.StatusCreated)
+		var result map[string]interface{}
+		decodeBody(t, resp, &result)
+		return result["id"].(string)
+	}
+	t1 := mkTransformer("first", "alpha", "beta")
+	t2 := mkTransformer("second", "beta", "gamma")
+
+	// Attach both (append order t1, t2), then reorder to t2, t1 and back to
+	// verify the reorder endpoint.
+	for _, id := range []string{t1, t2} {
+		resp := doRequest(t, "POST", "/v1/transformers/"+id+"/sources",
+			map[string]interface{}{"source_id": sourceID}, token)
+		expectStatus(t, resp, http.StatusCreated)
+		resp.Body.Close()
+	}
+
+	t.Run("list by source is ordered", func(t *testing.T) {
+		resp := doRequest(t, "GET", "/v1/sources/"+sourceID+"/transformers", nil, token)
+		expectStatus(t, resp, http.StatusOK)
+		var list []map[string]interface{}
+		decodeBody(t, resp, &list)
+		if len(list) != 2 || list[0]["name"] != "first" || list[1]["name"] != "second" {
+			t.Fatalf("unexpected order: %v", list)
+		}
+	})
+
+	t.Run("reorder replaces chain order", func(t *testing.T) {
+		resp := doRequest(t, "PUT", "/v1/sources/"+sourceID+"/transformers",
+			map[string]interface{}{"transformer_ids": []string{t2, t1}}, token)
+		expectStatus(t, resp, http.StatusOK)
+		resp.Body.Close()
+
+		resp = doRequest(t, "GET", "/v1/sources/"+sourceID+"/transformers", nil, token)
+		expectStatus(t, resp, http.StatusOK)
+		var list []map[string]interface{}
+		decodeBody(t, resp, &list)
+		if list[0]["name"] != "second" || list[1]["name"] != "first" {
+			t.Fatalf("reorder not applied: %v", list)
+		}
+
+		// restore chain order for the e2e case
+		resp = doRequest(t, "PUT", "/v1/sources/"+sourceID+"/transformers",
+			map[string]interface{}{"transformer_ids": []string{t1, t2}}, token)
+		expectStatus(t, resp, http.StatusOK)
+		resp.Body.Close()
+	})
+
+	t.Run("proxy applies chain sequentially before LLM", func(t *testing.T) {
+		apiKey := createAPIKey(t, token, "transformer-key")
+		resp := doRequest(t, "POST", "/v1/proxy/transform-source", map[string]interface{}{
+			"messages": []map[string]string{{"role": "user", "content": "say alpha"}},
+		}, apiKey)
+		expectStatus(t, resp, http.StatusOK)
+		resp.Body.Close()
+
+		// a→b then b→c: only sequential position-ordered application
+		// yields gamma at the mock LLM.
+		lastReq := getMockLLMLastRequest()
+		if len(lastReq.Messages) == 0 || lastReq.Messages[len(lastReq.Messages)-1].Content != "say gamma" {
+			t.Errorf("expected LLM to receive 'say gamma', got %+v", lastReq.Messages)
 		}
 	})
 }

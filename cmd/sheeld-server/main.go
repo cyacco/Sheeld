@@ -20,6 +20,7 @@ import (
 	"github.com/sheeld/sheeld/internal/dataplane/processor"
 	"github.com/sheeld/sheeld/internal/shared/guard"
 	"github.com/sheeld/sheeld/internal/shared/llm"
+	"github.com/sheeld/sheeld/internal/shared/transform"
 )
 
 func main() {
@@ -77,8 +78,11 @@ func run() error {
 
 	// Config store + poller
 	guardRegistry := guard.NewRegistry()
+	// No built-in transformer types in v1; first real types land in a
+	// follow-up and register here.
+	transformRegistry := transform.NewRegistry()
 	store := backendconfig.NewStore()
-	poller := backendconfig.NewPoller(cfg.ControlPlaneURL, cfg.Token, cfg.PollInterval, store, guardRegistry)
+	poller := backendconfig.NewPoller(cfg.ControlPlaneURL, cfg.Token, cfg.PollInterval, store, guardRegistry, transformRegistry)
 
 	slog.Info("fetching initial workspace config", "control_plane", cfg.ControlPlaneURL)
 	if err := poller.WaitForInitial(ctx, cfg.StartupTimeout); err != nil {

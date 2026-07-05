@@ -64,6 +64,7 @@ sheeld/
 │   │   └── config/          # envconfig (SHEELD_DP_ prefix)
 │   └── shared/
 │       ├── guard/           # Guard engine + implementations (fan-out)
+│       ├── transform/       # Transformer pipeline (sequential input rewriters)
 │       ├── llm/             # LiteLLM OpenAI-compatible client
 │       ├── domain/          # Core domain + workspace-config types
 │       ├── middleware/      # request ID, logging, rate limit, body size
@@ -121,6 +122,8 @@ Two PostgreSQL databases, each with its own goose migrations:
 - `sources` — named entry points (e.g., "feedback", "chat")
 - `guardrails` — org-level guardrail instances (JSONB config)
 - `source_guardrails` — many-to-many attachment
+- `transformers` — org-level input rewriters ("Transformations" in UI copy; `transformers` in API/DB)
+- `source_transformers` — ordered attachment (position column = chain order)
 
 **Data plane** (`internal/dataplane/db/migrations/`, separate goose version table):
 - `audit_logs` — request history with per-guard results (no FKs; org/source ids are opaque)
@@ -131,9 +134,12 @@ Two PostgreSQL databases, each with its own goose migrations:
 - `POST /v1/auth/register` | `POST /v1/auth/login` — Auth
 - `CRUD /v1/sources` — Source management (JWT auth)
 - `CRUD /v1/guardrails` — Guardrail management + attachment (JWT auth)
+- `CRUD /v1/transformers` — Transformer management; PUT /v1/sources/:id/transformers replaces the ordered chain (JWT auth)
 - `GET /v1/audit-logs` — Audit logs, proxied from the data plane (JWT auth)
 - `GET /v1/internal/workspace-config` — Config payload for data planes (DP token)
 - `GET /healthz` — Health check
+
+Proxy pipeline: transformers (sequential, whole messages array, never reject; on_error fail_closed aborts) → input guards → LLM → output guards. Guards accept `scope: all_messages` to validate full history. Audit `guard_results` JSONB reserves the key `transforms` for the chain outcome; `input_hash` is post-transform.
 
 **Data plane (:8081)**
 - `POST /v1/proxy/:source_route` — Main proxy endpoint (API key auth)
