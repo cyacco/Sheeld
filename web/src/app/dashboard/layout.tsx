@@ -1,27 +1,28 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Menu, Shield } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { Sidebar, SidebarNav } from "@/components/shell/sidebar";
+import { UserFooter } from "@/components/shell/user-footer";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-
-const navItems = [
-  { href: "/dashboard", label: "Sources" },
-  { href: "/dashboard/guardrails", label: "Guardrails" },
-  { href: "/dashboard/api-keys", label: "API Keys" },
-  { href: "/dashboard/audit-logs", label: "Audit Logs" },
-];
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { token, user, loading, logout } = useAuth();
+  const { token, loading } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !token) {
@@ -33,39 +34,30 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-64 border-r bg-muted/40 p-4 flex flex-col">
-        <div className="mb-6">
-          <h1 className="text-xl font-bold">Sheeld</h1>
-          <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
-        </div>
-        <Separator className="mb-4" />
-        <nav className="flex flex-col gap-1 flex-1">
-          {navItems.map((item) => {
-            const isActive =
-              item.href === "/dashboard"
-                ? pathname === "/dashboard" || pathname.startsWith("/dashboard/sources")
-                : pathname === item.href || pathname.startsWith(item.href + "/");
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-muted"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-        <Separator className="my-4" />
-        <Button variant="outline" size="sm" onClick={logout}>
-          Sign out
-        </Button>
-      </aside>
-      <main className="flex-1 p-6">{children}</main>
+      <Sidebar />
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile topbar */}
+        <header className="flex items-center gap-2 border-b px-4 py-3 md:hidden">
+          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Open navigation">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="flex w-64 flex-col bg-sidebar p-0">
+              <SheetTitle className="sr-only">Navigation</SheetTitle>
+              <SidebarNav onNavigate={() => setMobileNavOpen(false)} />
+              <Separator className="mt-3" />
+              <div className="p-2">
+                <UserFooter />
+              </div>
+            </SheetContent>
+          </Sheet>
+          <Shield className="h-5 w-5 text-primary" />
+          <span className="font-bold">Sheeld</span>
+        </header>
+        <main className="flex-1 p-6">{children}</main>
+      </div>
     </div>
   );
 }

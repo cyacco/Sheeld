@@ -129,6 +129,13 @@ func NewRouter(
 			r.Delete("/{id}/sources/{sourceID}", guardrailHandler.DetachFromSource)
 		})
 
+		// Connections list for the dashboard wiring view (JWT)
+		r.Group(func(r chi.Router) {
+			r.Use(cpmw.JWTAuth(authService))
+			connectionsHandler := handler.NewConnectionsHandler(queries)
+			r.Get("/connections", connectionsHandler.List)
+		})
+
 		// Audit log routes (JWT for dashboard)
 		r.Route("/audit-logs", func(r chi.Router) {
 			r.Use(cpmw.JWTAuth(authService))

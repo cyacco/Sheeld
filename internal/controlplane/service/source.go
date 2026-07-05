@@ -119,11 +119,22 @@ func (s *SourceService) List(ctx context.Context, orgID uuid.UUID) ([]generated.
 	return s.queries.ListSourcesByOrganization(ctx, orgID)
 }
 
-// Update updates a source.
+// Update updates a source. An empty LLMAPIKey keeps the stored key rather
+// than overwriting it.
 func (s *SourceService) Update(ctx context.Context, orgID, sourceID uuid.UUID, params UpdateSourceParams) (generated.Source, error) {
-	encryptedKey, err := crypto.Encrypt(params.LLMAPIKey, s.encryptionKey)
-	if err != nil {
-		return generated.Source{}, fmt.Errorf("encrypting API key: %w", err)
+	var encryptedKey string
+	if params.LLMAPIKey == "" {
+		existing, err := s.Get(ctx, orgID, sourceID)
+		if err != nil {
+			return generated.Source{}, fmt.Errorf("loading source: %w", err)
+		}
+		encryptedKey = existing.LlmApiKeyEnc
+	} else {
+		var err error
+		encryptedKey, err = crypto.Encrypt(params.LLMAPIKey, s.encryptionKey)
+		if err != nil {
+			return generated.Source{}, fmt.Errorf("encrypting API key: %w", err)
+		}
 	}
 
 	description := pgtype.Text{}

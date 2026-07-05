@@ -94,10 +94,22 @@ export interface AuditLog {
   organization_id: string;
   source_id: string;
   input_hash: string | null;
-  guard_results: GuardResultEntry[];
+  guard_results: Record<string, PhaseGuardResults> | null;
   overall_result: string;
   latency_ms: number;
   created_at: string;
+}
+
+// PhaseGuardResults is one phase's ("input"/"output") engine result within
+// an audit log entry.
+export interface PhaseGuardResults {
+  passed: boolean;
+  criteria?: string;
+  threshold?: number;
+  results: GuardResultEntry[];
+  pass_count: number;
+  fail_count: number;
+  total_duration_ms: number;
 }
 
 export interface GuardResultEntry {
@@ -118,6 +130,11 @@ export interface SourceSummary {
   id: string;
   name: string;
   route: string;
+}
+
+export interface Connection {
+  source_id: string;
+  guardrail_id: string;
 }
 
 // Guard config types

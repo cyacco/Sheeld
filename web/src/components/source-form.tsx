@@ -17,25 +17,119 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface SourceFormProps {
-  initial?: Source;
-  onSubmit: (params: CreateSourceParams) => Promise<void>;
-  submitLabel: string;
+// SourceDraft is the shared editing state for source forms and the
+// add-source wizard.
+export interface SourceDraft {
+  name: string;
+  route: string;
+  description: string;
+  llmProvider: string;
+  llmModel: string;
+  llmApiKey: string;
+  passCriteria: string;
+  passThreshold: string;
+  enabled: boolean;
 }
 
-export function SourceForm({ initial, onSubmit, submitLabel }: SourceFormProps) {
-  const [name, setName] = useState(initial?.name ?? "");
-  const [route, setRoute] = useState(initial?.route ?? "");
-  const [description, setDescription] = useState(initial?.description ?? "");
-  const [llmProvider, setLlmProvider] = useState(initial?.llm_provider ?? "openai");
-  const [llmModel, setLlmModel] = useState(initial?.llm_model ?? "gpt-4o");
-  const [llmApiKey, setLlmApiKey] = useState("");
-  const [passCriteria, setPassCriteria] = useState(initial?.pass_criteria ?? "all");
-  const [passThreshold, setPassThreshold] = useState<string>(
-    initial?.pass_threshold != null ? String(initial.pass_threshold) : "",
+export function emptySourceDraft(): SourceDraft {
+  return {
+    name: "",
+    route: "",
+    description: "",
+    llmProvider: "openai",
+    llmModel: "gpt-4o",
+    llmApiKey: "",
+    passCriteria: "all",
+    passThreshold: "",
+    enabled: true,
+  };
+}
+
+export function sourceDraftFrom(source: Source): SourceDraft {
+  return {
+    name: source.name,
+    route: source.route,
+    description: source.description ?? "",
+    llmProvider: source.llm_provider,
+    llmModel: source.llm_model,
+    llmApiKey: "",
+    passCriteria: source.pass_criteria,
+    passThreshold:
+      source.pass_threshold != null ? String(source.pass_threshold) : "",
+    enabled: source.enabled,
+  };
+}
+
+export function sourceDraftToParams(draft: SourceDraft): CreateSourceParams {
+  return {
+    name: draft.name,
+    route: draft.route,
+    description: draft.description || undefined,
+    llm_provider: draft.llmProvider,
+    llm_model: draft.llmModel,
+    llm_api_key: draft.llmApiKey,
+    pass_criteria: draft.passCriteria,
+    pass_threshold: draft.passThreshold ? Number(draft.passThreshold) : undefined,
+    enabled: draft.enabled,
+  };
+}
+
+interface FieldGroupProps {
+  draft: SourceDraft;
+  onChange: (draft: SourceDraft) => void;
+}
+
+// SourceBasicsFields: name, route, description.
+export function SourceBasicsFields({ draft, onChange }: FieldGroupProps) {
+  const set = (patch: Partial<SourceDraft>) => onChange({ ...draft, ...patch });
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">Name</Label>
+          <Input
+            id="name"
+            value={draft.name}
+            onChange={(e) => set({ name: e.target.value })}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="route">Route</Label>
+          <Input
+            id="route"
+            value={draft.route}
+            onChange={(e) => set({ route: e.target.value })}
+            placeholder="my-source"
+            required
+          />
+          <p className="text-xs text-muted-foreground">
+            Used in your proxy URL: /v1/proxy/your-route
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          value={draft.description}
+          onChange={(e) => set({ description: e.target.value })}
+          rows={2}
+        />
+      </div>
+    </div>
   );
-  const [enabled, setEnabled] = useState(initial?.enabled ?? true);
-  const [loading, setLoading] = useState(false);
+}
+
+// SourceLLMFields: provider, model (fetched per provider), API key, pass
+// criteria/threshold, enabled.
+export function SourceLLMFields({
+  draft,
+  onChange,
+  isUpdate,
+}: FieldGroupProps & { isUpdate?: boolean }) {
+  const set = (patch: Partial<SourceDraft>) => onChange({ ...draft, ...patch });
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
 
@@ -52,66 +146,18 @@ export function SourceForm({ initial, onSubmit, submitLabel }: SourceFormProps) 
   }, []);
 
   useEffect(() => {
-    fetchModels(llmProvider);
-  }, [llmProvider, fetchModels]);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const params: CreateSourceParams = {
-        name,
-        route,
-        description: description || undefined,
-        llm_provider: llmProvider,
-        llm_model: llmModel,
-        llm_api_key: llmApiKey,
-        pass_criteria: passCriteria,
-        pass_threshold: passThreshold ? Number(passThreshold) : undefined,
-        enabled,
-      };
-      await onSubmit(params);
-    } finally {
-      setLoading(false);
-    }
-  }
+    fetchModels(draft.llmProvider);
+  }, [draft.llmProvider, fetchModels]);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">Name</Label>
-          <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="route">Route</Label>
-          <Input
-            id="route"
-            value={route}
-            onChange={(e) => setRoute(e.target.value)}
-            placeholder="my-source"
-            required
-          />
-          <p className="text-xs text-muted-foreground">
-            Used in your proxy URL: /v1/proxy/your-route
-          </p>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="description">Description</Label>
-        <Textarea
-          id="description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={2}
-        />
-      </div>
-
+    <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="llm_provider">LLM Provider</Label>
-          <Select value={llmProvider} onValueChange={setLlmProvider}>
+          <Select
+            value={draft.llmProvider}
+            onValueChange={(v) => set({ llmProvider: v })}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -126,22 +172,29 @@ export function SourceForm({ initial, onSubmit, submitLabel }: SourceFormProps) 
             <Label htmlFor="llm_model">Model</Label>
             <button
               type="button"
-              onClick={() => fetchModels(llmProvider)}
+              onClick={() => fetchModels(draft.llmProvider)}
               disabled={modelsLoading}
               className="inline-flex items-center justify-center rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-50"
               title="Refresh models"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${modelsLoading ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-3.5 w-3.5 ${modelsLoading ? "animate-spin" : ""}`}
+              />
             </button>
           </div>
-          <Select value={llmModel} onValueChange={setLlmModel}>
+          <Select
+            value={draft.llmModel}
+            onValueChange={(v) => set({ llmModel: v })}
+          >
             <SelectTrigger>
-              <SelectValue placeholder={modelsLoading ? "Loading..." : "Select a model"} />
+              <SelectValue
+                placeholder={modelsLoading ? "Loading..." : "Select a model"}
+              />
             </SelectTrigger>
             <SelectContent>
               {/* Keep current value as option if not in fetched list */}
-              {llmModel && !models.some((m) => m.id === llmModel) && (
-                <SelectItem value={llmModel}>{llmModel}</SelectItem>
+              {draft.llmModel && !models.some((m) => m.id === draft.llmModel) && (
+                <SelectItem value={draft.llmModel}>{draft.llmModel}</SelectItem>
               )}
               {models.map((m) => (
                 <SelectItem key={m.id} value={m.id}>
@@ -158,46 +211,84 @@ export function SourceForm({ initial, onSubmit, submitLabel }: SourceFormProps) 
         <Input
           id="llm_api_key"
           type="password"
-          value={llmApiKey}
-          onChange={(e) => setLlmApiKey(e.target.value)}
-          placeholder={initial ? "(unchanged)" : ""}
-          required={!initial}
+          value={draft.llmApiKey}
+          onChange={(e) => set({ llmApiKey: e.target.value })}
+          placeholder={isUpdate ? "(unchanged)" : ""}
+          required={!isUpdate}
         />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="pass_criteria">Pass Criteria</Label>
-          <Select value={passCriteria} onValueChange={setPassCriteria}>
+          <Select
+            value={draft.passCriteria}
+            onValueChange={(v) => set({ passCriteria: v })}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All guards must pass</SelectItem>
               <SelectItem value="any">Any guard must pass</SelectItem>
-              <SelectItem value="threshold">Threshold</SelectItem>
+              <SelectItem value="n_of_m">At least N guards pass</SelectItem>
             </SelectContent>
           </Select>
         </div>
-        {passCriteria === "threshold" && (
+        {draft.passCriteria === "n_of_m" && (
           <div className="space-y-2">
-            <Label htmlFor="pass_threshold">Threshold</Label>
+            <Label htmlFor="pass_threshold">Threshold (N)</Label>
             <Input
               id="pass_threshold"
               type="number"
               min={1}
-              value={passThreshold}
-              onChange={(e) => setPassThreshold(e.target.value)}
+              value={draft.passThreshold}
+              onChange={(e) => set({ passThreshold: e.target.value })}
             />
           </div>
         )}
       </div>
 
       <div className="flex items-center gap-2">
-        <Switch id="enabled" checked={enabled} onCheckedChange={setEnabled} />
+        <Switch
+          id="enabled"
+          checked={draft.enabled}
+          onCheckedChange={(v) => set({ enabled: v })}
+        />
         <Label htmlFor="enabled">Enabled</Label>
       </div>
+    </div>
+  );
+}
 
+interface SourceFormProps {
+  initial?: Source;
+  onSubmit: (params: CreateSourceParams) => Promise<void>;
+  submitLabel: string;
+}
+
+// SourceForm composes both field groups — used on the source detail
+// Configuration tab. Creation goes through the add-source wizard.
+export function SourceForm({ initial, onSubmit, submitLabel }: SourceFormProps) {
+  const [draft, setDraft] = useState<SourceDraft>(() =>
+    initial ? sourceDraftFrom(initial) : emptySourceDraft(),
+  );
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await onSubmit(sourceDraftToParams(draft));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <SourceBasicsFields draft={draft} onChange={setDraft} />
+      <SourceLLMFields draft={draft} onChange={setDraft} isUpdate={!!initial} />
       <Button type="submit" disabled={loading}>
         {loading ? "Saving..." : submitLabel}
       </Button>
