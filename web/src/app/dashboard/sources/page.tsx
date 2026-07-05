@@ -4,10 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import type { Guardrail } from "@/lib/types";
+import type { Source } from "@/lib/types";
 import * as api from "@/lib/api";
-import { guardTypeMeta } from "@/components/guard-type-meta";
-import { AddGuardrailWizard } from "@/components/wizards/add-guardrail-wizard";
+import { AddSourceWizard } from "@/components/wizards/add-source-wizard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,17 +19,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-export default function GuardrailsPage() {
+export default function SourcesPage() {
   const router = useRouter();
-  const [guardrails, setGuardrails] = useState<Guardrail[]>([]);
+  const [sources, setSources] = useState<Source[]>([]);
   const [loading, setLoading] = useState(true);
   const [wizardOpen, setWizardOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      setGuardrails((await api.listGuardrails()) ?? []);
+      setSources((await api.listSources()) ?? []);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load guardrails");
+      toast.error(err instanceof Error ? err.message : "Failed to load sources");
     } finally {
       setLoading(false);
     }
@@ -44,13 +43,13 @@ export default function GuardrailsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Guardrails</h1>
+          <h1 className="text-2xl font-bold">Sources</h1>
           <p className="text-sm text-muted-foreground">
-            Validation guards you can attach to any source.
+            Entry points your app proxies LLM requests through.
           </p>
         </div>
         <Button onClick={() => setWizardOpen(true)}>
-          <Plus className="mr-1 h-4 w-4" /> Add guardrail
+          <Plus className="mr-1 h-4 w-4" /> Add source
         </Button>
       </div>
 
@@ -60,35 +59,33 @@ export default function GuardrailsPage() {
             <Skeleton key={i} className="h-10 w-full" />
           ))}
         </div>
-      ) : guardrails.length === 0 ? (
-        <p className="text-muted-foreground">No guardrails yet.</p>
+      ) : sources.length === 0 ? (
+        <p className="text-muted-foreground">No sources yet.</p>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Phase</TableHead>
+              <TableHead>Route</TableHead>
+              <TableHead>Model</TableHead>
+              <TableHead>Pass criteria</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {guardrails.map((g) => (
+            {sources.map((s) => (
               <TableRow
-                key={g.id}
+                key={s.id}
                 className="cursor-pointer"
-                onClick={() => router.push(`/dashboard/guardrails/${g.id}`)}
+                onClick={() => router.push(`/dashboard/sources/${s.id}`)}
               >
-                <TableCell className="font-medium">{g.name}</TableCell>
+                <TableCell className="font-medium">{s.name}</TableCell>
+                <TableCell className="font-mono text-xs">/{s.route}</TableCell>
+                <TableCell>{s.llm_model}</TableCell>
+                <TableCell>{s.pass_criteria}</TableCell>
                 <TableCell>
-                  <Badge variant="secondary">
-                    {guardTypeMeta(g.guard_type)?.label ?? g.guard_type}
-                  </Badge>
-                </TableCell>
-                <TableCell>{g.phase}</TableCell>
-                <TableCell>
-                  <Badge variant={g.enabled ? "default" : "outline"}>
-                    {g.enabled ? "enabled" : "disabled"}
+                  <Badge variant={s.enabled ? "default" : "outline"}>
+                    {s.enabled ? "enabled" : "disabled"}
                   </Badge>
                 </TableCell>
               </TableRow>
@@ -97,11 +94,7 @@ export default function GuardrailsPage() {
         </Table>
       )}
 
-      <AddGuardrailWizard
-        open={wizardOpen}
-        onOpenChange={setWizardOpen}
-        onCreated={load}
-      />
+      <AddSourceWizard open={wizardOpen} onOpenChange={setWizardOpen} onCreated={load} />
     </div>
   );
 }

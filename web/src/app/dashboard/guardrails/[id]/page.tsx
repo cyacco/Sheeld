@@ -1,68 +1,71 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import type {
-  Guardrail,
-  CreateGuardrailParams,
-  SourceSummary,
-} from "@/lib/types";
-import * as api from "@/lib/api";
-import { GuardrailForm } from "@/components/guardrail-form";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { useParams, useRouter } from "next/navigation";
+import { ArrowUpRight, Link2Off } from "lucide-react";
 import { toast } from "sonner";
+import type { CreateGuardrailParams, Guardrail, SourceSummary } from "@/lib/types";
+import * as api from "@/lib/api";
+import { guardTypeMeta } from "@/components/guard-type-meta";
+import { GuardrailForm, guardrailDraftFrom, guardrailDraftToParams } from "@/components/guardrail-form";
+import { ResourceHeader } from "@/components/resource-header";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function GuardrailDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [guardrail, setGuardrail] = useState<Guardrail | null>(null);
   const [sources, setSources] = useState<SourceSummary[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
-  async function loadData() {
+  const load = useCallback(async () => {
     try {
-      const [gr, srcs] = await Promise.all([
+      const [g, srcs] = await Promise.all([
         api.getGuardrail(id),
         api.listGuardrailSources(id),
       ]);
-      setGuardrail(gr);
+      setGuardrail(g);
       setSources(srcs ?? []);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to load guardrail");
-    } finally {
-      setLoading(false);
+    } catch {
+      toast.error("Failed to load guardrail");
+      router.push("/dashboard/guardrails");
     }
+  }, [id, router]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (!guardrail) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
   }
 
-  async function handleUpdate(params: CreateGuardrailParams) {
+  const meta = guardTypeMeta(guardrail.guard_type);
+
+  async function handleToggleEnabled(enabled: boolean) {
     try {
-      const updated = await api.updateGuardrail(id, params);
+      const draft = guardrailDraftFrom(guardrail!);
+      const updated = await api.updateGuardrail(
+        guardrail!.id,
+        guardrailDraftToParams({ ...draft, enabled }),
+      );
       setGuardrail(updated);
-      toast.success("Guardrail updated");
+      toast.success(enabled ? "Guardrail enabled" : "Guardrail disabled");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update guardrail");
     }
   }
 
   async function handleDelete() {
-    let message: string;
-    if (sources.length > 0) {
-      const names = sources.map((s) => s.name).join(", ");
-      message = `This guardrail is attached to ${sources.length} source(s): ${names}. Delete anyway?`;
-    } else {
-      message = `Delete guardrail "${guardrail?.name}"?`;
-    }
-    if (!confirm(message)) return;
     try {
-      await api.deleteGuardrail(id);
+      await api.deleteGuardrail(guardrail!.id);
       toast.success("Guardrail deleted");
       router.push("/dashboard/guardrails");
     } catch (err) {
@@ -70,54 +73,82 @@ export default function GuardrailDetailPage() {
     }
   }
 
-  if (loading) return <p className="text-muted-foreground">Loading...</p>;
-  if (!guardrail) return <p className="text-muted-foreground">Guardrail not found.</p>;
+  async function handleUpdate(params: CreateGuardrailParams) {
+    try {
+      const updated = await api.updateGuardrail(guardrail!.id, params);
+      setGuardrail(updated);
+      toast.success("Guardrail updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update guardrail");
+    }
+  }
+
+  async function handleDetach(sourceId: string) {
+    try {
+      await api.detachGuardrail(guardrail!.id, sourceId);
+      setSources((prev) => prev.filter((s) => s.id !== sourceId));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to detach");
+    }
+  }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-bold">{guardrail.name}</h2>
-          <Badge variant="outline">{guardrail.guard_type}</Badge>
-          <Badge variant="secondary">{guardrail.phase}</Badge>
-        </div>
-        <Button variant="destructive" size="sm" onClick={handleDelete}>
-          Delete Guardrail
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <ResourceHeader
+        crumbLabel="Guardrails"
+        crumbHref="/dashboard/guardrails"
+        name={guardrail.name}
+        badges={[meta?.label ?? guardrail.guard_type, guardrail.phase]}
+        enabled={guardrail.enabled}
+        onToggleEnabled={handleToggleEnabled}
+        deleteLabel="This permanently deletes the guardrail and detaches it from all sources."
+        onDelete={handleDelete}
+      />
 
-      <div className="max-w-2xl">
-        <GuardrailForm
-          initial={guardrail}
-          onSubmit={handleUpdate}
-          submitLabel="Update Guardrail"
-        />
-      </div>
+      <Tabs defaultValue="configuration">
+        <TabsList>
+          <TabsTrigger value="configuration">Configuration</TabsTrigger>
+          <TabsTrigger value="sources">Connected sources ({sources.length})</TabsTrigger>
+        </TabsList>
 
-      <Separator className="my-6" />
+        <TabsContent value="configuration" className="max-w-2xl pt-4">
+          <GuardrailForm
+            initial={guardrail}
+            onSubmit={handleUpdate}
+            submitLabel="Save changes"
+          />
+        </TabsContent>
 
-      <h3 className="text-lg font-semibold mb-3">Attached Sources</h3>
-      {sources.length === 0 ? (
-        <p className="text-muted-foreground">
-          This guardrail is not attached to any sources.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {sources.map((source) => (
-            <div key={source.id} className="flex items-center gap-3 rounded-md border p-3">
-              <Link
-                href={`/dashboard/sources/${source.id}`}
-                className="font-medium hover:underline"
-              >
-                {source.name}
-              </Link>
-              <span className="text-sm text-muted-foreground font-mono">
-                /{source.route}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+        <TabsContent value="sources" className="space-y-2 pt-4">
+          {sources.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Not attached to any sources — wire it up from the Connections page.
+            </p>
+          ) : (
+            sources.map((s) => (
+              <div key={s.id} className="flex items-center gap-3 rounded-lg border p-3">
+                <span className="text-sm font-medium">{s.name}</span>
+                <span className="font-mono text-xs text-muted-foreground">/{s.route}</span>
+                <div className="ml-auto flex items-center gap-1">
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`/dashboard/sources/${s.id}`}>
+                      <ArrowUpRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive"
+                    onClick={() => handleDetach(s.id)}
+                  >
+                    <Link2Off className="mr-1 h-4 w-4" /> Detach
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
