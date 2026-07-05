@@ -12,6 +12,7 @@ import type {
   AuditLog,
   ModelInfo,
   SourceSummary,
+  Connection,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -179,6 +180,12 @@ export async function detachGuardrail(
   return request<void>(`/v1/guardrails/${guardrailId}/sources/${sourceId}`, {
     method: "DELETE",
   });
+}
+
+// Connections (all source↔guardrail attachments for the org)
+
+export async function listConnections(): Promise<Connection[]> {
+  return request<Connection[]>("/v1/connections");
 }
 
 // API Keys

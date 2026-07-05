@@ -120,6 +120,11 @@ export interface SourceSummary {
   route: string;
 }
 
+export interface Connection {
+  source_id: string;
+  guardrail_id: string;
+}
+
 // Guard config types
 export interface BlocklistConfig {
   words: string[];
