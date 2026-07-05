@@ -12,6 +12,7 @@ import (
 	"github.com/sheeld/sheeld/internal/shared/guard"
 	"github.com/sheeld/sheeld/internal/shared/llm"
 	"github.com/sheeld/sheeld/internal/shared/middleware"
+	"github.com/sheeld/sheeld/internal/shared/transform"
 )
 
 // Result is the full result of a proxy request.
@@ -28,13 +29,17 @@ type Result struct {
 	// GuardResults contains per-phase guard evaluation results.
 	GuardResults map[string]*guard.EngineResult `json:"guard_results"`
 
+	// Transforms records the transformer chain outcome (nil when the
+	// source has no transformers).
+	Transforms *transform.ChainResult `json:"transforms,omitempty"`
+
 	// LatencyMs is the total wall-clock time for the request.
 	LatencyMs int64 `json:"latency_ms"`
 }
 
 // AuditSink receives completed proxy results for asynchronous recording.
 type AuditSink interface {
-	Record(orgID, sourceID uuid.UUID, inputText string, guardResults map[string]*guard.EngineResult, overallResult string, latencyMs int64)
+	Record(orgID, sourceID uuid.UUID, inputText string, guardResults map[string]*guard.EngineResult, transforms *transform.ChainResult, overallResult string, latencyMs int64)
 }
 
 // Processor runs the proxy stages: input guards → LLM call → output guards.
@@ -81,13 +86,36 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 		evalCfg.Threshold = *source.PassThreshold
 	}
 
+	// Transformers: sequential rewrites of the whole messages array. The
+	// transformed request is what input guards and the LLM see. Errors are
+	// fail-closed (proxy error) unless the transformer is fail-open.
+	var transforms *transform.ChainResult
+	if len(source.Transformers) > 0 {
+		tCtx := guard.WithCallMeta(ctx, guard.CallMeta{Phase: "input", SourceRoute: source.Route})
+		msgs, chain, err := transform.ApplyAll(tCtx, source.Transformers, chatReq.Messages)
+		transforms = chain
+		if err != nil {
+			return nil, fmt.Errorf("running transformers: %w", err)
+		}
+		chatReq.Messages = msgs
+		log.Info("transformers completed",
+			"transformer_count", len(source.Transformers),
+			"changed", chain.Changed,
+			"latency_ms", chain.TotalDurationMs,
+		)
+	}
+
 	inputText := llm.ExtractInputText(chatReq)
 
 	// Input guards
 	guardResults := make(map[string]*guard.EngineResult)
 	if len(source.InputGuards) > 0 {
 		guardStart := time.Now()
-		inputCtx := guard.WithCallMeta(ctx, guard.CallMeta{Phase: "input", SourceRoute: source.Route})
+		inputCtx := guard.WithCallMeta(ctx, guard.CallMeta{
+			Phase:           "input",
+			SourceRoute:     source.Route,
+			AllMessagesText: llm.SerializeMessages(chatReq.Messages),
+		})
 		inputResult, err := p.engine.Run(inputCtx, source.InputGuards, inputText, evalCfg)
 		if err != nil {
 			return nil, fmt.Errorf("running input guards: %w", err)
@@ -105,10 +133,11 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 				Status:       "rejected",
 				Phase:        "input",
 				GuardResults: guardResults,
+				Transforms:   transforms,
 				LatencyMs:    time.Since(start).Milliseconds(),
 			}
 			log.Info("request rejected at input phase", "total_latency_ms", result.LatencyMs)
-			p.record(source, orgID, inputText, guardResults, "fail", result.LatencyMs)
+			p.record(source, orgID, inputText, guardResults, transforms, "fail", result.LatencyMs)
 			return result, nil
 		}
 	}
@@ -147,10 +176,11 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 				Status:       "rejected",
 				Phase:        "output",
 				GuardResults: guardResults,
+				Transforms:   transforms,
 				LatencyMs:    time.Since(start).Milliseconds(),
 			}
 			log.Info("request rejected at output phase", "total_latency_ms", result.LatencyMs)
-			p.record(source, orgID, inputText, guardResults, "fail", result.LatencyMs)
+			p.record(source, orgID, inputText, guardResults, transforms, "fail", result.LatencyMs)
 			return result, nil
 		}
 	}
@@ -159,15 +189,16 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 		Status:       "pass",
 		LLMResponse:  chatResp,
 		GuardResults: guardResults,
+		Transforms:   transforms,
 		LatencyMs:    time.Since(start).Milliseconds(),
 	}
 	log.Info("proxy request completed", "status", "pass", "total_latency_ms", result.LatencyMs)
-	p.record(source, orgID, inputText, guardResults, "pass", result.LatencyMs)
+	p.record(source, orgID, inputText, guardResults, transforms, "pass", result.LatencyMs)
 	return result, nil
 }
 
-func (p *Processor) record(source *backendconfig.ResolvedSource, orgID uuid.UUID, inputText string, guardResults map[string]*guard.EngineResult, overallResult string, latencyMs int64) {
+func (p *Processor) record(source *backendconfig.ResolvedSource, orgID uuid.UUID, inputText string, guardResults map[string]*guard.EngineResult, transforms *transform.ChainResult, overallResult string, latencyMs int64) {
 	if p.audit != nil {
-		p.audit.Record(orgID, source.ID, inputText, guardResults, overallResult, latencyMs)
+		p.audit.Record(orgID, source.ID, inputText, guardResults, transforms, overallResult, latencyMs)
 	}
 }

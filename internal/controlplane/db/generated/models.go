@@ -63,6 +63,25 @@ type SourceGuardrail struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type SourceTransformer struct {
+	SourceID      uuid.UUID `json:"source_id"`
+	TransformerID uuid.UUID `json:"transformer_id"`
+	Position      int32     `json:"position"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type Transformer struct {
+	ID              uuid.UUID       `json:"id"`
+	OrganizationID  uuid.UUID       `json:"organization_id"`
+	Name            string          `json:"name"`
+	TransformerType string          `json:"transformer_type"`
+	Phase           string          `json:"phase"`
+	Config          json.RawMessage `json:"config"`
+	Enabled         bool            `json:"enabled"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+}
+
 type User struct {
 	ID             uuid.UUID `json:"id"`
 	OrganizationID uuid.UUID `json:"organization_id"`

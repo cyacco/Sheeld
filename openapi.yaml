@@ -731,6 +731,209 @@ paths:
               schema:
                 $ref: "#/components/schemas/OpenAIError"
 
+  /v1/transformers:
+    post:
+      summary: Create a transformer (Transformation)
+      description: >
+        Transformers rewrite the whole messages array sequentially before
+        input guards and the LLM call; they never reject requests. v1 is
+        input-phase only and ships no built-in transformer types.
+        transformer_type is validated against the server's registry.
+        Config accepts "on_error": "fail_closed" (default — an errored
+        transformer aborts the request) | "fail_open" (skip it).
+      operationId: createTransformer
+      tags: [Transformers]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransformerInput"
+      responses:
+        "201":
+          description: Transformer created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transformer"
+        "422":
+          description: Unknown transformer_type or invalid phase
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      summary: List all transformers for the organization
+      operationId: listTransformers
+      tags: [Transformers]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transformer list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transformer"
+
+  /v1/transformers/{id}:
+    get:
+      summary: Get a transformer
+      operationId: getTransformer
+      tags: [Transformers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Transformer details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transformer"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      summary: Update a transformer
+      operationId: updateTransformer
+      tags: [Transformers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransformerInput"
+      responses:
+        "200":
+          description: Transformer updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transformer"
+    delete:
+      summary: Delete a transformer
+      operationId: deleteTransformer
+      tags: [Transformers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Deleted
+
+  /v1/transformers/{id}/sources:
+    post:
+      summary: Attach a transformer to a source (appends to the chain)
+      operationId: attachTransformerToSource
+      tags: [Transformers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source_id]
+              properties:
+                source_id: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Attached at the end of the source's chain
+
+  /v1/transformers/{id}/sources/{sourceID}:
+    delete:
+      summary: Detach a transformer from a source
+      operationId: detachTransformerFromSource
+      tags: [Transformers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: sourceID
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Detached
+
+  /v1/sources/{sourceID}/transformers:
+    get:
+      summary: List a source's transformer chain in execution order
+      operationId: listSourceTransformers
+      tags: [Transformers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sourceID
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Ordered transformer list (includes position)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transformer"
+    put:
+      summary: Replace the source's transformer chain with the given ordered ids
+      operationId: setSourceTransformers
+      tags: [Transformers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sourceID
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transformer_ids]
+              properties:
+                transformer_ids:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Chain replaced (positions 0..n-1)
+        "422":
+          description: Duplicate or unknown transformer ids
+
   /v1/audit-logs:
     get:
       summary: List audit logs
@@ -977,6 +1180,10 @@ components:
             "on_error": "fail_open" | "fail_closed" (default fail_closed) —
             fail_open treats guard execution errors (e.g. an external
             service outage) as passed instead of blocking traffic.
+            All guard types also accept "scope": "last_message" (default) |
+            "all_messages" — all_messages validates the full serialized
+            conversation (closes history-injection bypasses; applies to the
+            input phase only).
             The "webhook" guard type takes {"url", "headers"?, "timeout_seconds"?}
             and POSTs {"input", "phase", "source_route"} to the URL, expecting
             {"passed": bool, "message"?, "details"?} back; non-2xx or malformed
@@ -1012,6 +1219,41 @@ components:
         updated_at:
           type: string
           format: date-time
+
+    TransformerInput:
+      type: object
+      required: [name, transformer_type]
+      properties:
+        name: { type: string }
+        transformer_type: { type: string }
+        phase:
+          type: string
+          enum: [input]
+          default: input
+        config:
+          type: object
+          additionalProperties: true
+        enabled:
+          type: boolean
+          default: true
+
+    Transformer:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organization_id: { type: string, format: uuid }
+        name: { type: string }
+        transformer_type: { type: string }
+        phase: { type: string }
+        config:
+          type: object
+          additionalProperties: true
+        enabled: { type: boolean }
+        position:
+          type: integer
+          description: Only present when listed via a source's chain
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
 
     ChatRequest:
       type: object
@@ -1150,6 +1392,10 @@ components:
           type: string
         guard_results:
           type: object
+          description: >
+            Per-phase engine results keyed by "input"/"output", plus the
+            reserved key "transforms" holding the transformer chain outcome
+            when the source has transformers.
           additionalProperties: true
         overall_result:
           type: string

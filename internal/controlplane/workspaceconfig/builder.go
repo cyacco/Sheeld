@@ -51,20 +51,36 @@ func (b *Builder) Build(ctx context.Context) (*domain.WorkspaceConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listing source guardrails: %w", err)
 	}
+	transformers, err := b.queries.ListAllEnabledTransformers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing transformers: %w", err)
+	}
+	// Ordered by (source_id, position, transformer_id): appending preserves
+	// the per-source chain order the data plane must run.
+	transformerAttachments, err := b.queries.ListAllSourceTransformers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing source transformers: %w", err)
+	}
 
 	guardrailsBySource := make(map[uuid.UUID][]uuid.UUID)
 	for _, a := range attachments {
 		guardrailsBySource[a.SourceID] = append(guardrailsBySource[a.SourceID], a.GuardrailID)
 	}
 
+	transformersBySource := make(map[uuid.UUID][]uuid.UUID)
+	for _, a := range transformerAttachments {
+		transformersBySource[a.SourceID] = append(transformersBySource[a.SourceID], a.TransformerID)
+	}
+
 	orgs := make(map[uuid.UUID]*domain.OrgConfig, len(orgIDs))
 	ordered := make([]uuid.UUID, 0, len(orgIDs))
 	for _, id := range orgIDs {
 		orgs[id] = &domain.OrgConfig{
-			ID:         id,
-			APIKeys:    []domain.APIKeyConfig{},
-			Sources:    []domain.SourceConfig{},
-			Guardrails: []domain.GuardrailConfig{},
+			ID:           id,
+			APIKeys:      []domain.APIKeyConfig{},
+			Sources:      []domain.SourceConfig{},
+			Guardrails:   []domain.GuardrailConfig{},
+			Transformers: []domain.TransformerConfig{},
 		}
 		ordered = append(ordered, id)
 	}
@@ -96,6 +112,10 @@ func (b *Builder) Build(ctx context.Context) (*domain.WorkspaceConfig, error) {
 		if src.GuardrailIDs == nil {
 			src.GuardrailIDs = []uuid.UUID{}
 		}
+		src.TransformerIDs = transformersBySource[s.ID]
+		if src.TransformerIDs == nil {
+			src.TransformerIDs = []uuid.UUID{}
+		}
 		if s.PassThreshold.Valid {
 			t := int(s.PassThreshold.Int32)
 			src.PassThreshold = &t
@@ -111,6 +131,18 @@ func (b *Builder) Build(ctx context.Context) (*domain.WorkspaceConfig, error) {
 				GuardType: domain.GuardType(g.GuardType),
 				Phase:     domain.GuardPhase(g.Phase),
 				Config:    g.Config,
+			})
+		}
+	}
+
+	for _, t := range transformers {
+		if org, ok := orgs[t.OrganizationID]; ok {
+			org.Transformers = append(org.Transformers, domain.TransformerConfig{
+				ID:              t.ID,
+				Name:            t.Name,
+				TransformerType: t.TransformerType,
+				Phase:           t.Phase,
+				Config:          t.Config,
 			})
 		}
 	}

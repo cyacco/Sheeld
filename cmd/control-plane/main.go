@@ -16,6 +16,7 @@ import (
 	"github.com/sheeld/sheeld/internal/controlplane/db"
 	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
 	"github.com/sheeld/sheeld/internal/controlplane/service"
+	"github.com/sheeld/sheeld/internal/shared/transform"
 )
 
 func main() {
@@ -75,8 +76,14 @@ func run() error {
 	sourceService := service.NewSourceService(queries, cfg.EncryptionKey)
 	guardrailService := service.NewGuardrailService(queries)
 
+	// Transformer registry: v1 ships no built-in types (interface-only);
+	// the first real types land in a follow-up. Creation via API returns
+	// 422 "unknown transformer_type" until then.
+	transformRegistry := transform.NewRegistry()
+	transformerService := service.NewTransformerService(queries, pool, transformRegistry)
+
 	// Build HTTP router
-	router := api.NewRouter(cfg, pool, authService, sourceService, guardrailService, queries)
+	router := api.NewRouter(cfg, pool, authService, sourceService, guardrailService, transformerService, queries)
 
 	// Start HTTP server
 	srv := &http.Server{

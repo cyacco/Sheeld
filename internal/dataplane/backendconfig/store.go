@@ -11,6 +11,7 @@ import (
 
 	"github.com/sheeld/sheeld/internal/shared/domain"
 	"github.com/sheeld/sheeld/internal/shared/guard"
+	"github.com/sheeld/sheeld/internal/shared/transform"
 )
 
 // ResolvedSource is a source with its guards pre-built and split by phase,
@@ -26,6 +27,9 @@ type ResolvedSource struct {
 	PassThreshold *int
 	InputGuards   []guard.Guard
 	OutputGuards  []guard.Guard
+
+	// Transformers run sequentially, in this order, before input guards.
+	Transformers []transform.Transformer
 }
 
 type sourceKey struct {
@@ -88,7 +92,7 @@ func (s *Store) LookupSource(orgID uuid.UUID, route string) (*ResolvedSource, bo
 // Apply resolves a workspace config into a snapshot (building guards via the
 // registry) and atomically swaps it in. On error nothing is swapped and the
 // previous snapshot keeps serving.
-func (s *Store) Apply(cfg *domain.WorkspaceConfig, registry *guard.Registry) error {
+func (s *Store) Apply(cfg *domain.WorkspaceConfig, registry *guard.Registry, transformRegistry *transform.Registry) error {
 	snap := &Snapshot{
 		Version: cfg.Version,
 		apiKeys: make(map[string]uuid.UUID),
@@ -103,6 +107,11 @@ func (s *Store) Apply(cfg *domain.WorkspaceConfig, registry *guard.Registry) err
 		guardrailsByID := make(map[uuid.UUID]domain.GuardrailConfig, len(org.Guardrails))
 		for _, g := range org.Guardrails {
 			guardrailsByID[g.ID] = g
+		}
+
+		transformersByID := make(map[uuid.UUID]domain.TransformerConfig, len(org.Transformers))
+		for _, t := range org.Transformers {
+			transformersByID[t.ID] = t
 		}
 
 		for _, src := range org.Sources {
@@ -126,6 +135,11 @@ func (s *Store) Apply(cfg *domain.WorkspaceConfig, registry *guard.Registry) err
 				if err != nil {
 					return fmt.Errorf("building guard %q for source %q: %w", gc.Name, src.Route, err)
 				}
+				if readScope(gc.Config) == "all_messages" {
+					g = guard.WithScopeAllMessages(g)
+				}
+				// WithFailOpen must be outermost: the engine type-asserts
+				// FailOpenGuard on the top-level guard.
 				if isFailOpen(gc.Config) {
 					g = guard.WithFailOpen(g)
 				}
@@ -136,12 +150,43 @@ func (s *Store) Apply(cfg *domain.WorkspaceConfig, registry *guard.Registry) err
 					resolved.OutputGuards = append(resolved.OutputGuards, g)
 				}
 			}
+			for _, tid := range src.TransformerIDs {
+				tc, ok := transformersByID[tid]
+				if !ok {
+					// Disabled or deleted transformer still attached — skip.
+					continue
+				}
+				if tc.Phase != "input" {
+					continue // defensive; server constrains to input in v1
+				}
+				tr, err := transformRegistry.Create(tc.TransformerType, tc.Name, tc.Config)
+				if err != nil {
+					return fmt.Errorf("building transformer %q for source %q: %w", tc.Name, src.Route, err)
+				}
+				if isFailOpen(tc.Config) {
+					tr = transform.WithFailOpen(tr)
+				}
+				resolved.Transformers = append(resolved.Transformers, tr)
+			}
+
 			snap.sources[sourceKey{orgID: org.ID, route: src.Route}] = resolved
 		}
 	}
 
 	s.current.Store(snap)
 	return nil
+}
+
+// readScope reads the optional scope field from a guardrail's config:
+// "last_message" (default) or "all_messages".
+func readScope(config json.RawMessage) string {
+	var c struct {
+		Scope string `json:"scope"`
+	}
+	if err := json.Unmarshal(config, &c); err != nil {
+		return ""
+	}
+	return c.Scope
 }
 
 // isFailOpen reads the optional on_error field from a guardrail's config.

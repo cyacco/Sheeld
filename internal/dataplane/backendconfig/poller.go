@@ -11,31 +11,34 @@ import (
 
 	"github.com/sheeld/sheeld/internal/shared/domain"
 	"github.com/sheeld/sheeld/internal/shared/guard"
+	"github.com/sheeld/sheeld/internal/shared/transform"
 )
 
 // Poller periodically fetches the workspace config from the control plane
 // and applies it to the store.
 type Poller struct {
-	url      string
-	token    string
-	interval time.Duration
-	store    *Store
-	registry *guard.Registry
-	client   *http.Client
+	url               string
+	token             string
+	interval          time.Duration
+	store             *Store
+	registry          *guard.Registry
+	transformRegistry *transform.Registry
+	client            *http.Client
 
 	lastETag string
 }
 
 // NewPoller creates a poller against the control plane's workspace-config
 // endpoint.
-func NewPoller(controlPlaneURL, token string, interval time.Duration, store *Store, registry *guard.Registry) *Poller {
+func NewPoller(controlPlaneURL, token string, interval time.Duration, store *Store, registry *guard.Registry, transformRegistry *transform.Registry) *Poller {
 	return &Poller{
-		url:      controlPlaneURL + "/v1/internal/workspace-config",
-		token:    token,
-		interval: interval,
-		store:    store,
-		registry: registry,
-		client:   &http.Client{Timeout: 15 * time.Second},
+		url:               controlPlaneURL + "/v1/internal/workspace-config",
+		token:             token,
+		interval:          interval,
+		store:             store,
+		registry:          registry,
+		transformRegistry: transformRegistry,
+		client:            &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
@@ -66,7 +69,7 @@ func (p *Poller) FetchOnce(ctx context.Context) error {
 		if err := json.NewDecoder(resp.Body).Decode(&cfg); err != nil {
 			return fmt.Errorf("decoding workspace config: %w", err)
 		}
-		if err := p.store.Apply(&cfg, p.registry); err != nil {
+		if err := p.store.Apply(&cfg, p.registry, p.transformRegistry); err != nil {
 			return fmt.Errorf("applying workspace config: %w", err)
 		}
 		p.lastETag = resp.Header.Get("ETag")
