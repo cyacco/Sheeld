@@ -69,6 +69,7 @@ const (
 	GuardTypeRegex        GuardType = "regex"
 	GuardTypeOpenAIMod    GuardType = "openai_moderation"
 	GuardTypeGuardrailsAI GuardType = "guardrails_ai"
+	GuardTypeWebhook      GuardType = "webhook"
 )
 
 // GuardPhase defines when a guardrail runs.

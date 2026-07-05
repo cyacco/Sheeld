@@ -1114,3 +1114,59 @@ func TestModels(t *testing.T) {
 		resp.Body.Close()
 	})
 }
+
+func TestProxyWebhookGuard(t *testing.T) {
+	token := registerUser(t, "Webhook Test Org", "webhook@example.com", "strongpassword123")
+	setMockLLMResponse("Hello! I'm a helpful assistant.")
+
+	// Stub webhook endpoint: rejects input containing "bad", records the body.
+	var lastReq struct {
+		Input       string `json:"input"`
+		Phase       string `json:"phase"`
+		SourceRoute string `json:"source_route"`
+	}
+	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&lastReq)
+		passed := !strings.Contains(lastReq.Input, "bad")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"passed":  passed,
+			"message": "checked by stub",
+		})
+	}))
+	defer stub.Close()
+
+	sourceID := createSource(t, token, "Webhook Source", "webhook-source")
+	gID := createGuardrail(t, token, map[string]interface{}{
+		"name":       "Stub Webhook",
+		"guard_type": "webhook",
+		"phase":      "input",
+		"config":     map[string]interface{}{"url": stub.URL},
+		"enabled":    true,
+	})
+	attachGuardrail(t, token, gID, sourceID)
+	apiKey := createAPIKey(t, token, "webhook-key")
+
+	t.Run("pass", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/proxy/webhook-source", map[string]interface{}{
+			"messages": []map[string]string{{"role": "user", "content": "hello there"}},
+		}, apiKey)
+		expectStatus(t, resp, http.StatusOK)
+		resp.Body.Close()
+		if lastReq.Phase != "input" || lastReq.SourceRoute != "webhook-source" {
+			t.Errorf("expected call meta in webhook request, got %+v", lastReq)
+		}
+	})
+
+	t.Run("reject", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/proxy/webhook-source", map[string]interface{}{
+			"messages": []map[string]string{{"role": "user", "content": "something bad"}},
+		}, apiKey)
+		expectStatus(t, resp, http.StatusUnprocessableEntity)
+		var result map[string]map[string]interface{}
+		decodeBody(t, resp, &result)
+		if result["error"]["type"] != "guardrail_rejection" {
+			t.Errorf("expected guardrail_rejection, got %v", result["error"]["type"])
+		}
+	})
+}
