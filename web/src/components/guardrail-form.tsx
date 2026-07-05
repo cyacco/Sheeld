@@ -9,6 +9,7 @@ import type {
   OpenAIModerationConfig,
   GuardrailsAIConfig,
 } from "@/lib/types";
+import { GUARD_TYPES, defaultConfig } from "@/components/guard-type-meta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,26 +26,125 @@ import { RegexConfigForm } from "@/components/guard-config/regex-config";
 import { OpenAIModConfigForm } from "@/components/guard-config/openai-mod-config";
 import { GuardrailsAIConfigForm } from "@/components/guard-config/guardrails-ai-config";
 
-const GUARD_TYPES = [
-  { value: "blocklist", label: "Blocklist" },
-  { value: "regex", label: "Regex" },
-  { value: "openai_moderation", label: "OpenAI Moderation" },
-  { value: "guardrails_ai", label: "Guardrails AI" },
-];
+// GuardrailDraft is the shared editing state for the guardrail form and
+// the add-guardrail wizard.
+export interface GuardrailDraft {
+  name: string;
+  guardType: string;
+  phase: string;
+  config: Record<string, unknown>;
+  enabled: boolean;
+}
 
-function defaultConfig(guardType: string): Record<string, unknown> {
-  switch (guardType) {
-    case "blocklist":
-      return { words: [] } satisfies BlocklistConfig;
-    case "regex":
-      return { patterns: [], mode: "block" } satisfies RegexConfig;
-    case "openai_moderation":
-      return { api_key: "", categories: [], threshold: 0.5, timeout_seconds: 10 } satisfies OpenAIModerationConfig;
-    case "guardrails_ai":
-      return { server_url: "", guard_name: "", timeout_seconds: 10, fail_open: false } satisfies GuardrailsAIConfig;
-    default:
-      return {};
-  }
+export function emptyGuardrailDraft(guardType = "blocklist"): GuardrailDraft {
+  return {
+    name: "",
+    guardType,
+    phase: "input",
+    config: defaultConfig(guardType),
+    enabled: true,
+  };
+}
+
+export function guardrailDraftFrom(g: Guardrail): GuardrailDraft {
+  return {
+    name: g.name,
+    guardType: g.guard_type,
+    phase: g.phase,
+    config: g.config,
+    enabled: g.enabled,
+  };
+}
+
+export function guardrailDraftToParams(d: GuardrailDraft): CreateGuardrailParams {
+  return {
+    name: d.name,
+    guard_type: d.guardType,
+    phase: d.phase,
+    config: d.config,
+    enabled: d.enabled,
+  };
+}
+
+interface FieldGroupProps {
+  draft: GuardrailDraft;
+  onChange: (draft: GuardrailDraft) => void;
+}
+
+// GuardrailBasicsFields: name, phase, enabled. Guard type is chosen by the
+// wizard catalog (or immutable on edit), so it isn't part of this group.
+export function GuardrailBasicsFields({ draft, onChange }: FieldGroupProps) {
+  const set = (patch: Partial<GuardrailDraft>) => onChange({ ...draft, ...patch });
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Name</Label>
+        <Input
+          value={draft.name}
+          onChange={(e) => set({ name: e.target.value })}
+          required
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Phase</Label>
+          <Select value={draft.phase} onValueChange={(v) => set({ phase: v })}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="input">Input</SelectItem>
+              <SelectItem value="output">Output</SelectItem>
+              <SelectItem value="both">Both</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-end gap-2 pb-2">
+          <Switch
+            checked={draft.enabled}
+            onCheckedChange={(v) => set({ enabled: v })}
+          />
+          <Label>Enabled</Label>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// GuardConfigFields renders the guard-type-specific config component.
+export function GuardConfigFields({ draft, onChange }: FieldGroupProps) {
+  const setConfig = (config: Record<string, unknown>) =>
+    onChange({ ...draft, config });
+  return (
+    <div className="space-y-2 rounded-md border p-4">
+      <h4 className="text-sm font-medium">Guard Configuration</h4>
+      {draft.guardType === "blocklist" && (
+        <BlocklistConfigForm
+          config={draft.config as unknown as BlocklistConfig}
+          onChange={(c) => setConfig(c as unknown as Record<string, unknown>)}
+        />
+      )}
+      {draft.guardType === "regex" && (
+        <RegexConfigForm
+          config={draft.config as unknown as RegexConfig}
+          onChange={(c) => setConfig(c as unknown as Record<string, unknown>)}
+        />
+      )}
+      {draft.guardType === "openai_moderation" && (
+        <OpenAIModConfigForm
+          config={draft.config as unknown as OpenAIModerationConfig}
+          onChange={(c) => setConfig(c as unknown as Record<string, unknown>)}
+        />
+      )}
+      {draft.guardType === "guardrails_ai" && (
+        <GuardrailsAIConfigForm
+          config={draft.config as unknown as GuardrailsAIConfig}
+          onChange={(c) => setConfig(c as unknown as Record<string, unknown>)}
+        />
+      )}
+    </div>
+  );
 }
 
 interface GuardrailFormProps {
@@ -53,32 +153,19 @@ interface GuardrailFormProps {
   submitLabel: string;
 }
 
+// GuardrailForm composes the field groups — used on the guardrail detail
+// Configuration tab. Creation goes through the add-guardrail wizard.
 export function GuardrailForm({ initial, onSubmit, submitLabel }: GuardrailFormProps) {
-  const [name, setName] = useState(initial?.name ?? "");
-  const [guardType, setGuardType] = useState(initial?.guard_type ?? "blocklist");
-  const [phase, setPhase] = useState(initial?.phase ?? "input");
-  const [config, setConfig] = useState<Record<string, unknown>>(
-    initial?.config ?? defaultConfig("blocklist"),
+  const [draft, setDraft] = useState<GuardrailDraft>(() =>
+    initial ? guardrailDraftFrom(initial) : emptyGuardrailDraft(),
   );
-  const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [loading, setLoading] = useState(false);
-
-  function handleGuardTypeChange(newType: string) {
-    setGuardType(newType);
-    setConfig(defaultConfig(newType));
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     try {
-      await onSubmit({
-        name,
-        guard_type: guardType,
-        phase,
-        config,
-        enabled,
-      });
+      await onSubmit(guardrailDraftToParams(draft));
     } finally {
       setLoading(false);
     }
@@ -86,15 +173,15 @@ export function GuardrailForm({ initial, onSubmit, submitLabel }: GuardrailFormP
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label>Name</Label>
-        <Input value={name} onChange={(e) => setName(e.target.value)} required />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
+      {!initial && (
         <div className="space-y-2">
           <Label>Guard Type</Label>
-          <Select value={guardType} onValueChange={handleGuardTypeChange} disabled={!!initial}>
+          <Select
+            value={draft.guardType}
+            onValueChange={(v) =>
+              setDraft({ ...draft, guardType: v, config: defaultConfig(v) })
+            }
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -107,53 +194,9 @@ export function GuardrailForm({ initial, onSubmit, submitLabel }: GuardrailFormP
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
-          <Label>Phase</Label>
-          <Select value={phase} onValueChange={setPhase}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="input">Input</SelectItem>
-              <SelectItem value="output">Output</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="border rounded-md p-4 space-y-2">
-        <h4 className="font-medium text-sm">Guard Configuration</h4>
-        {guardType === "blocklist" && (
-          <BlocklistConfigForm
-            config={config as unknown as BlocklistConfig}
-            onChange={(c) => setConfig(c as unknown as Record<string, unknown>)}
-          />
-        )}
-        {guardType === "regex" && (
-          <RegexConfigForm
-            config={config as unknown as RegexConfig}
-            onChange={(c) => setConfig(c as unknown as Record<string, unknown>)}
-          />
-        )}
-        {guardType === "openai_moderation" && (
-          <OpenAIModConfigForm
-            config={config as unknown as OpenAIModerationConfig}
-            onChange={(c) => setConfig(c as unknown as Record<string, unknown>)}
-          />
-        )}
-        {guardType === "guardrails_ai" && (
-          <GuardrailsAIConfigForm
-            config={config as unknown as GuardrailsAIConfig}
-            onChange={(c) => setConfig(c as unknown as Record<string, unknown>)}
-          />
-        )}
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Switch checked={enabled} onCheckedChange={setEnabled} />
-        <Label>Enabled</Label>
-      </div>
-
+      )}
+      <GuardrailBasicsFields draft={draft} onChange={setDraft} />
+      <GuardConfigFields draft={draft} onChange={setDraft} />
       <Button type="submit" disabled={loading}>
         {loading ? "Saving..." : submitLabel}
       </Button>
