@@ -1,5 +1,7 @@
 package llm
 
+import "strings"
+
 // ChatRequest represents an OpenAI-compatible chat completion request.
 // This is the format LiteLLM accepts for all providers.
 type ChatRequest struct {
@@ -70,6 +72,22 @@ func ExtractInputText(req *ChatRequest) string {
 		}
 	}
 	return ""
+}
+
+// SerializeMessages renders the full messages array as role-prefixed lines
+// ("system: ...\nuser: ..."), in order. Used by guards with
+// scope: all_messages to validate whole conversations.
+func SerializeMessages(messages []Message) string {
+	var b strings.Builder
+	for i, m := range messages {
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(m.Role)
+		b.WriteString(": ")
+		b.WriteString(m.Content)
+	}
+	return b.String()
 }
 
 // ExtractOutputText pulls the assistant message content from a chat response.

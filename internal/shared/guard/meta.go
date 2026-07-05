@@ -10,6 +10,10 @@ type CallMeta struct {
 
 	// SourceRoute is the route of the source being proxied.
 	SourceRoute string
+
+	// AllMessagesText is the full conversation serialized as role-prefixed
+	// lines, set on the input phase for guards with scope: all_messages.
+	AllMessagesText string
 }
 
 type callMetaKey struct{}
