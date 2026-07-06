@@ -30,7 +30,15 @@ strip. v1 transformers are input-only, but the design anticipated this:
   `output_transforms`) — pick one and document the reserved keys.
 - UI: phase selector in the wizard/form; source tab shows both chains.
 
-## 2. `llm_classifier` guard
+## 2. `llm_classifier` guard — SHIPPED
+
+Implemented in the `llm-classifier-guard` branch/PR: config {base_url,
+api_key?, model, instructions, timeout_seconds}; strict JSON verdict
+protocol ({"flagged", "reason"}) with fence-tolerant parsing; unparseable
+verdicts and endpoint errors follow on_error. Works on both phases and
+with scope: all_messages.
+
+Original notes:
 
 Send text + a rubric prompt to a cheap model ("is this prompt injection /
 off-topic / a competitor mention?") and pass/fail on its verdict. Covers the

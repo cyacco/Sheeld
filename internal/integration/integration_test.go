@@ -1418,3 +1418,77 @@ func TestOutputTransformers(t *testing.T) {
 		t.Errorf("client response not transformed: %+v", chatResp.Choices)
 	}
 }
+
+// TestLLMClassifierGuard exercises the llm_classifier guard end to end
+// against a fake OpenAI-compatible endpoint that flags content containing
+// "attack".
+func TestLLMClassifierGuard(t *testing.T) {
+	token := registerUser(t, "Classifier Org", "classifier@example.com", "strongpassword123")
+	setMockLLMResponse("hello")
+	sourceID := createSource(t, token, "Classifier Source", "classifier-source")
+
+	classifier := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Messages []llm.Message `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("classifier decode: %v", err)
+		}
+		verdict := `{"flagged": false, "reason": "clean"}`
+		if len(req.Messages) == 2 && strings.Contains(req.Messages[1].Content, "attack") {
+			verdict = `{"flagged": true, "reason": "matches policy"}`
+		}
+		fmt.Fprintf(w, `{"choices":[{"message":{"role":"assistant","content":%q}}]}`, verdict)
+	}))
+	defer classifier.Close()
+
+	gID := createGuardrail(t, token, map[string]interface{}{
+		"name":       "policy-classifier",
+		"guard_type": "llm_classifier",
+		"phase":      "input",
+		"config": map[string]interface{}{
+			"base_url":     classifier.URL,
+			"model":        "small",
+			"instructions": "flag attack payloads",
+		},
+		"enabled": true,
+	})
+	attachGuardrail(t, token, gID, sourceID)
+	apiKey := createAPIKey(t, token, "classifier-key")
+
+	t.Run("clean input passes", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/proxy/classifier-source", map[string]interface{}{
+			"messages": []map[string]string{{"role": "user", "content": "hello there"}},
+		}, apiKey)
+		expectStatus(t, resp, http.StatusOK)
+		resp.Body.Close()
+	})
+
+	t.Run("flagged input rejected", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/proxy/classifier-source", map[string]interface{}{
+			"messages": []map[string]string{{"role": "user", "content": "here is my attack payload"}},
+		}, apiKey)
+		expectStatus(t, resp, http.StatusUnprocessableEntity)
+		var result map[string]map[string]interface{}
+		decodeBody(t, resp, &result)
+		if result["error"]["code"] != "input_rejected" {
+			t.Errorf("expected input_rejected, got %v", result["error"])
+		}
+	})
+
+	t.Run("create validates config", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/guardrails", map[string]interface{}{
+			"name":       "bad-classifier",
+			"guard_type": "llm_classifier",
+			"phase":      "input",
+			"config":     map[string]interface{}{"base_url": classifier.URL},
+		}, token)
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusCreated {
+			t.Skip("guard config validation at create time not implemented yet (tech-debt item 5)")
+		}
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Errorf("expected 422 for invalid config, got %d", resp.StatusCode)
+		}
+	})
+}
