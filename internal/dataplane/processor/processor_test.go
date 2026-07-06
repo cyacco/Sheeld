@@ -2,6 +2,7 @@ package processor
 
 import (
 	"context"
+	"fmt"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -239,4 +240,97 @@ func TestProcessor_OutputTransformsRewriteResponseBeforeOutputGuards(t *testing.
 	if audit.outputTransforms == nil || !audit.outputTransforms.Changed {
 		t.Errorf("audit missing output transforms: %+v", audit.outputTransforms)
 	}
+}
+
+func TestProcessor_ReversibleAnonymizationRoundTrip(t *testing.T) {
+	orgID := uuid.New()
+	tIn, tOut := uuid.New(), uuid.New()
+
+	// Fake analyzer: flags "Alice" as PERSON.
+	analyzer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Text string `json:"text"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		if i := indexOf(req.Text, "Alice"); i >= 0 {
+			w.Write([]byte(`[{"entity_type":"PERSON","start":` + itoa(i) + `,"end":` + itoa(i+5) + `,"score":0.9}]`))
+			return
+		}
+		w.Write([]byte(`[]`))
+	}))
+	defer analyzer.Close()
+
+	cfg := &domain.WorkspaceConfig{
+		Version: "v1",
+		Organizations: []domain.OrgConfig{{
+			ID: orgID,
+			Transformers: []domain.TransformerConfig{
+				{ID: tIn, Name: "anon", TransformerType: "presidio", Phase: "input",
+					Config: json.RawMessage(`{"analyzer_url":"` + analyzer.URL + `","mode":"reversible"}`)},
+				{ID: tOut, Name: "dean", TransformerType: "deanonymize", Phase: "output",
+					Config: json.RawMessage(`{}`)},
+			},
+			Sources: []domain.SourceConfig{{
+				ID: uuid.New(), Route: "r", Enabled: true, LLMModel: "m", LLMAPIKey: "k",
+				PassCriteria:   domain.PassCriteriaAll,
+				GuardrailIDs:   []uuid.UUID{},
+				TransformerIDs: []uuid.UUID{tIn, tOut},
+			}},
+		}},
+	}
+	store := backendconfig.NewStore()
+	if err := store.Apply(cfg, guard.NewRegistry(), transform.NewRegistry()); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	// Fake LLM echoes the placeholder it received.
+	var llmSaw llm.ChatRequest
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&llmSaw)
+		last := llmSaw.Messages[len(llmSaw.Messages)-1].Content
+		resp := map[string]interface{}{
+			"id": "x", "object": "chat.completion",
+			"choices": []map[string]interface{}{{
+				"index":         0,
+				"message":       map[string]string{"role": "assistant", "content": "Re: " + last},
+				"finish_reason": "stop",
+			}},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer gateway.Close()
+
+	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), nil)
+	result, err := proc.Execute(context.Background(), orgID, "r", &llm.ChatRequest{
+		Messages: []llm.Message{{Role: "user", Content: "tell Alice hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	// LLM never saw the real name.
+	if got := llmSaw.Messages[0].Content; got != "tell <PERSON_1> hi" {
+		t.Errorf("LLM saw %q, want placeholder", got)
+	}
+	// Client gets the real name restored.
+	if got := result.LLMResponse.Choices[0].Message.Content; got != "Re: tell Alice hi" {
+		t.Errorf("client got %q, want restored name", got)
+	}
+	if result.OutputTransforms == nil || !result.OutputTransforms.Changed {
+		t.Errorf("output chain should record the restoration: %+v", result.OutputTransforms)
+	}
+}
+
+func indexOf(s, sub string) int {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return i
+		}
+	}
+	return -1
+}
+
+func itoa(n int) string {
+	return fmt.Sprintf("%d", n)
 }

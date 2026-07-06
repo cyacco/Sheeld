@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/sheeld/sheeld/internal/shared/llm"
@@ -22,7 +23,15 @@ type PresidioConfig struct {
 
 	// AnonymizerURL is the base URL of the presidio-anonymizer service
 	// (e.g. http://presidio-anonymizer:3000). /anonymize is appended.
-	AnonymizerURL string `json:"anonymizer_url"`
+	// Required in "redact" mode; unused in "reversible" mode.
+	AnonymizerURL string `json:"anonymizer_url,omitempty"`
+
+	// Mode is "redact" (default — detected entities become <ENTITY_TYPE>
+	// placeholders via the anonymizer, irreversibly) or "reversible" —
+	// entities become numbered placeholders (<PERSON_1>) substituted
+	// locally, with the originals recorded in the request State so a
+	// deanonymize transformer on the output chain can restore them.
+	Mode string `json:"mode,omitempty"`
 
 	// Language is the ISO 639-1 analysis language. Defaults to "en".
 	Language string `json:"language,omitempty"`
@@ -86,7 +95,13 @@ func (t *PresidioTransformer) Transform(ctx context.Context, msgs []llm.Message)
 		if out[i].Content == "" {
 			continue
 		}
-		redacted, err := t.redact(ctx, out[i].Content)
+		var redacted string
+		var err error
+		if t.cfg.Mode == "reversible" {
+			redacted, err = t.anonymizeReversibly(ctx, out[i].Content)
+		} else {
+			redacted, err = t.redact(ctx, out[i].Content)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +110,7 @@ func (t *PresidioTransformer) Transform(ctx context.Context, msgs []llm.Message)
 	return out, nil
 }
 
-func (t *PresidioTransformer) redact(ctx context.Context, text string) (string, error) {
+func (t *PresidioTransformer) analyze(ctx context.Context, text string) ([]presidioAnalyzerResult, error) {
 	analyzeReq := map[string]interface{}{
 		"text":     text,
 		"language": t.cfg.Language,
@@ -106,10 +121,17 @@ func (t *PresidioTransformer) redact(ctx context.Context, text string) (string, 
 	if t.cfg.ScoreThreshold > 0 {
 		analyzeReq["score_threshold"] = t.cfg.ScoreThreshold
 	}
-
 	var results []presidioAnalyzerResult
 	if err := t.post(ctx, t.cfg.AnalyzerURL+"/analyze", analyzeReq, &results); err != nil {
-		return "", fmt.Errorf("presidio analyze: %w", err)
+		return nil, fmt.Errorf("presidio analyze: %w", err)
+	}
+	return results, nil
+}
+
+func (t *PresidioTransformer) redact(ctx context.Context, text string) (string, error) {
+	results, err := t.analyze(ctx, text)
+	if err != nil {
+		return "", err
 	}
 	if len(results) == 0 {
 		return text, nil
@@ -126,6 +148,35 @@ func (t *PresidioTransformer) redact(ctx context.Context, text string) (string, 
 		return "", fmt.Errorf("presidio anonymize: %w", err)
 	}
 	return anon.Text, nil
+}
+
+// anonymizeReversibly substitutes numbered placeholders locally from the
+// analyzer's spans and records placeholder → original mappings in the
+// request State. The same original value maps to the same placeholder so
+// the LLM sees a coherent conversation.
+func (t *PresidioTransformer) anonymizeReversibly(ctx context.Context, text string) (string, error) {
+	results, err := t.analyze(ctx, text)
+	if err != nil {
+		return "", err
+	}
+	if len(results) == 0 {
+		return text, nil
+	}
+	state, ok := StateFrom(ctx)
+	if !ok {
+		return "", fmt.Errorf("presidio: reversible mode requires request state (are you running outside the proxy pipeline?)")
+	}
+
+	// Replace back to front so earlier spans stay valid.
+	sort.Slice(results, func(i, j int) bool { return results[i].Start > results[j].Start })
+	out := text
+	for _, r := range results {
+		if r.Start < 0 || r.End > len(out) || r.Start >= r.End {
+			continue
+		}
+		out = out[:r.Start] + state.AllocatePlaceholder(r.EntityType, out[r.Start:r.End]) + out[r.End:]
+	}
+	return out, nil
 }
 
 func (t *PresidioTransformer) post(ctx context.Context, url string, reqBody interface{}, respBody interface{}) error {

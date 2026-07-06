@@ -134,6 +134,12 @@ export function TransformerConfigFields({ draft, onChange }: FieldGroupProps) {
           onChange={(c) => setConfig(c as unknown as Record<string, unknown>)}
         />
       )}
+      {draft.transformerType === "deanonymize" && (
+        <p className="text-sm text-muted-foreground">
+          No configuration needed. Restores values recorded by a reversible
+          Presidio step on the input chain; attach this to the output phase.
+        </p>
+      )}
       {draft.transformerType === "webhook" && (
         <TransformerWebhookConfigForm
           config={draft.config as unknown as WebhookConfig}

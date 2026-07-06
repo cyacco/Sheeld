@@ -24,6 +24,7 @@ func NewRegistry() *Registry {
 	r.Register("regex_replace", regexReplaceFactory)
 	r.Register("webhook", webhookFactory)
 	r.Register("presidio", presidioFactory)
+	r.Register("deanonymize", deanonymizeFactory)
 
 	return r
 }
@@ -65,10 +66,22 @@ func presidioFactory(name string, config json.RawMessage) (Transformer, error) {
 	if err := validateHTTPURL(cfg.AnalyzerURL, "presidio: analyzer_url"); err != nil {
 		return nil, err
 	}
-	if err := validateHTTPURL(cfg.AnonymizerURL, "presidio: anonymizer_url"); err != nil {
-		return nil, err
+	switch cfg.Mode {
+	case "", "redact":
+		// The anonymizer service does the replacement in redact mode.
+		if err := validateHTTPURL(cfg.AnonymizerURL, "presidio: anonymizer_url"); err != nil {
+			return nil, err
+		}
+	case "reversible":
+		// Placeholders are substituted locally; no anonymizer needed.
+	default:
+		return nil, fmt.Errorf("presidio: mode must be \"redact\" or \"reversible\", got %q", cfg.Mode)
 	}
 	return NewPresidioTransformer(name, cfg), nil
+}
+
+func deanonymizeFactory(name string, _ json.RawMessage) (Transformer, error) {
+	return NewDeanonymizeTransformer(name), nil
 }
 
 func validateHTTPURL(raw, field string) error {

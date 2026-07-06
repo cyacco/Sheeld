@@ -243,7 +243,8 @@ export interface RegexReplaceConfig {
 
 export interface PresidioConfig {
   analyzer_url: string;
-  anonymizer_url: string;
+  anonymizer_url?: string;
+  mode?: string; // "redact" (default) | "reversible" 
   language?: string;
   entities?: string[];
   score_threshold?: number;
