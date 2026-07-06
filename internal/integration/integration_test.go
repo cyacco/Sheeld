@@ -224,7 +224,7 @@ func TestMain(m *testing.M) {
 	queries := generated.New(pool)
 	authService := service.NewAuthService(queries, cfg.JWTSecret, cfg.JWTExpiration)
 	sourceService := service.NewSourceService(queries, cfg.EncryptionKey)
-	guardrailService := service.NewGuardrailService(queries)
+	guardrailService := service.NewGuardrailService(queries, guard.NewRegistry())
 	transformerService := service.NewTransformerService(queries, pool, transformRegistry)
 
 	router := api.NewRouter(cfg, pool, authService, sourceService, guardrailService, transformerService, queries)

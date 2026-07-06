@@ -57,7 +57,7 @@ func (h *GuardrailHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	g, err := h.guardrailService.Create(r.Context(), orgID, params)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "failed to create guardrail")
+		response.Error(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -114,7 +114,7 @@ func (h *GuardrailHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	g, err := h.guardrailService.Update(r.Context(), orgID, guardrailID, params)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "failed to update guardrail")
+		response.Error(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 

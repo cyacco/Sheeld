@@ -16,6 +16,7 @@ import (
 	"github.com/sheeld/sheeld/internal/controlplane/db"
 	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
 	"github.com/sheeld/sheeld/internal/controlplane/service"
+	"github.com/sheeld/sheeld/internal/shared/guard"
 	"github.com/sheeld/sheeld/internal/shared/transform"
 )
 
@@ -74,7 +75,7 @@ func run() error {
 
 	authService := service.NewAuthService(queries, cfg.JWTSecret, cfg.JWTExpiration)
 	sourceService := service.NewSourceService(queries, cfg.EncryptionKey)
-	guardrailService := service.NewGuardrailService(queries)
+	guardrailService := service.NewGuardrailService(queries, guard.NewRegistry())
 
 	transformRegistry := transform.NewRegistry()
 	transformerService := service.NewTransformerService(queries, pool, transformRegistry)
