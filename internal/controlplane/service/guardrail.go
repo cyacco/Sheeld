@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
+	"github.com/sheeld/sheeld/internal/shared/guard"
 )
 
 // CreateGuardrailParams holds the input for creating a guardrail. Enabled is
@@ -44,19 +45,34 @@ func guardrailDefaults(phase string, enabled *bool) (string, bool) {
 
 // GuardrailService handles guardrail business logic.
 type GuardrailService struct {
-	queries *generated.Queries
+	queries  *generated.Queries
+	registry *guard.Registry
 }
 
 // NewGuardrailService creates a new GuardrailService.
-func NewGuardrailService(queries *generated.Queries) *GuardrailService {
-	return &GuardrailService{queries: queries}
+func NewGuardrailService(queries *generated.Queries, registry *guard.Registry) *GuardrailService {
+	return &GuardrailService{queries: queries, registry: registry}
+}
+
+// validateConfig instantiates the guard through the registry so an unknown
+// guard_type or an invalid config (bad regex, missing URL) surfaces here
+// instead of at data-plane resolution time.
+func (s *GuardrailService) validateConfig(name, guardType string, config map[string]interface{}) ([]byte, error) {
+	configJSON, err := json.Marshal(config)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling config: %w", err)
+	}
+	if _, err := s.registry.Create(guardType, name, configJSON); err != nil {
+		return nil, err
+	}
+	return configJSON, nil
 }
 
 // Create creates a new org-level guardrail.
 func (s *GuardrailService) Create(ctx context.Context, orgID uuid.UUID, params CreateGuardrailParams) (generated.Guardrail, error) {
-	configJSON, err := json.Marshal(params.Config)
+	configJSON, err := s.validateConfig(params.Name, params.GuardType, params.Config)
 	if err != nil {
-		return generated.Guardrail{}, fmt.Errorf("marshaling config: %w", err)
+		return generated.Guardrail{}, err
 	}
 
 	phase, enabled := guardrailDefaults(params.Phase, params.Enabled)
@@ -96,9 +112,9 @@ func (s *GuardrailService) ListEnabledBySource(ctx context.Context, sourceID uui
 
 // Update updates a guardrail, scoped to an organization.
 func (s *GuardrailService) Update(ctx context.Context, orgID, guardrailID uuid.UUID, params UpdateGuardrailParams) (generated.Guardrail, error) {
-	configJSON, err := json.Marshal(params.Config)
+	configJSON, err := s.validateConfig(params.Name, params.GuardType, params.Config)
 	if err != nil {
-		return generated.Guardrail{}, fmt.Errorf("marshaling config: %w", err)
+		return generated.Guardrail{}, err
 	}
 
 	phase, enabled := guardrailDefaults(params.Phase, params.Enabled)

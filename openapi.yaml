@@ -404,6 +404,12 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "422":
+          description: Unknown guard_type or invalid config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     get:
       summary: List all guardrails for the organization
       operationId: listGuardrails
