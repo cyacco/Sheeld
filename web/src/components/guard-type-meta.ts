@@ -1,10 +1,11 @@
-import { Ban, Regex, ShieldCheck, Server, Webhook, type LucideIcon } from "lucide-react";
+import { Ban, BrainCircuit, Regex, ShieldCheck, Server, Webhook, type LucideIcon } from "lucide-react";
 import type {
   BlocklistConfig,
   RegexConfig,
   OpenAIModerationConfig,
   GuardrailsAIConfig,
   WebhookConfig,
+  LLMClassifierConfig,
 } from "@/lib/types";
 
 export interface GuardTypeMeta {
@@ -46,6 +47,12 @@ export const GUARD_TYPES: GuardTypeMeta[] = [
     description: "Call your own HTTP endpoint to validate text.",
     icon: Webhook,
   },
+  {
+    value: "llm_classifier",
+    label: "LLM Classifier",
+    description: "Ask a small LLM whether text violates a plain-language policy.",
+    icon: BrainCircuit,
+  },
 ];
 
 export function guardTypeMeta(value: string): GuardTypeMeta | undefined {
@@ -77,6 +84,14 @@ export function defaultConfig(guardType: string): Record<string, unknown> {
         headers: {},
         timeout_seconds: 10,
       } satisfies WebhookConfig;
+    case "llm_classifier":
+      return {
+        base_url: "https://api.openai.com/v1",
+        api_key: "",
+        model: "gpt-4o-mini",
+        instructions: "",
+        timeout_seconds: 15,
+      } satisfies LLMClassifierConfig;
     default:
       return {};
   }

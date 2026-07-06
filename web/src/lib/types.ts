@@ -189,6 +189,14 @@ export interface WebhookConfig {
   timeout_seconds: number;
 }
 
+export interface LLMClassifierConfig {
+  base_url: string;
+  api_key?: string;
+  model: string;
+  instructions: string;
+  timeout_seconds: number;
+}
+
 // Transformer config types
 export interface RegexReplaceRule {
   pattern: string;

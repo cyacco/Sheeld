@@ -28,6 +28,7 @@ func NewRegistry() *Registry {
 	r.Register("openai_moderation", openAIModerationFactory)
 	r.Register("guardrails_ai", guardrailsAIFactory)
 	r.Register("webhook", webhookFactory)
+	r.Register("llm_classifier", llmClassifierFactory)
 
 	return r
 }
@@ -105,6 +106,27 @@ func guardrailsAIFactory(name string, config json.RawMessage) (Guard, error) {
 		return nil, fmt.Errorf("guardrails_ai: guard_name is required")
 	}
 	return NewGuardrailsAIGuard(name, cfg), nil
+}
+
+func llmClassifierFactory(name string, config json.RawMessage) (Guard, error) {
+	var cfg LLMClassifierConfig
+	if err := json.Unmarshal(config, &cfg); err != nil {
+		return nil, fmt.Errorf("invalid llm_classifier config: %w", err)
+	}
+	if cfg.BaseURL == "" {
+		return nil, fmt.Errorf("llm_classifier: base_url is required")
+	}
+	u, err := url.Parse(cfg.BaseURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return nil, fmt.Errorf("llm_classifier: base_url must be a valid http(s) URL")
+	}
+	if cfg.Model == "" {
+		return nil, fmt.Errorf("llm_classifier: model is required")
+	}
+	if cfg.Instructions == "" {
+		return nil, fmt.Errorf("llm_classifier: instructions is required")
+	}
+	return NewLLMClassifierGuard(name, cfg), nil
 }
 
 func webhookFactory(name string, config json.RawMessage) (Guard, error) {

@@ -1200,6 +1200,13 @@ components:
           type: string
         guard_type:
           type: string
+          description: >
+            One of the built-in types: "blocklist", "regex",
+            "openai_moderation", "guardrails_ai", "webhook", or
+            "llm_classifier" (config: {"base_url", "api_key"?, "model",
+            "instructions", "timeout_seconds"?} — asks an OpenAI-compatible
+            chat model whether the text matches a plain-language policy;
+            a flagged verdict fails the guard).
         phase:
           type: string
           enum: [input, output, both]
