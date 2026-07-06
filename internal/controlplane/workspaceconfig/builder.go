@@ -101,13 +101,14 @@ func (b *Builder) Build(ctx context.Context) (*domain.WorkspaceConfig, error) {
 			return nil, fmt.Errorf("decrypting LLM key for source %s: %w", s.ID, err)
 		}
 		src := domain.SourceConfig{
-			ID:           s.ID,
-			Route:        s.Route,
-			Enabled:      s.Enabled,
-			LLMModel:     s.LlmModel,
-			LLMAPIKey:    apiKey,
-			PassCriteria: domain.PassCriteria(s.PassCriteria),
-			GuardrailIDs: guardrailsBySource[s.ID],
+			ID:                 s.ID,
+			Route:              s.Route,
+			Enabled:            s.Enabled,
+			LLMModel:           s.LlmModel,
+			LLMAPIKey:          apiKey,
+			InputPassCriteria:  domain.PassCriteria(s.InputPassCriteria),
+			OutputPassCriteria: domain.PassCriteria(s.OutputPassCriteria),
+			GuardrailIDs:       guardrailsBySource[s.ID],
 		}
 		if src.GuardrailIDs == nil {
 			src.GuardrailIDs = []uuid.UUID{}
@@ -116,9 +117,13 @@ func (b *Builder) Build(ctx context.Context) (*domain.WorkspaceConfig, error) {
 		if src.TransformerIDs == nil {
 			src.TransformerIDs = []uuid.UUID{}
 		}
-		if s.PassThreshold.Valid {
-			t := int(s.PassThreshold.Int32)
-			src.PassThreshold = &t
+		if s.InputPassThreshold.Valid {
+			t := int(s.InputPassThreshold.Int32)
+			src.InputPassThreshold = &t
+		}
+		if s.OutputPassThreshold.Valid {
+			t := int(s.OutputPassThreshold.Int32)
+			src.OutputPassThreshold = &t
 		}
 		org.Sources = append(org.Sources, src)
 	}

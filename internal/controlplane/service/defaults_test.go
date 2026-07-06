@@ -4,25 +4,29 @@ import "testing"
 
 func boolPtr(b bool) *bool { return &b }
 
-func TestSourceDefaults(t *testing.T) {
+func int32Ptr(v int32) *int32 { return &v }
+
+func TestValidateCriteria(t *testing.T) {
 	tests := []struct {
-		name         string
-		passCriteria string
-		enabled      *bool
-		wantCriteria string
-		wantEnabled  bool
+		name      string
+		criteria  string
+		threshold *int32
+		want      string
+		wantErr   bool
 	}{
-		{"all omitted", "", nil, "all", true},
-		{"explicit false enabled", "", boolPtr(false), "all", false},
-		{"explicit true enabled", "any", boolPtr(true), "any", true},
-		{"criteria preserved", "n_of_m", nil, "n_of_m", true},
+		{"omitted defaults to all", "", nil, "all", false},
+		{"any preserved", "any", nil, "any", false},
+		{"n_of_m with threshold", "n_of_m", int32Ptr(2), "n_of_m", false},
+		{"n_of_m without threshold", "n_of_m", nil, "", true},
+		{"n_of_m with zero threshold", "n_of_m", int32Ptr(0), "", true},
+		{"unknown criteria", "bogus", nil, "", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			criteria, enabled := sourceDefaults(tt.passCriteria, tt.enabled)
-			if criteria != tt.wantCriteria || enabled != tt.wantEnabled {
-				t.Errorf("sourceDefaults(%q, %v) = (%q, %v), want (%q, %v)",
-					tt.passCriteria, tt.enabled, criteria, enabled, tt.wantCriteria, tt.wantEnabled)
+			got, err := validateCriteria("input", tt.criteria, tt.threshold)
+			if (err != nil) != tt.wantErr || got != tt.want {
+				t.Errorf("validateCriteria(%q, %v) = (%q, %v), want (%q, err=%v)",
+					tt.criteria, tt.threshold, got, err, tt.want, tt.wantErr)
 			}
 		})
 	}

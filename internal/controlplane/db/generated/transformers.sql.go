@@ -237,7 +237,7 @@ func (q *Queries) ListAllSourceTransformers(ctx context.Context) ([]ListAllSourc
 }
 
 const listSourcesByTransformer = `-- name: ListSourcesByTransformer :many
-SELECT s.id, s.organization_id, s.name, s.route, s.description, s.llm_provider, s.llm_model, s.llm_api_key_enc, s.pass_criteria, s.pass_threshold, s.enabled, s.created_at, s.updated_at FROM sources s
+SELECT s.id, s.organization_id, s.name, s.route, s.description, s.llm_provider, s.llm_model, s.llm_api_key_enc, s.input_pass_criteria, s.input_pass_threshold, s.enabled, s.created_at, s.updated_at, s.output_pass_criteria, s.output_pass_threshold FROM sources s
 JOIN source_transformers st ON st.source_id = s.id
 WHERE st.transformer_id = $1
 ORDER BY s.created_at ASC
@@ -261,11 +261,13 @@ func (q *Queries) ListSourcesByTransformer(ctx context.Context, transformerID uu
 			&i.LlmProvider,
 			&i.LlmModel,
 			&i.LlmApiKeyEnc,
-			&i.PassCriteria,
-			&i.PassThreshold,
+			&i.InputPassCriteria,
+			&i.InputPassThreshold,
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OutputPassCriteria,
+			&i.OutputPassThreshold,
 		); err != nil {
 			return nil, err
 		}

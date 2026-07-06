@@ -17,16 +17,18 @@ import (
 // ResolvedSource is a source with its guards pre-built and split by phase,
 // ready for the processor with no per-request work.
 type ResolvedSource struct {
-	ID            uuid.UUID
-	OrgID         uuid.UUID
-	Route         string
-	Enabled       bool
-	LLMModel      string
-	LLMAPIKey     string
-	PassCriteria  domain.PassCriteria
-	PassThreshold *int
-	InputGuards   []guard.Guard
-	OutputGuards  []guard.Guard
+	ID                  uuid.UUID
+	OrgID               uuid.UUID
+	Route               string
+	Enabled             bool
+	LLMModel            string
+	LLMAPIKey           string
+	InputPassCriteria   domain.PassCriteria
+	InputPassThreshold  *int
+	OutputPassCriteria  domain.PassCriteria
+	OutputPassThreshold *int
+	InputGuards         []guard.Guard
+	OutputGuards        []guard.Guard
 
 	// InputTransformers run sequentially, in this order, on the request
 	// before input guards; OutputTransformers run on the LLM response
@@ -119,14 +121,16 @@ func (s *Store) Apply(cfg *domain.WorkspaceConfig, registry *guard.Registry, tra
 
 		for _, src := range org.Sources {
 			resolved := &ResolvedSource{
-				ID:            src.ID,
-				OrgID:         org.ID,
-				Route:         src.Route,
-				Enabled:       src.Enabled,
-				LLMModel:      src.LLMModel,
-				LLMAPIKey:     src.LLMAPIKey,
-				PassCriteria:  src.PassCriteria,
-				PassThreshold: src.PassThreshold,
+				ID:                  src.ID,
+				OrgID:               org.ID,
+				Route:               src.Route,
+				Enabled:             src.Enabled,
+				LLMModel:            src.LLMModel,
+				LLMAPIKey:           src.LLMAPIKey,
+				InputPassCriteria:   src.InputPassCriteria,
+				InputPassThreshold:  src.InputPassThreshold,
+				OutputPassCriteria:  src.OutputPassCriteria,
+				OutputPassThreshold: src.OutputPassThreshold,
 			}
 			for _, gid := range src.GuardrailIDs {
 				gc, ok := guardrailsByID[gid]

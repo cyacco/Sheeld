@@ -16,23 +16,26 @@ const createSource = `-- name: CreateSource :one
 INSERT INTO sources (
     organization_id, name, route, description,
     llm_provider, llm_model, llm_api_key_enc,
-    pass_criteria, pass_threshold, enabled
+    input_pass_criteria, input_pass_threshold,
+    output_pass_criteria, output_pass_threshold, enabled
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+RETURNING id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, input_pass_criteria, input_pass_threshold, enabled, created_at, updated_at, output_pass_criteria, output_pass_threshold
 `
 
 type CreateSourceParams struct {
-	OrganizationID uuid.UUID   `json:"organization_id"`
-	Name           string      `json:"name"`
-	Route          string      `json:"route"`
-	Description    pgtype.Text `json:"description"`
-	LlmProvider    string      `json:"llm_provider"`
-	LlmModel       string      `json:"llm_model"`
-	LlmApiKeyEnc   string      `json:"llm_api_key_enc"`
-	PassCriteria   string      `json:"pass_criteria"`
-	PassThreshold  pgtype.Int4 `json:"pass_threshold"`
-	Enabled        bool        `json:"enabled"`
+	OrganizationID      uuid.UUID   `json:"organization_id"`
+	Name                string      `json:"name"`
+	Route               string      `json:"route"`
+	Description         pgtype.Text `json:"description"`
+	LlmProvider         string      `json:"llm_provider"`
+	LlmModel            string      `json:"llm_model"`
+	LlmApiKeyEnc        string      `json:"llm_api_key_enc"`
+	InputPassCriteria   string      `json:"input_pass_criteria"`
+	InputPassThreshold  pgtype.Int4 `json:"input_pass_threshold"`
+	OutputPassCriteria  string      `json:"output_pass_criteria"`
+	OutputPassThreshold pgtype.Int4 `json:"output_pass_threshold"`
+	Enabled             bool        `json:"enabled"`
 }
 
 func (q *Queries) CreateSource(ctx context.Context, arg CreateSourceParams) (Source, error) {
@@ -44,8 +47,10 @@ func (q *Queries) CreateSource(ctx context.Context, arg CreateSourceParams) (Sou
 		arg.LlmProvider,
 		arg.LlmModel,
 		arg.LlmApiKeyEnc,
-		arg.PassCriteria,
-		arg.PassThreshold,
+		arg.InputPassCriteria,
+		arg.InputPassThreshold,
+		arg.OutputPassCriteria,
+		arg.OutputPassThreshold,
 		arg.Enabled,
 	)
 	var i Source
@@ -58,11 +63,13 @@ func (q *Queries) CreateSource(ctx context.Context, arg CreateSourceParams) (Sou
 		&i.LlmProvider,
 		&i.LlmModel,
 		&i.LlmApiKeyEnc,
-		&i.PassCriteria,
-		&i.PassThreshold,
+		&i.InputPassCriteria,
+		&i.InputPassThreshold,
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OutputPassCriteria,
+		&i.OutputPassThreshold,
 	)
 	return i, err
 }
@@ -83,7 +90,7 @@ func (q *Queries) DeleteSource(ctx context.Context, arg DeleteSourceParams) erro
 }
 
 const getSource = `-- name: GetSource :one
-SELECT id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at FROM sources
+SELECT id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, input_pass_criteria, input_pass_threshold, enabled, created_at, updated_at, output_pass_criteria, output_pass_threshold FROM sources
 WHERE id = $1 AND organization_id = $2
 `
 
@@ -104,17 +111,19 @@ func (q *Queries) GetSource(ctx context.Context, arg GetSourceParams) (Source, e
 		&i.LlmProvider,
 		&i.LlmModel,
 		&i.LlmApiKeyEnc,
-		&i.PassCriteria,
-		&i.PassThreshold,
+		&i.InputPassCriteria,
+		&i.InputPassThreshold,
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OutputPassCriteria,
+		&i.OutputPassThreshold,
 	)
 	return i, err
 }
 
 const getSourceByRoute = `-- name: GetSourceByRoute :one
-SELECT id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at FROM sources
+SELECT id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, input_pass_criteria, input_pass_threshold, enabled, created_at, updated_at, output_pass_criteria, output_pass_threshold FROM sources
 WHERE route = $1 AND organization_id = $2
 `
 
@@ -135,17 +144,19 @@ func (q *Queries) GetSourceByRoute(ctx context.Context, arg GetSourceByRoutePara
 		&i.LlmProvider,
 		&i.LlmModel,
 		&i.LlmApiKeyEnc,
-		&i.PassCriteria,
-		&i.PassThreshold,
+		&i.InputPassCriteria,
+		&i.InputPassThreshold,
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OutputPassCriteria,
+		&i.OutputPassThreshold,
 	)
 	return i, err
 }
 
 const listSourcesByOrganization = `-- name: ListSourcesByOrganization :many
-SELECT id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at FROM sources
+SELECT id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, input_pass_criteria, input_pass_threshold, enabled, created_at, updated_at, output_pass_criteria, output_pass_threshold FROM sources
 WHERE organization_id = $1
 ORDER BY created_at DESC
 `
@@ -168,11 +179,13 @@ func (q *Queries) ListSourcesByOrganization(ctx context.Context, organizationID 
 			&i.LlmProvider,
 			&i.LlmModel,
 			&i.LlmApiKeyEnc,
-			&i.PassCriteria,
-			&i.PassThreshold,
+			&i.InputPassCriteria,
+			&i.InputPassThreshold,
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OutputPassCriteria,
+			&i.OutputPassThreshold,
 		); err != nil {
 			return nil, err
 		}
@@ -193,26 +206,30 @@ SET
     llm_provider = $6,
     llm_model = $7,
     llm_api_key_enc = $8,
-    pass_criteria = $9,
-    pass_threshold = $10,
-    enabled = $11,
+    input_pass_criteria = $9,
+    input_pass_threshold = $10,
+    output_pass_criteria = $11,
+    output_pass_threshold = $12,
+    enabled = $13,
     updated_at = now()
 WHERE id = $1 AND organization_id = $2
-RETURNING id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled, created_at, updated_at
+RETURNING id, organization_id, name, route, description, llm_provider, llm_model, llm_api_key_enc, input_pass_criteria, input_pass_threshold, enabled, created_at, updated_at, output_pass_criteria, output_pass_threshold
 `
 
 type UpdateSourceParams struct {
-	ID             uuid.UUID   `json:"id"`
-	OrganizationID uuid.UUID   `json:"organization_id"`
-	Name           string      `json:"name"`
-	Route          string      `json:"route"`
-	Description    pgtype.Text `json:"description"`
-	LlmProvider    string      `json:"llm_provider"`
-	LlmModel       string      `json:"llm_model"`
-	LlmApiKeyEnc   string      `json:"llm_api_key_enc"`
-	PassCriteria   string      `json:"pass_criteria"`
-	PassThreshold  pgtype.Int4 `json:"pass_threshold"`
-	Enabled        bool        `json:"enabled"`
+	ID                  uuid.UUID   `json:"id"`
+	OrganizationID      uuid.UUID   `json:"organization_id"`
+	Name                string      `json:"name"`
+	Route               string      `json:"route"`
+	Description         pgtype.Text `json:"description"`
+	LlmProvider         string      `json:"llm_provider"`
+	LlmModel            string      `json:"llm_model"`
+	LlmApiKeyEnc        string      `json:"llm_api_key_enc"`
+	InputPassCriteria   string      `json:"input_pass_criteria"`
+	InputPassThreshold  pgtype.Int4 `json:"input_pass_threshold"`
+	OutputPassCriteria  string      `json:"output_pass_criteria"`
+	OutputPassThreshold pgtype.Int4 `json:"output_pass_threshold"`
+	Enabled             bool        `json:"enabled"`
 }
 
 func (q *Queries) UpdateSource(ctx context.Context, arg UpdateSourceParams) (Source, error) {
@@ -225,8 +242,10 @@ func (q *Queries) UpdateSource(ctx context.Context, arg UpdateSourceParams) (Sou
 		arg.LlmProvider,
 		arg.LlmModel,
 		arg.LlmApiKeyEnc,
-		arg.PassCriteria,
-		arg.PassThreshold,
+		arg.InputPassCriteria,
+		arg.InputPassThreshold,
+		arg.OutputPassCriteria,
+		arg.OutputPassThreshold,
 		arg.Enabled,
 	)
 	var i Source
@@ -239,11 +258,13 @@ func (q *Queries) UpdateSource(ctx context.Context, arg UpdateSourceParams) (Sou
 		&i.LlmProvider,
 		&i.LlmModel,
 		&i.LlmApiKeyEnc,
-		&i.PassCriteria,
-		&i.PassThreshold,
+		&i.InputPassCriteria,
+		&i.InputPassThreshold,
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OutputPassCriteria,
+		&i.OutputPassThreshold,
 	)
 	return i, err
 }

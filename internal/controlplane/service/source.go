@@ -14,41 +14,57 @@ import (
 // CreateSourceParams holds the input for creating a source. Enabled is a
 // pointer to distinguish an omitted field from an explicit false.
 type CreateSourceParams struct {
-	Name          string  `json:"name"`
-	Route         string  `json:"route"`
-	Description   *string `json:"description,omitempty"`
-	LLMProvider   string  `json:"llm_provider"`
-	LLMModel      string  `json:"llm_model"`
-	LLMAPIKey     string  `json:"llm_api_key"`
-	PassCriteria  string  `json:"pass_criteria"`
-	PassThreshold *int32  `json:"pass_threshold,omitempty"`
-	Enabled       *bool   `json:"enabled"`
+	Name                string  `json:"name"`
+	Route               string  `json:"route"`
+	Description         *string `json:"description,omitempty"`
+	LLMProvider         string  `json:"llm_provider"`
+	LLMModel            string  `json:"llm_model"`
+	LLMAPIKey           string  `json:"llm_api_key"`
+	InputPassCriteria   string  `json:"input_pass_criteria"`
+	InputPassThreshold  *int32  `json:"input_pass_threshold,omitempty"`
+	OutputPassCriteria  string  `json:"output_pass_criteria"`
+	OutputPassThreshold *int32  `json:"output_pass_threshold,omitempty"`
+	Enabled             *bool   `json:"enabled"`
 }
 
 // UpdateSourceParams holds the input for updating a source.
 type UpdateSourceParams struct {
-	Name          string  `json:"name"`
-	Route         string  `json:"route"`
-	Description   *string `json:"description,omitempty"`
-	LLMProvider   string  `json:"llm_provider"`
-	LLMModel      string  `json:"llm_model"`
-	LLMAPIKey     string  `json:"llm_api_key"`
-	PassCriteria  string  `json:"pass_criteria"`
-	PassThreshold *int32  `json:"pass_threshold,omitempty"`
-	Enabled       *bool   `json:"enabled"`
+	Name                string  `json:"name"`
+	Route               string  `json:"route"`
+	Description         *string `json:"description,omitempty"`
+	LLMProvider         string  `json:"llm_provider"`
+	LLMModel            string  `json:"llm_model"`
+	LLMAPIKey           string  `json:"llm_api_key"`
+	InputPassCriteria   string  `json:"input_pass_criteria"`
+	InputPassThreshold  *int32  `json:"input_pass_threshold,omitempty"`
+	OutputPassCriteria  string  `json:"output_pass_criteria"`
+	OutputPassThreshold *int32  `json:"output_pass_threshold,omitempty"`
+	Enabled             *bool   `json:"enabled"`
 }
 
-// sourceDefaults applies the documented defaults for omitted optional
-// fields: enabled=true, pass_criteria="all".
-func sourceDefaults(passCriteria string, enabled *bool) (string, bool) {
-	if passCriteria == "" {
-		passCriteria = "all"
+// validateCriteria applies the "all" default and checks one phase's
+// criteria/threshold pair: n_of_m needs a threshold >= 1.
+func validateCriteria(phase, criteria string, threshold *int32) (string, error) {
+	if criteria == "" {
+		criteria = "all"
 	}
-	e := true
-	if enabled != nil {
-		e = *enabled
+	switch criteria {
+	case "all", "any":
+	case "n_of_m":
+		if threshold == nil || *threshold < 1 {
+			return "", fmt.Errorf("%s_pass_threshold must be >= 1 when %s_pass_criteria is n_of_m", phase, phase)
+		}
+	default:
+		return "", fmt.Errorf("%s_pass_criteria must be one of all, any, n_of_m", phase)
 	}
-	return passCriteria, e
+	return criteria, nil
+}
+
+func toInt4(v *int32) pgtype.Int4 {
+	if v == nil {
+		return pgtype.Int4{}
+	}
+	return pgtype.Int4{Int32: *v, Valid: true}
 }
 
 // SourceService handles source business logic.
@@ -77,24 +93,33 @@ func (s *SourceService) Create(ctx context.Context, orgID uuid.UUID, params Crea
 		description = pgtype.Text{String: *params.Description, Valid: true}
 	}
 
-	threshold := pgtype.Int4{}
-	if params.PassThreshold != nil {
-		threshold = pgtype.Int4{Int32: *params.PassThreshold, Valid: true}
+	inputCriteria, err := validateCriteria("input", params.InputPassCriteria, params.InputPassThreshold)
+	if err != nil {
+		return generated.Source{}, err
+	}
+	outputCriteria, err := validateCriteria("output", params.OutputPassCriteria, params.OutputPassThreshold)
+	if err != nil {
+		return generated.Source{}, err
 	}
 
-	passCriteria, enabled := sourceDefaults(params.PassCriteria, params.Enabled)
+	enabled := true
+	if params.Enabled != nil {
+		enabled = *params.Enabled
+	}
 
 	return s.queries.CreateSource(ctx, generated.CreateSourceParams{
-		OrganizationID: orgID,
-		Name:           params.Name,
-		Route:          params.Route,
-		Description:    description,
-		LlmProvider:    params.LLMProvider,
-		LlmModel:       params.LLMModel,
-		LlmApiKeyEnc:   encryptedKey,
-		PassCriteria:   passCriteria,
-		PassThreshold:  threshold,
-		Enabled:        enabled,
+		OrganizationID:      orgID,
+		Name:                params.Name,
+		Route:               params.Route,
+		Description:         description,
+		LlmProvider:         params.LLMProvider,
+		LlmModel:            params.LLMModel,
+		LlmApiKeyEnc:        encryptedKey,
+		InputPassCriteria:   inputCriteria,
+		InputPassThreshold:  toInt4(params.InputPassThreshold),
+		OutputPassCriteria:  outputCriteria,
+		OutputPassThreshold: toInt4(params.OutputPassThreshold),
+		Enabled:             enabled,
 	})
 }
 
@@ -142,25 +167,34 @@ func (s *SourceService) Update(ctx context.Context, orgID, sourceID uuid.UUID, p
 		description = pgtype.Text{String: *params.Description, Valid: true}
 	}
 
-	threshold := pgtype.Int4{}
-	if params.PassThreshold != nil {
-		threshold = pgtype.Int4{Int32: *params.PassThreshold, Valid: true}
+	inputCriteria, err := validateCriteria("input", params.InputPassCriteria, params.InputPassThreshold)
+	if err != nil {
+		return generated.Source{}, err
+	}
+	outputCriteria, err := validateCriteria("output", params.OutputPassCriteria, params.OutputPassThreshold)
+	if err != nil {
+		return generated.Source{}, err
 	}
 
-	passCriteria, enabled := sourceDefaults(params.PassCriteria, params.Enabled)
+	enabled := true
+	if params.Enabled != nil {
+		enabled = *params.Enabled
+	}
 
 	return s.queries.UpdateSource(ctx, generated.UpdateSourceParams{
-		ID:             sourceID,
-		OrganizationID: orgID,
-		Name:           params.Name,
-		Route:          params.Route,
-		Description:    description,
-		LlmProvider:    params.LLMProvider,
-		LlmModel:       params.LLMModel,
-		LlmApiKeyEnc:   encryptedKey,
-		PassCriteria:   passCriteria,
-		PassThreshold:  threshold,
-		Enabled:        enabled,
+		ID:                  sourceID,
+		OrganizationID:      orgID,
+		Name:                params.Name,
+		Route:               params.Route,
+		Description:         description,
+		LlmProvider:         params.LLMProvider,
+		LlmModel:            params.LLMModel,
+		LlmApiKeyEnc:        encryptedKey,
+		InputPassCriteria:   inputCriteria,
+		InputPassThreshold:  toInt4(params.InputPassThreshold),
+		OutputPassCriteria:  outputCriteria,
+		OutputPassThreshold: toInt4(params.OutputPassThreshold),
+		Enabled:             enabled,
 	})
 }
 
@@ -174,37 +208,43 @@ func (s *SourceService) Delete(ctx context.Context, orgID, sourceID uuid.UUID) e
 
 // SourceResponse is the API-friendly representation of a source.
 type SourceResponse struct {
-	ID            uuid.UUID `json:"id"`
-	Name          string    `json:"name"`
-	Route         string    `json:"route"`
-	Description   *string   `json:"description,omitempty"`
-	LLMProvider   string    `json:"llm_provider"`
-	LLMModel      string    `json:"llm_model"`
-	PassCriteria  string    `json:"pass_criteria"`
-	PassThreshold *int32    `json:"pass_threshold,omitempty"`
-	Enabled       bool      `json:"enabled"`
-	CreatedAt     string    `json:"created_at"`
-	UpdatedAt     string    `json:"updated_at"`
+	ID                  uuid.UUID `json:"id"`
+	Name                string    `json:"name"`
+	Route               string    `json:"route"`
+	Description         *string   `json:"description,omitempty"`
+	LLMProvider         string    `json:"llm_provider"`
+	LLMModel            string    `json:"llm_model"`
+	InputPassCriteria   string    `json:"input_pass_criteria"`
+	InputPassThreshold  *int32    `json:"input_pass_threshold,omitempty"`
+	OutputPassCriteria  string    `json:"output_pass_criteria"`
+	OutputPassThreshold *int32    `json:"output_pass_threshold,omitempty"`
+	Enabled             bool      `json:"enabled"`
+	CreatedAt           string    `json:"created_at"`
+	UpdatedAt           string    `json:"updated_at"`
 }
 
 // ToResponse converts a database source to an API response (strips sensitive fields).
 func ToSourceResponse(src generated.Source) SourceResponse {
 	resp := SourceResponse{
-		ID:           src.ID,
-		Name:         src.Name,
-		Route:        src.Route,
-		LLMProvider:  src.LlmProvider,
-		LLMModel:     src.LlmModel,
-		PassCriteria: src.PassCriteria,
-		Enabled:      src.Enabled,
-		CreatedAt:    src.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:    src.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		ID:                 src.ID,
+		Name:               src.Name,
+		Route:              src.Route,
+		LLMProvider:        src.LlmProvider,
+		LLMModel:           src.LlmModel,
+		InputPassCriteria:  src.InputPassCriteria,
+		OutputPassCriteria: src.OutputPassCriteria,
+		Enabled:            src.Enabled,
+		CreatedAt:          src.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		UpdatedAt:          src.UpdatedAt.Format("2006-01-02T15:04:05Z"),
 	}
 	if src.Description.Valid {
 		resp.Description = &src.Description.String
 	}
-	if src.PassThreshold.Valid {
-		resp.PassThreshold = &src.PassThreshold.Int32
+	if src.InputPassThreshold.Valid {
+		resp.InputPassThreshold = &src.InputPassThreshold.Int32
+	}
+	if src.OutputPassThreshold.Valid {
+		resp.OutputPassThreshold = &src.OutputPassThreshold.Int32
 	}
 	return resp
 }

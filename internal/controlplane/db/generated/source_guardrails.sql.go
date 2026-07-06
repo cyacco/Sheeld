@@ -43,7 +43,7 @@ func (q *Queries) DetachGuardrailFromSource(ctx context.Context, arg DetachGuard
 }
 
 const listSourcesByGuardrail = `-- name: ListSourcesByGuardrail :many
-SELECT s.id, s.organization_id, s.name, s.route, s.description, s.llm_provider, s.llm_model, s.llm_api_key_enc, s.pass_criteria, s.pass_threshold, s.enabled, s.created_at, s.updated_at FROM sources s
+SELECT s.id, s.organization_id, s.name, s.route, s.description, s.llm_provider, s.llm_model, s.llm_api_key_enc, s.input_pass_criteria, s.input_pass_threshold, s.enabled, s.created_at, s.updated_at, s.output_pass_criteria, s.output_pass_threshold FROM sources s
 JOIN source_guardrails sg ON sg.source_id = s.id
 WHERE sg.guardrail_id = $1
 ORDER BY s.created_at ASC
@@ -67,11 +67,13 @@ func (q *Queries) ListSourcesByGuardrail(ctx context.Context, guardrailID uuid.U
 			&i.LlmProvider,
 			&i.LlmModel,
 			&i.LlmApiKeyEnc,
-			&i.PassCriteria,
-			&i.PassThreshold,
+			&i.InputPassCriteria,
+			&i.InputPassThreshold,
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OutputPassCriteria,
+			&i.OutputPassThreshold,
 		); err != nil {
 			return nil, err
 		}

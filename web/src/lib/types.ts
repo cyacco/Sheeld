@@ -31,8 +31,10 @@ export interface Source {
   description?: string;
   llm_provider: string;
   llm_model: string;
-  pass_criteria: string;
-  pass_threshold?: number;
+  input_pass_criteria: string;
+  input_pass_threshold?: number;
+  output_pass_criteria: string;
+  output_pass_threshold?: number;
   enabled: boolean;
   created_at: string;
   updated_at: string;
@@ -45,8 +47,10 @@ export interface CreateSourceParams {
   llm_provider: string;
   llm_model: string;
   llm_api_key: string;
-  pass_criteria: string;
-  pass_threshold?: number;
+  input_pass_criteria: string;
+  input_pass_threshold?: number;
+  output_pass_criteria: string;
+  output_pass_threshold?: number;
   enabled: boolean;
 }
 

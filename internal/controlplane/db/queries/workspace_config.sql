@@ -5,7 +5,7 @@ SELECT id FROM organizations ORDER BY id;
 SELECT organization_id, key_hash FROM api_keys WHERE revoked_at IS NULL ORDER BY organization_id;
 
 -- name: ListAllSources :many
-SELECT id, organization_id, route, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled
+SELECT id, organization_id, route, llm_model, llm_api_key_enc, input_pass_criteria, input_pass_threshold, output_pass_criteria, output_pass_threshold, enabled
 FROM sources ORDER BY organization_id, route;
 
 -- name: ListAllEnabledGuardrails :many

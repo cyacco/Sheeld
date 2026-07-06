@@ -35,14 +35,16 @@ type APIKeyConfig struct {
 
 // SourceConfig is a source as seen by the data plane.
 type SourceConfig struct {
-	ID            uuid.UUID    `json:"id"`
-	Route         string       `json:"route"`
-	Enabled       bool         `json:"enabled"`
-	LLMModel      string       `json:"llm_model"`
-	LLMAPIKey     string       `json:"llm_api_key"` // plaintext, decrypted by the control plane
-	PassCriteria  PassCriteria `json:"pass_criteria"`
-	PassThreshold *int         `json:"pass_threshold,omitempty"`
-	GuardrailIDs  []uuid.UUID  `json:"guardrail_ids"`
+	ID                  uuid.UUID    `json:"id"`
+	Route               string       `json:"route"`
+	Enabled             bool         `json:"enabled"`
+	LLMModel            string       `json:"llm_model"`
+	LLMAPIKey           string       `json:"llm_api_key"` // plaintext, decrypted by the control plane
+	InputPassCriteria   PassCriteria `json:"input_pass_criteria"`
+	InputPassThreshold  *int         `json:"input_pass_threshold,omitempty"`
+	OutputPassCriteria  PassCriteria `json:"output_pass_criteria"`
+	OutputPassThreshold *int         `json:"output_pass_threshold,omitempty"`
+	GuardrailIDs        []uuid.UUID  `json:"guardrail_ids"`
 
 	// TransformerIDs is ORDERED: the data plane runs transformers in this
 	// sequence (source_transformers.position order).

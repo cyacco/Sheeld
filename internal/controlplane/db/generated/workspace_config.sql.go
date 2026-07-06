@@ -139,19 +139,21 @@ func (q *Queries) ListAllSourceGuardrails(ctx context.Context) ([]ListAllSourceG
 }
 
 const listAllSources = `-- name: ListAllSources :many
-SELECT id, organization_id, route, llm_model, llm_api_key_enc, pass_criteria, pass_threshold, enabled
+SELECT id, organization_id, route, llm_model, llm_api_key_enc, input_pass_criteria, input_pass_threshold, output_pass_criteria, output_pass_threshold, enabled
 FROM sources ORDER BY organization_id, route
 `
 
 type ListAllSourcesRow struct {
-	ID             uuid.UUID   `json:"id"`
-	OrganizationID uuid.UUID   `json:"organization_id"`
-	Route          string      `json:"route"`
-	LlmModel       string      `json:"llm_model"`
-	LlmApiKeyEnc   string      `json:"llm_api_key_enc"`
-	PassCriteria   string      `json:"pass_criteria"`
-	PassThreshold  pgtype.Int4 `json:"pass_threshold"`
-	Enabled        bool        `json:"enabled"`
+	ID                  uuid.UUID   `json:"id"`
+	OrganizationID      uuid.UUID   `json:"organization_id"`
+	Route               string      `json:"route"`
+	LlmModel            string      `json:"llm_model"`
+	LlmApiKeyEnc        string      `json:"llm_api_key_enc"`
+	InputPassCriteria   string      `json:"input_pass_criteria"`
+	InputPassThreshold  pgtype.Int4 `json:"input_pass_threshold"`
+	OutputPassCriteria  string      `json:"output_pass_criteria"`
+	OutputPassThreshold pgtype.Int4 `json:"output_pass_threshold"`
+	Enabled             bool        `json:"enabled"`
 }
 
 func (q *Queries) ListAllSources(ctx context.Context) ([]ListAllSourcesRow, error) {
@@ -169,8 +171,10 @@ func (q *Queries) ListAllSources(ctx context.Context) ([]ListAllSourcesRow, erro
 			&i.Route,
 			&i.LlmModel,
 			&i.LlmApiKeyEnc,
-			&i.PassCriteria,
-			&i.PassThreshold,
+			&i.InputPassCriteria,
+			&i.InputPassThreshold,
+			&i.OutputPassCriteria,
+			&i.OutputPassThreshold,
 			&i.Enabled,
 		); err != nil {
 			return nil, err
