@@ -3,6 +3,7 @@ package transform
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"sync"
 )
 
@@ -10,16 +11,75 @@ import (
 type Factory func(name string, config json.RawMessage) (Transformer, error)
 
 // Registry maps transformer type strings to their factory functions.
-// v1 ships no built-in types; callers (and tests) register types via
-// Register.
 type Registry struct {
 	mu        sync.RWMutex
 	factories map[string]Factory
 }
 
-// NewRegistry creates an empty transformer registry.
+// NewRegistry creates a transformer registry with built-in types registered.
 func NewRegistry() *Registry {
-	return &Registry{factories: make(map[string]Factory)}
+	r := &Registry{factories: make(map[string]Factory)}
+
+	// Register built-in transformer types
+	r.Register("regex_replace", regexReplaceFactory)
+	r.Register("webhook", webhookFactory)
+	r.Register("presidio", presidioFactory)
+
+	return r
+}
+
+// --- Built-in factories ---
+
+func regexReplaceFactory(name string, config json.RawMessage) (Transformer, error) {
+	var cfg RegexReplaceConfig
+	if err := json.Unmarshal(config, &cfg); err != nil {
+		return nil, fmt.Errorf("invalid regex_replace config: %w", err)
+	}
+	if len(cfg.Rules) == 0 {
+		return nil, fmt.Errorf("regex_replace: at least one rule is required")
+	}
+	for _, rule := range cfg.Rules {
+		if rule.Pattern == "" {
+			return nil, fmt.Errorf("regex_replace: rule pattern is required")
+		}
+	}
+	return NewRegexReplaceTransformer(name, cfg)
+}
+
+func webhookFactory(name string, config json.RawMessage) (Transformer, error) {
+	var cfg WebhookConfig
+	if err := json.Unmarshal(config, &cfg); err != nil {
+		return nil, fmt.Errorf("invalid webhook config: %w", err)
+	}
+	if err := validateHTTPURL(cfg.URL, "webhook: url"); err != nil {
+		return nil, err
+	}
+	return NewWebhookTransformer(name, cfg), nil
+}
+
+func presidioFactory(name string, config json.RawMessage) (Transformer, error) {
+	var cfg PresidioConfig
+	if err := json.Unmarshal(config, &cfg); err != nil {
+		return nil, fmt.Errorf("invalid presidio config: %w", err)
+	}
+	if err := validateHTTPURL(cfg.AnalyzerURL, "presidio: analyzer_url"); err != nil {
+		return nil, err
+	}
+	if err := validateHTTPURL(cfg.AnonymizerURL, "presidio: anonymizer_url"); err != nil {
+		return nil, err
+	}
+	return NewPresidioTransformer(name, cfg), nil
+}
+
+func validateHTTPURL(raw, field string) error {
+	if raw == "" {
+		return fmt.Errorf("%s is required", field)
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return fmt.Errorf("%s must be a valid http(s) URL", field)
+	}
+	return nil
 }
 
 // Register adds a transformer type factory to the registry.

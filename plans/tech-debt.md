@@ -30,6 +30,18 @@ Items logged here should be addressed before production. Each item includes cont
 - **Fix**: Persist the last-applied workspace config to disk (encrypted or with keys stripped + refetch) and load it at startup as a fallback
 - **Risk**: LOW — resilience improvement; compose restarts both services together today
 
+### 5. Guard Config Validation at Create Time
+- **Location**: `internal/controlplane/service/guardrail.go`
+- **Issue**: Transformer create/update instantiates the config through the registry and 422s bad configs (PR #35), but guardrails still accept any config for a known `guard_type` — an invalid regex or missing URL only surfaces at data-plane resolution, where it is silently skipped
+- **Fix**: Inject `guard.Registry` into `GuardrailService` and call `registry.Create` in validation, mirroring `TransformerService.validate`
+- **Risk**: LOW — may reject previously-accepted invalid configs (that never worked anyway)
+
+### 6. Render `transforms` Audit Key in Events UI
+- **Location**: `web/src/components/audit-log-table.tsx`, `web/src/lib/types.ts`
+- **Issue**: `guard_results` JSONB carries the reserved `transforms` key (chain steps, changed flags, durations) but the Events table only renders the input/output phase results
+- **Fix**: Type the `transforms` key (`ChainResult`) in `AuditLog` and show the chain outcome in the expanded row
+- **Risk**: LOW — display-only
+
 ---
 
 ## Resolved Items

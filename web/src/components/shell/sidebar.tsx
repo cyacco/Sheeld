@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Cable, KeyRound, PlugZap, ScrollText, Shield } from "lucide-react";
+import { Cable, KeyRound, PlugZap, ScrollText, Shield, Wand2 } from "lucide-react";
 import { NavItem } from "@/components/shell/nav-item";
 import { UserFooter } from "@/components/shell/user-footer";
 import { Separator } from "@/components/ui/separator";
@@ -10,6 +10,7 @@ const navItems = [
   { href: "/dashboard", label: "Connections", icon: Cable, exact: true },
   { href: "/dashboard/sources", label: "Sources", icon: PlugZap },
   { href: "/dashboard/guardrails", label: "Guardrails", icon: Shield },
+  { href: "/dashboard/transformations", label: "Transformations", icon: Wand2 },
   { href: "/dashboard/audit-logs", label: "Audit Logs", icon: ScrollText },
   { href: "/dashboard/api-keys", label: "API Keys", icon: KeyRound },
 ];

@@ -51,3 +51,9 @@ FROM transformers WHERE enabled = true ORDER BY organization_id, id;
 -- name: ListAllSourceTransformers :many
 SELECT source_id, transformer_id FROM source_transformers
 ORDER BY source_id, position, transformer_id;
+
+-- name: ListSourcesByTransformer :many
+SELECT s.* FROM sources s
+JOIN source_transformers st ON st.source_id = s.id
+WHERE st.transformer_id = $1
+ORDER BY s.created_at ASC;

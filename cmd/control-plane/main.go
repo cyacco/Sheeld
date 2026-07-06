@@ -76,9 +76,6 @@ func run() error {
 	sourceService := service.NewSourceService(queries, cfg.EncryptionKey)
 	guardrailService := service.NewGuardrailService(queries)
 
-	// Transformer registry: v1 ships no built-in types (interface-only);
-	// the first real types land in a follow-up. Creation via API returns
-	// 422 "unknown transformer_type" until then.
 	transformRegistry := transform.NewRegistry()
 	transformerService := service.NewTransformerService(queries, pool, transformRegistry)
 
