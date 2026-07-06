@@ -25,6 +25,10 @@ type Poller struct {
 	transformRegistry *transform.Registry
 	client            *http.Client
 
+	// snap, when non-nil, persists each applied config and serves as a
+	// startup fallback while the control plane is unreachable.
+	snap *Snapshotter
+
 	lastETag string
 }
 
@@ -40,6 +44,12 @@ func NewPoller(controlPlaneURL, token string, interval time.Duration, store *Sto
 		transformRegistry: transformRegistry,
 		client:            &http.Client{Timeout: 15 * time.Second},
 	}
+}
+
+// WithSnapshotter enables disk snapshots of applied configs.
+func (p *Poller) WithSnapshotter(snap *Snapshotter) *Poller {
+	p.snap = snap
+	return p
 }
 
 // FetchOnce fetches and applies the config a single time. A 304 is a no-op
@@ -74,6 +84,12 @@ func (p *Poller) FetchOnce(ctx context.Context) error {
 		}
 		p.lastETag = resp.Header.Get("ETag")
 		slog.Info("workspace config applied", "version", cfg.Version, "organizations", len(cfg.Organizations))
+		if p.snap != nil {
+			if err := p.snap.Save(&cfg); err != nil {
+				// Snapshot failures never affect serving.
+				slog.Warn("failed to persist config snapshot", "error", err)
+			}
+		}
 		return nil
 	default:
 		io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
@@ -94,6 +110,17 @@ func (p *Poller) WaitForInitial(ctx context.Context, timeout time.Duration) erro
 			slog.Warn("initial workspace config fetch failed", "error", err)
 		}
 		if time.Now().After(deadline) {
+			if p.snap != nil {
+				if cfg, err := p.snap.Load(); err == nil {
+					if err := p.store.Apply(cfg, p.registry, p.transformRegistry); err == nil {
+						slog.Warn("control plane unreachable; serving from disk config snapshot",
+							"version", cfg.Version)
+						return nil
+					}
+				} else {
+					slog.Warn("no usable config snapshot", "error", err)
+				}
+			}
 			return fmt.Errorf("no workspace config after %s", timeout)
 		}
 		select {

@@ -27,6 +27,13 @@ type Config struct {
 	// local development.
 	AllowInsecureCP bool `envconfig:"ALLOW_INSECURE_CP" default:"false"`
 
+	// Config snapshot: when both are set, each applied workspace config is
+	// persisted to disk (AES-256-GCM encrypted, 0600) and used as a startup
+	// fallback if the control plane is unreachable. The payload contains
+	// plaintext LLM keys, so the key is mandatory — never stored plaintext.
+	ConfigSnapshotPath string `envconfig:"CONFIG_SNAPSHOT_PATH" default:""`
+	ConfigSnapshotKey  string `envconfig:"CONFIG_SNAPSHOT_KEY" default:""`
+
 	// Database (audit logs)
 	DatabaseURL string `envconfig:"DATABASE_URL" required:"true"`
 

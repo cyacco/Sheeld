@@ -81,6 +81,14 @@ func run() error {
 	transformRegistry := transform.NewRegistry()
 	store := backendconfig.NewStore()
 	poller := backendconfig.NewPoller(cfg.ControlPlaneURL, cfg.Token, cfg.PollInterval, store, guardRegistry, transformRegistry)
+	if cfg.ConfigSnapshotPath != "" {
+		if cfg.ConfigSnapshotKey == "" {
+			slog.Error("SHEELD_DP_CONFIG_SNAPSHOT_KEY is required when SHEELD_DP_CONFIG_SNAPSHOT_PATH is set (snapshots are always encrypted)")
+			os.Exit(1)
+		}
+		poller.WithSnapshotter(backendconfig.NewSnapshotter(cfg.ConfigSnapshotPath, cfg.ConfigSnapshotKey))
+		slog.Info("config disk snapshot enabled", "path", cfg.ConfigSnapshotPath)
+	}
 
 	slog.Info("fetching initial workspace config", "control_plane", cfg.ControlPlaneURL)
 	if err := poller.WaitForInitial(ctx, cfg.StartupTimeout); err != nil {

@@ -225,6 +225,8 @@ gofmt -w .
 | `SHEELD_DP_TOKEN` | Shared static token (matches `SHEELD_DATAPLANE_TOKEN`) | required |
 | `SHEELD_DP_ALLOW_INSECURE_CP` | Allow http:// control-plane URL (local dev only) | `false` |
 | `SHEELD_DP_POLL_INTERVAL` | Workspace-config poll interval | `5s` |
+| `SHEELD_DP_CONFIG_SNAPSHOT_PATH` | Path for an encrypted disk snapshot of the applied config (startup fallback) | — (disabled) |
+| `SHEELD_DP_CONFIG_SNAPSHOT_KEY` | 64-char hex AES-256 key for the snapshot (required with the path) | — |
 | `SHEELD_DP_STARTUP_TIMEOUT` | Max wait for initial config at startup | `60s` |
 | `SHEELD_DP_LLM_GATEWAY_URL` | LiteLLM gateway URL | `http://localhost:4000` |
 | `SHEELD_DP_LLM_REQUEST_TIMEOUT` | Timeout for LLM requests | `30s` |
@@ -234,7 +236,7 @@ gofmt -w .
 
 - **Secrets in the config channel**: the workspace-config payload contains plaintext LLM API keys (decrypted by the control plane, rudder-style). The channel is token-authenticated; use TLS between planes in any real deployment — plain HTTP is acceptable only inside the compose network, and the data plane refuses http:// URLs unless `SHEELD_DP_ALLOW_INSECURE_CP=true`. Never log the payload.
 - **Config propagation lag**: config changes (including API-key revocations) take up to one poll interval (~5s) to reach data planes.
-- **Control-plane outages**: data planes keep serving proxy traffic from the in-memory config; only config changes and audit-log dashboard queries are unavailable until it returns.
+- **Control-plane outages**: data planes keep serving proxy traffic from the in-memory config; only config changes and audit-log dashboard queries are unavailable until it returns. To also survive a data-plane *restart* during an outage, set `SHEELD_DP_CONFIG_SNAPSHOT_PATH` + `SHEELD_DP_CONFIG_SNAPSHOT_KEY` — the last applied config is persisted encrypted (AES-256-GCM, 0600) and loaded as a startup fallback.
 - **Migrations**: each binary runs its own goose migrations at startup — fine for single replicas; run migrations as a separate step when deploying multiple replicas.
 - **Rate limits are per data-plane replica** (in-memory), so effective limits scale with replica count.
 - **Migrating from the single-binary layout**: audit logs moved to the data-plane DB. To keep existing rows, dump them before the control plane applies migration 007: `pg_dump -t audit_logs <cp-db-url> | psql <dp-db-url>`.

@@ -1135,7 +1135,7 @@ components:
 
     SourceInput:
       type: object
-      required: [name, route, llm_provider, llm_model, llm_api_key]
+      required: [name, route, llm_provider, llm_model]
       properties:
         name:
           type: string
@@ -1150,7 +1150,11 @@ components:
           type: string
         llm_api_key:
           type: string
-          description: Encrypted at rest, never returned in responses
+          description: >
+            Encrypted at rest, never returned in responses. Required on
+            create; on update, omitting it (or sending an empty string)
+            keeps the stored key, so renaming a source never requires
+            re-entering the secret.
         pass_criteria:
           type: string
           enum: [all, any, n_of_m]
