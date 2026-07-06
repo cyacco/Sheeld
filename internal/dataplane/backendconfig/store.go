@@ -28,8 +28,11 @@ type ResolvedSource struct {
 	InputGuards   []guard.Guard
 	OutputGuards  []guard.Guard
 
-	// Transformers run sequentially, in this order, before input guards.
-	Transformers []transform.Transformer
+	// InputTransformers run sequentially, in this order, on the request
+	// before input guards; OutputTransformers run on the LLM response
+	// before output guards. Both preserve the source chain's order.
+	InputTransformers  []transform.Transformer
+	OutputTransformers []transform.Transformer
 }
 
 type sourceKey struct {
@@ -156,9 +159,6 @@ func (s *Store) Apply(cfg *domain.WorkspaceConfig, registry *guard.Registry, tra
 					// Disabled or deleted transformer still attached — skip.
 					continue
 				}
-				if tc.Phase != "input" {
-					continue // defensive; server constrains to input in v1
-				}
 				tr, err := transformRegistry.Create(tc.TransformerType, tc.Name, tc.Config)
 				if err != nil {
 					return fmt.Errorf("building transformer %q for source %q: %w", tc.Name, src.Route, err)
@@ -166,7 +166,14 @@ func (s *Store) Apply(cfg *domain.WorkspaceConfig, registry *guard.Registry, tra
 				if isFailOpen(tc.Config) {
 					tr = transform.WithFailOpen(tr)
 				}
-				resolved.Transformers = append(resolved.Transformers, tr)
+				switch tc.Phase {
+				case "input":
+					resolved.InputTransformers = append(resolved.InputTransformers, tr)
+				case "output":
+					resolved.OutputTransformers = append(resolved.OutputTransformers, tr)
+				default:
+					// Unknown phase from a newer control plane — skip.
+				}
 			}
 
 			snap.sources[sourceKey{orgID: org.ID, route: src.Route}] = resolved

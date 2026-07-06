@@ -68,6 +68,7 @@ export default function TransformationsPage() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Type</TableHead>
+              <TableHead>Phase</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -85,6 +86,7 @@ export default function TransformationsPage() {
                       t.transformer_type}
                   </Badge>
                 </TableCell>
+                <TableCell>{t.phase}</TableCell>
                 <TableCell>
                   <Badge variant={t.enabled ? "default" : "outline"}>
                     {t.enabled ? "enabled" : "disabled"}

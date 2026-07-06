@@ -17,14 +17,16 @@ import (
 )
 
 type captureAudit struct {
-	inputText  string
-	transforms *transform.ChainResult
-	overall    string
+	inputText        string
+	transforms       *transform.ChainResult
+	outputTransforms *transform.ChainResult
+	overall          string
 }
 
-func (c *captureAudit) Record(_, _ uuid.UUID, inputText string, _ map[string]*guard.EngineResult, transforms *transform.ChainResult, overallResult string, _ int64) {
+func (c *captureAudit) Record(_, _ uuid.UUID, inputText string, _ map[string]*guard.EngineResult, transforms, outputTransforms *transform.ChainResult, overallResult string, _ int64) {
 	c.inputText = inputText
 	c.transforms = transforms
+	c.outputTransforms = outputTransforms
 	c.overall = overallResult
 }
 
@@ -170,5 +172,71 @@ func TestProcessor_AllMessagesScopeCatchesHistoryInjection(t *testing.T) {
 	}
 	if result.Status != "rejected" {
 		t.Fatalf("expected all_messages scope to catch history payload, got %s", result.Status)
+	}
+}
+
+func TestProcessor_OutputTransformsRewriteResponseBeforeOutputGuards(t *testing.T) {
+	orgID := uuid.New()
+	tid, gid := uuid.New(), uuid.New()
+	cfg := &domain.WorkspaceConfig{
+		Version: "v1",
+		Organizations: []domain.OrgConfig{{
+			ID: orgID,
+			Transformers: []domain.TransformerConfig{{
+				ID: tid, Name: "redact-out", TransformerType: "test_replace", Phase: "output",
+				Config: json.RawMessage(`{"find":"secret","replace":"[REDACTED]"}`),
+			}},
+			Guardrails: []domain.GuardrailConfig{{
+				ID: gid, Name: "block-secret-out", GuardType: domain.GuardTypeBlocklist,
+				Phase:  domain.GuardPhaseOutput,
+				Config: json.RawMessage(`{"words":["secret"]}`),
+			}},
+			Sources: []domain.SourceConfig{{
+				ID: uuid.New(), Route: "r", Enabled: true, LLMModel: "m", LLMAPIKey: "k",
+				PassCriteria:   domain.PassCriteriaAll,
+				GuardrailIDs:   []uuid.UUID{gid},
+				TransformerIDs: []uuid.UUID{tid},
+			}},
+		}},
+	}
+	tr := transform.NewRegistry()
+	tr.Register("test_replace", transform.TestReplaceFactory)
+	store := backendconfig.NewStore()
+	if err := store.Apply(cfg, guard.NewRegistry(), tr); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	// LLM leaks "secret" in its response. The output transformer redacts it,
+	// so the output blocklist guard (blocking "secret") must PASS — proving
+	// output guards see the post-transform response.
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"x","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"the secret is 42"},"finish_reason":"stop"}]}`))
+	}))
+	defer gateway.Close()
+
+	audit := &captureAudit{}
+	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), audit)
+
+	result, err := proc.Execute(context.Background(), orgID, "r", &llm.ChatRequest{
+		Messages: []llm.Message{{Role: "user", Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result.Status != "pass" {
+		t.Fatalf("expected pass (output guard sees redacted response), got %s", result.Status)
+	}
+	if got := result.LLMResponse.Choices[0].Message.Content; got != "the [REDACTED] is 42" {
+		t.Errorf("client response not transformed: %q", got)
+	}
+	if result.OutputTransforms == nil || !result.OutputTransforms.Changed {
+		t.Errorf("expected output transforms recorded as changed: %+v", result.OutputTransforms)
+	}
+	if result.Transforms != nil {
+		t.Errorf("input chain should be empty, got %+v", result.Transforms)
+	}
+	if audit.outputTransforms == nil || !audit.outputTransforms.Changed {
+		t.Errorf("audit missing output transforms: %+v", audit.outputTransforms)
 	}
 }

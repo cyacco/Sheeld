@@ -735,9 +735,10 @@ paths:
     post:
       summary: Create a transformer (Transformation)
       description: >
-        Transformers rewrite the whole messages array sequentially before
-        input guards and the LLM call; they never reject requests. v1 is
-        input-phase only. Built-in types: "regex_replace" (config:
+        Transformers rewrite messages sequentially and never reject
+        requests. Input-phase transformers rewrite the request before input
+        guards and the LLM call; output-phase transformers rewrite the LLM
+        response before output guards. Built-in types: "regex_replace" (config:
         {"rules": [{"pattern", "replace"}]}, Go RE2 syntax, $1 group refs),
         "webhook" (config: {"url", "headers"?, "timeout_seconds"?}; POSTs
         {"messages", "phase", "source_route"} and expects {"messages": [...]}
@@ -1258,7 +1259,7 @@ components:
         transformer_type: { type: string }
         phase:
           type: string
-          enum: [input]
+          enum: [input, output]
           default: input
         config:
           type: object
@@ -1424,8 +1425,9 @@ components:
           type: object
           description: >
             Per-phase engine results keyed by "input"/"output", plus the
-            reserved key "transforms" holding the transformer chain outcome
-            when the source has transformers.
+            reserved keys "transforms" (input transformer chain outcome) and
+            "output_transforms" (output transformer chain outcome) when the
+            source has transformers in that phase.
           additionalProperties: true
         overall_result:
           type: string

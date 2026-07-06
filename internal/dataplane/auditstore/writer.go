@@ -59,17 +59,21 @@ func NewWriter(queries *generated.Queries) *Writer {
 //
 // inputText is the POST-transform last user message: the audit artifact is
 // "what the guards evaluated / what the LLM received", and pre-transform
-// text was never sent anywhere. The transformer chain outcome is stored in
-// the guard_results JSONB under the reserved key "transforms".
-func (w *Writer) Record(orgID, sourceID uuid.UUID, inputText string, guardResults map[string]*guard.EngineResult, transforms *transform.ChainResult, overallResult string, latencyMs int64) {
+// text was never sent anywhere. The transformer chain outcomes are stored in
+// the guard_results JSONB under the reserved keys "transforms" (input chain)
+// and "output_transforms" (output chain).
+func (w *Writer) Record(orgID, sourceID uuid.UUID, inputText string, guardResults map[string]*guard.EngineResult, transforms, outputTransforms *transform.ChainResult, overallResult string, latencyMs int64) {
 	hash := sha256.Sum256([]byte(inputText))
 
-	blob := make(map[string]interface{}, len(guardResults)+1)
+	blob := make(map[string]interface{}, len(guardResults)+2)
 	for phase, res := range guardResults {
 		blob[phase] = res
 	}
 	if transforms != nil {
 		blob["transforms"] = transforms
+	}
+	if outputTransforms != nil {
+		blob["output_transforms"] = outputTransforms
 	}
 	resultsJSON, err := json.Marshal(blob)
 	if err != nil {

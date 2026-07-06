@@ -29,6 +29,7 @@ import { TransformerWebhookConfigForm } from "@/components/transformer-config/tr
 export interface TransformerDraft {
   name: string;
   transformerType: string;
+  phase: string;
   config: Record<string, unknown>;
   enabled: boolean;
 }
@@ -39,6 +40,7 @@ export function emptyTransformerDraft(
   return {
     name: "",
     transformerType,
+    phase: "input",
     config: defaultTransformerConfig(transformerType),
     enabled: true,
   };
@@ -48,6 +50,7 @@ export function transformerDraftFrom(t: Transformer): TransformerDraft {
   return {
     name: t.name,
     transformerType: t.transformer_type,
+    phase: t.phase,
     config: t.config,
     enabled: t.enabled,
   };
@@ -59,7 +62,7 @@ export function transformerDraftToParams(
   return {
     name: d.name,
     transformer_type: d.transformerType,
-    phase: "input",
+    phase: d.phase,
     config: d.config,
     enabled: d.enabled,
   };
@@ -70,8 +73,8 @@ interface FieldGroupProps {
   onChange: (draft: TransformerDraft) => void;
 }
 
-// TransformerBasicsFields: name + enabled. Transformer type is chosen by the
-// wizard catalog (or immutable on edit); phase is always "input" in v1.
+// TransformerBasicsFields: name, phase, enabled. Transformer type is chosen
+// by the wizard catalog (or immutable on edit).
 export function TransformerBasicsFields({ draft, onChange }: FieldGroupProps) {
   const set = (patch: Partial<TransformerDraft>) =>
     onChange({ ...draft, ...patch });
@@ -85,12 +88,27 @@ export function TransformerBasicsFields({ draft, onChange }: FieldGroupProps) {
           required
         />
       </div>
-      <div className="flex items-center gap-2">
-        <Switch
-          checked={draft.enabled}
-          onCheckedChange={(v) => set({ enabled: v })}
-        />
-        <Label>Enabled</Label>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Phase</Label>
+          <Select value={draft.phase} onValueChange={(v) => set({ phase: v })}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="input">Input (rewrites the request)</SelectItem>
+              <SelectItem value="output">Output (rewrites the response)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-end gap-2 pb-2">
+          <Switch
+            checked={draft.enabled}
+            onCheckedChange={(v) => set({ enabled: v })}
+          />
+          <Label>Enabled</Label>
+        </div>
       </div>
     </div>
   );
