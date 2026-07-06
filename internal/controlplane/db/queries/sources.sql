@@ -2,9 +2,10 @@
 INSERT INTO sources (
     organization_id, name, route, description,
     llm_provider, llm_model, llm_api_key_enc,
-    pass_criteria, pass_threshold, enabled
+    input_pass_criteria, input_pass_threshold,
+    output_pass_criteria, output_pass_threshold, enabled
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: GetSource :one
@@ -29,9 +30,11 @@ SET
     llm_provider = $6,
     llm_model = $7,
     llm_api_key_enc = $8,
-    pass_criteria = $9,
-    pass_threshold = $10,
-    enabled = $11,
+    input_pass_criteria = $9,
+    input_pass_threshold = $10,
+    output_pass_criteria = $11,
+    output_pass_threshold = $12,
+    enabled = $13,
     updated_at = now()
 WHERE id = $1 AND organization_id = $2
 RETURNING *;

@@ -82,7 +82,11 @@ export default function SourcesPage() {
                 <TableCell className="font-medium">{s.name}</TableCell>
                 <TableCell className="font-mono text-xs">/{s.route}</TableCell>
                 <TableCell>{s.llm_model}</TableCell>
-                <TableCell>{s.pass_criteria}</TableCell>
+                <TableCell>
+                  {s.input_pass_criteria}
+                  {s.output_pass_criteria !== s.input_pass_criteria &&
+                    ` / ${s.output_pass_criteria}`}
+                </TableCell>
                 <TableCell>
                   <Badge variant={s.enabled ? "default" : "outline"}>
                     {s.enabled ? "enabled" : "disabled"}

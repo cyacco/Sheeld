@@ -26,8 +26,10 @@ export interface SourceDraft {
   llmProvider: string;
   llmModel: string;
   llmApiKey: string;
-  passCriteria: string;
-  passThreshold: string;
+  inputPassCriteria: string;
+  inputPassThreshold: string;
+  outputPassCriteria: string;
+  outputPassThreshold: string;
   enabled: boolean;
 }
 
@@ -39,8 +41,10 @@ export function emptySourceDraft(): SourceDraft {
     llmProvider: "openai",
     llmModel: "gpt-4o",
     llmApiKey: "",
-    passCriteria: "all",
-    passThreshold: "",
+    inputPassCriteria: "all",
+    inputPassThreshold: "",
+    outputPassCriteria: "all",
+    outputPassThreshold: "",
     enabled: true,
   };
 }
@@ -53,9 +57,12 @@ export function sourceDraftFrom(source: Source): SourceDraft {
     llmProvider: source.llm_provider,
     llmModel: source.llm_model,
     llmApiKey: "",
-    passCriteria: source.pass_criteria,
-    passThreshold:
-      source.pass_threshold != null ? String(source.pass_threshold) : "",
+    inputPassCriteria: source.input_pass_criteria,
+    inputPassThreshold:
+      source.input_pass_threshold != null ? String(source.input_pass_threshold) : "",
+    outputPassCriteria: source.output_pass_criteria,
+    outputPassThreshold:
+      source.output_pass_threshold != null ? String(source.output_pass_threshold) : "",
     enabled: source.enabled,
   };
 }
@@ -68,8 +75,14 @@ export function sourceDraftToParams(draft: SourceDraft): CreateSourceParams {
     llm_provider: draft.llmProvider,
     llm_model: draft.llmModel,
     llm_api_key: draft.llmApiKey,
-    pass_criteria: draft.passCriteria,
-    pass_threshold: draft.passThreshold ? Number(draft.passThreshold) : undefined,
+    input_pass_criteria: draft.inputPassCriteria,
+    input_pass_threshold: draft.inputPassThreshold
+      ? Number(draft.inputPassThreshold)
+      : undefined,
+    output_pass_criteria: draft.outputPassCriteria,
+    output_pass_threshold: draft.outputPassThreshold
+      ? Number(draft.outputPassThreshold)
+      : undefined,
     enabled: draft.enabled,
   };
 }
@@ -220,10 +233,10 @@ export function SourceLLMFields({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="pass_criteria">Pass Criteria</Label>
+          <Label htmlFor="input_pass_criteria">Input Pass Criteria</Label>
           <Select
-            value={draft.passCriteria}
-            onValueChange={(v) => set({ passCriteria: v })}
+            value={draft.inputPassCriteria}
+            onValueChange={(v) => set({ inputPassCriteria: v })}
           >
             <SelectTrigger>
               <SelectValue />
@@ -235,15 +248,46 @@ export function SourceLLMFields({
             </SelectContent>
           </Select>
         </div>
-        {draft.passCriteria === "n_of_m" && (
+        {draft.inputPassCriteria === "n_of_m" && (
           <div className="space-y-2">
-            <Label htmlFor="pass_threshold">Threshold (N)</Label>
+            <Label htmlFor="input_pass_threshold">Input Threshold (N)</Label>
             <Input
-              id="pass_threshold"
+              id="input_pass_threshold"
               type="number"
               min={1}
-              value={draft.passThreshold}
-              onChange={(e) => set({ passThreshold: e.target.value })}
+              value={draft.inputPassThreshold}
+              onChange={(e) => set({ inputPassThreshold: e.target.value })}
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="output_pass_criteria">Output Pass Criteria</Label>
+          <Select
+            value={draft.outputPassCriteria}
+            onValueChange={(v) => set({ outputPassCriteria: v })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All guards must pass</SelectItem>
+              <SelectItem value="any">Any guard must pass</SelectItem>
+              <SelectItem value="n_of_m">At least N guards pass</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {draft.outputPassCriteria === "n_of_m" && (
+          <div className="space-y-2">
+            <Label htmlFor="output_pass_threshold">Output Threshold (N)</Label>
+            <Input
+              id="output_pass_threshold"
+              type="number"
+              min={1}
+              value={draft.outputPassThreshold}
+              onChange={(e) => set({ outputPassThreshold: e.target.value })}
             />
           </div>
         )}

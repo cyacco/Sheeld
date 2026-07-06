@@ -88,11 +88,13 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 	// (e.g. reversible anonymization mappings). Never logged or audited.
 	ctx = transform.WithState(ctx)
 
-	evalCfg := guard.EvalConfig{
-		Criteria: guard.PassCriteria(source.PassCriteria),
+	inputEval := guard.EvalConfig{Criteria: guard.PassCriteria(source.InputPassCriteria)}
+	if source.InputPassThreshold != nil {
+		inputEval.Threshold = *source.InputPassThreshold
 	}
-	if source.PassThreshold != nil {
-		evalCfg.Threshold = *source.PassThreshold
+	outputEval := guard.EvalConfig{Criteria: guard.PassCriteria(source.OutputPassCriteria)}
+	if source.OutputPassThreshold != nil {
+		outputEval.Threshold = *source.OutputPassThreshold
 	}
 
 	// Transformers: sequential rewrites of the whole messages array. The
@@ -125,7 +127,7 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 			SourceRoute:     source.Route,
 			AllMessagesText: llm.SerializeMessages(chatReq.Messages),
 		})
-		inputResult, err := p.engine.Run(inputCtx, source.InputGuards, inputText, evalCfg)
+		inputResult, err := p.engine.Run(inputCtx, source.InputGuards, inputText, inputEval)
 		if err != nil {
 			return nil, fmt.Errorf("running input guards: %w", err)
 		}
@@ -196,7 +198,7 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 		guardStart := time.Now()
 		outputText := llm.ExtractOutputText(chatResp)
 		outputCtx := guard.WithCallMeta(ctx, guard.CallMeta{Phase: "output", SourceRoute: source.Route})
-		outputResult, err := p.engine.Run(outputCtx, source.OutputGuards, outputText, evalCfg)
+		outputResult, err := p.engine.Run(outputCtx, source.OutputGuards, outputText, outputEval)
 		if err != nil {
 			return nil, fmt.Errorf("running output guards: %w", err)
 		}

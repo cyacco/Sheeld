@@ -12,16 +12,13 @@ Items logged here should be addressed before production. Each item includes cont
 - **Fix**: Run `go mod vendor` and check in the `vendor/` directory; update CI to use `go build -mod=vendor`
 - **Risk**: LOW — performance improvement
 
-### 2. Per-Phase Pass Criteria
-- **Location**: `sources` table, `internal/dataplane/processor/`
-- **Issue**: One `pass_criteria`/`pass_threshold` pair covers both input and output guard phases, which rarely have the same guard count — an `n_of_m` threshold valid for one phase can be unsatisfiable for the other
-- **Fix**: Move criteria/threshold to per-phase settings and validate the threshold against the attached guard count
-- **Risk**: MEDIUM — schema migration + API change
-
 
 ---
 
 ## Resolved Items
+
+### Per-Phase Pass Criteria
+- **Resolved in**: per-phase-pass-criteria branch — migration 010 renames to `input_pass_criteria`/`input_pass_threshold` and adds `output_pass_criteria`/`output_pass_threshold` (existing values copied to both phases); processor evaluates each phase with its own criteria; API/UI expose both pairs; `n_of_m` validates threshold >= 1 per phase (422). Validating thresholds against live attachment counts was deliberately skipped — attachments change after source creation, and an unsatisfiable `n_of_m` fails closed, which is the safe behavior
 
 ### LLM API Key Optional on Update
 - **Resolved**: the handler/service already kept the stored key on empty update (PR #31); the ops-papercuts branch fixed the stale openapi spec (`llm_api_key` no longer in `required`, semantics documented)

@@ -59,7 +59,7 @@ func (h *SourceHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	src, err := h.sourceService.Create(r.Context(), orgID, params)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "failed to create source")
+		response.Error(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -128,7 +128,7 @@ func (h *SourceHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	src, err := h.sourceService.Update(r.Context(), orgID, sourceID, params)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "failed to update source")
+		response.Error(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 

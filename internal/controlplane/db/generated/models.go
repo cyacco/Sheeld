@@ -42,19 +42,21 @@ type Organization struct {
 }
 
 type Source struct {
-	ID             uuid.UUID   `json:"id"`
-	OrganizationID uuid.UUID   `json:"organization_id"`
-	Name           string      `json:"name"`
-	Route          string      `json:"route"`
-	Description    pgtype.Text `json:"description"`
-	LlmProvider    string      `json:"llm_provider"`
-	LlmModel       string      `json:"llm_model"`
-	LlmApiKeyEnc   string      `json:"llm_api_key_enc"`
-	PassCriteria   string      `json:"pass_criteria"`
-	PassThreshold  pgtype.Int4 `json:"pass_threshold"`
-	Enabled        bool        `json:"enabled"`
-	CreatedAt      time.Time   `json:"created_at"`
-	UpdatedAt      time.Time   `json:"updated_at"`
+	ID                  uuid.UUID   `json:"id"`
+	OrganizationID      uuid.UUID   `json:"organization_id"`
+	Name                string      `json:"name"`
+	Route               string      `json:"route"`
+	Description         pgtype.Text `json:"description"`
+	LlmProvider         string      `json:"llm_provider"`
+	LlmModel            string      `json:"llm_model"`
+	LlmApiKeyEnc        string      `json:"llm_api_key_enc"`
+	InputPassCriteria   string      `json:"input_pass_criteria"`
+	InputPassThreshold  pgtype.Int4 `json:"input_pass_threshold"`
+	Enabled             bool        `json:"enabled"`
+	CreatedAt           time.Time   `json:"created_at"`
+	UpdatedAt           time.Time   `json:"updated_at"`
+	OutputPassCriteria  string      `json:"output_pass_criteria"`
+	OutputPassThreshold pgtype.Int4 `json:"output_pass_threshold"`
 }
 
 type SourceGuardrail struct {

@@ -1155,13 +1155,24 @@ components:
             create; on update, omitting it (or sending an empty string)
             keeps the stored key, so renaming a source never requires
             re-entering the secret.
-        pass_criteria:
+        input_pass_criteria:
           type: string
           enum: [all, any, n_of_m]
           default: all
-        pass_threshold:
+          description: How input-phase guard results aggregate.
+        input_pass_threshold:
           type: integer
           nullable: true
+          description: Required (>= 1) when input_pass_criteria is n_of_m.
+        output_pass_criteria:
+          type: string
+          enum: [all, any, n_of_m]
+          default: all
+          description: How output-phase guard results aggregate.
+        output_pass_threshold:
+          type: integer
+          nullable: true
+          description: Required (>= 1) when output_pass_criteria is n_of_m.
         enabled:
           type: boolean
           default: true
@@ -1183,9 +1194,14 @@ components:
           type: string
         llm_model:
           type: string
-        pass_criteria:
+        input_pass_criteria:
           type: string
-        pass_threshold:
+        input_pass_threshold:
+          type: integer
+          nullable: true
+        output_pass_criteria:
+          type: string
+        output_pass_threshold:
           type: integer
           nullable: true
         enabled:

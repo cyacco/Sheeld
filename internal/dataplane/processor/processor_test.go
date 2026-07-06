@@ -51,7 +51,7 @@ func buildStore(t *testing.T, orgID uuid.UUID) *backendconfig.Store {
 			}},
 			Sources: []domain.SourceConfig{{
 				ID: uuid.New(), Route: "r", Enabled: true, LLMModel: "m", LLMAPIKey: "k",
-				PassCriteria:   domain.PassCriteriaAll,
+				InputPassCriteria: domain.PassCriteriaAll, OutputPassCriteria: domain.PassCriteriaAll,
 				GuardrailIDs:   []uuid.UUID{gid},
 				TransformerIDs: []uuid.UUID{tid},
 			}},
@@ -128,7 +128,7 @@ func TestProcessor_AllMessagesScopeCatchesHistoryInjection(t *testing.T) {
 				}},
 				Sources: []domain.SourceConfig{{
 					ID: uuid.New(), Route: "r", Enabled: true, LLMModel: "m", LLMAPIKey: "k",
-					PassCriteria: domain.PassCriteriaAll,
+					InputPassCriteria: domain.PassCriteriaAll, OutputPassCriteria: domain.PassCriteriaAll,
 					GuardrailIDs: []uuid.UUID{gid}, TransformerIDs: []uuid.UUID{},
 				}},
 			}},
@@ -194,7 +194,7 @@ func TestProcessor_OutputTransformsRewriteResponseBeforeOutputGuards(t *testing.
 			}},
 			Sources: []domain.SourceConfig{{
 				ID: uuid.New(), Route: "r", Enabled: true, LLMModel: "m", LLMAPIKey: "k",
-				PassCriteria:   domain.PassCriteriaAll,
+				InputPassCriteria: domain.PassCriteriaAll, OutputPassCriteria: domain.PassCriteriaAll,
 				GuardrailIDs:   []uuid.UUID{gid},
 				TransformerIDs: []uuid.UUID{tid},
 			}},
@@ -272,7 +272,7 @@ func TestProcessor_ReversibleAnonymizationRoundTrip(t *testing.T) {
 			},
 			Sources: []domain.SourceConfig{{
 				ID: uuid.New(), Route: "r", Enabled: true, LLMModel: "m", LLMAPIKey: "k",
-				PassCriteria:   domain.PassCriteriaAll,
+				InputPassCriteria: domain.PassCriteriaAll, OutputPassCriteria: domain.PassCriteriaAll,
 				GuardrailIDs:   []uuid.UUID{},
 				TransformerIDs: []uuid.UUID{tIn, tOut},
 			}},

@@ -69,7 +69,10 @@ export function AddSourceWizard({ open, onOpenChange, onCreated }: AddSourceWiza
       validate: () => {
         if (!draft.llmModel) return "Model is required";
         if (!draft.llmApiKey) return "LLM API key is required";
-        if (draft.passCriteria === "n_of_m" && !draft.passThreshold)
+        if (
+          (draft.inputPassCriteria === "n_of_m" && !draft.inputPassThreshold) ||
+          (draft.outputPassCriteria === "n_of_m" && !draft.outputPassThreshold)
+        )
           return "Threshold is required for n-of-m criteria";
         return null;
       },

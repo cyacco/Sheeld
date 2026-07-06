@@ -373,13 +373,13 @@ func createAPIKey(t *testing.T, token, name string) string {
 func createSource(t *testing.T, token string, name, route string) string {
 	t.Helper()
 	resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
-		"name":          name,
-		"route":         route,
-		"llm_provider":  "openai",
-		"llm_model":     "gpt-4o",
-		"llm_api_key":   "sk-test-key-12345",
-		"pass_criteria": "all",
-		"enabled":       true,
+		"name":                name,
+		"route":               route,
+		"llm_provider":        "openai",
+		"llm_model":           "gpt-4o",
+		"llm_api_key":         "sk-test-key-12345",
+		"input_pass_criteria": "all",
+		"enabled":             true,
 	}, token)
 	expectStatus(t, resp, http.StatusCreated)
 	var result map[string]interface{}
@@ -546,14 +546,14 @@ func TestSources(t *testing.T) {
 
 	t.Run("create source", func(t *testing.T) {
 		resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
-			"name":          "Test Source",
-			"route":         "test-source",
-			"description":   "A test source",
-			"llm_provider":  "openai",
-			"llm_model":     "gpt-4o",
-			"llm_api_key":   "sk-test-key-12345",
-			"pass_criteria": "all",
-			"enabled":       true,
+			"name":                "Test Source",
+			"route":               "test-source",
+			"description":         "A test source",
+			"llm_provider":        "openai",
+			"llm_model":           "gpt-4o",
+			"llm_api_key":         "sk-test-key-12345",
+			"input_pass_criteria": "all",
+			"enabled":             true,
 		}, token)
 		expectStatus(t, resp, http.StatusCreated)
 		var result map[string]interface{}
@@ -597,13 +597,13 @@ func TestSources(t *testing.T) {
 
 	t.Run("update source", func(t *testing.T) {
 		resp := doRequest(t, "PUT", "/v1/sources/"+sourceID, map[string]interface{}{
-			"name":          "Updated Source",
-			"route":         "test-source",
-			"llm_provider":  "openai",
-			"llm_model":     "gpt-4o",
-			"llm_api_key":   "sk-test-key-12345",
-			"pass_criteria": "all",
-			"enabled":       true,
+			"name":                "Updated Source",
+			"route":               "test-source",
+			"llm_provider":        "openai",
+			"llm_model":           "gpt-4o",
+			"llm_api_key":         "sk-test-key-12345",
+			"input_pass_criteria": "all",
+			"enabled":             true,
 		}, token)
 		expectStatus(t, resp, http.StatusOK)
 		var result map[string]interface{}
@@ -616,13 +616,13 @@ func TestSources(t *testing.T) {
 	t.Run("delete source", func(t *testing.T) {
 		// Create a separate source to delete
 		resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
-			"name":          "To Delete",
-			"route":         "to-delete",
-			"llm_provider":  "openai",
-			"llm_model":     "gpt-4o",
-			"llm_api_key":   "sk-test-key-12345",
-			"pass_criteria": "all",
-			"enabled":       true,
+			"name":                "To Delete",
+			"route":               "to-delete",
+			"llm_provider":        "openai",
+			"llm_model":           "gpt-4o",
+			"llm_api_key":         "sk-test-key-12345",
+			"input_pass_criteria": "all",
+			"enabled":             true,
 		}, token)
 		expectStatus(t, resp, http.StatusCreated)
 		var created map[string]interface{}
@@ -1019,13 +1019,13 @@ func TestAuditLogs(t *testing.T) {
 	setMockLLMResponse("Clean response for audit test.")
 
 	resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
-		"name":          "Audit Source",
-		"route":         "audit-source",
-		"llm_provider":  "openai",
-		"llm_model":     "gpt-4o",
-		"llm_api_key":   "sk-test-key-12345",
-		"pass_criteria": "all",
-		"enabled":       true,
+		"name":                "Audit Source",
+		"route":               "audit-source",
+		"llm_provider":        "openai",
+		"llm_model":           "gpt-4o",
+		"llm_api_key":         "sk-test-key-12345",
+		"input_pass_criteria": "all",
+		"enabled":             true,
 	}, token)
 	expectStatus(t, resp, http.StatusCreated)
 	var source map[string]interface{}
@@ -1714,5 +1714,71 @@ func TestBufferedStreaming(t *testing.T) {
 		if result["error"]["code"] != "input_rejected" {
 			t.Errorf("expected input_rejected, got %v", result["error"])
 		}
+	})
+}
+
+// TestPerPhasePassCriteria proves input and output guards evaluate under
+// independent criteria: the same one-passing-one-failing guard shape passes
+// the input phase (criteria "any") and rejects at the output phase
+// (criteria "all") in a single request.
+func TestPerPhasePassCriteria(t *testing.T) {
+	token := registerUser(t, "PerPhase Org", "perphase@example.com", "strongpassword123")
+	setMockLLMResponse("response mentions beta here")
+
+	resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
+		"name":                 "PerPhase Source",
+		"route":                "perphase-source",
+		"llm_provider":         "openai",
+		"llm_model":            "gpt-4o",
+		"llm_api_key":          "sk-test-key-12345",
+		"input_pass_criteria":  "any",
+		"output_pass_criteria": "all",
+		"enabled":              true,
+	}, token)
+	expectStatus(t, resp, http.StatusCreated)
+	var src map[string]interface{}
+	decodeBody(t, resp, &src)
+	sourceID := src["id"].(string)
+	if src["input_pass_criteria"] != "any" || src["output_pass_criteria"] != "all" {
+		t.Fatalf("per-phase criteria not persisted: %v", src)
+	}
+
+	// Input: blocks "alpha" (fails) + blocks "zzz" (passes) → "any" passes.
+	// Output: blocks "beta" (fails) + blocks "qqq" (passes) → "all" rejects.
+	mk := func(name, phase, word string) {
+		gID := createGuardrail(t, token, map[string]interface{}{
+			"name": name, "guard_type": "blocklist", "phase": phase,
+			"config":  map[string]interface{}{"words": []string{word}},
+			"enabled": true,
+		})
+		attachGuardrail(t, token, gID, sourceID)
+	}
+	mk("in-fail", "input", "alpha")
+	mk("in-pass", "input", "zzz")
+	mk("out-fail", "output", "beta")
+	mk("out-pass", "output", "qqq")
+
+	apiKey := createAPIKey(t, token, "perphase-key")
+	resp = doRequest(t, "POST", "/v1/proxy/perphase-source", map[string]interface{}{
+		"messages": []map[string]string{{"role": "user", "content": "tell me about alpha"}},
+	}, apiKey)
+	expectStatus(t, resp, http.StatusUnprocessableEntity)
+	var result map[string]map[string]interface{}
+	decodeBody(t, resp, &result)
+	if result["error"]["code"] != "output_rejected" {
+		t.Fatalf("expected output_rejected (input 'any' passed, output 'all' failed), got %v", result["error"])
+	}
+
+	t.Run("n_of_m requires threshold per phase", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
+			"name":                 "Bad Threshold",
+			"route":                "bad-threshold",
+			"llm_provider":         "openai",
+			"llm_model":            "gpt-4o",
+			"llm_api_key":          "sk-test-key-12345",
+			"output_pass_criteria": "n_of_m",
+		}, token)
+		expectStatus(t, resp, http.StatusUnprocessableEntity)
+		resp.Body.Close()
 	})
 }
