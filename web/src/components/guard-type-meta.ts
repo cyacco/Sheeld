@@ -1,4 +1,4 @@
-import { Ban, BrainCircuit, Regex, ShieldCheck, Server, Webhook, type LucideIcon } from "lucide-react";
+import { Ban, BrainCircuit, Regex, ShieldCheck, Server, UserX, Webhook, type LucideIcon } from "lucide-react";
 import type {
   BlocklistConfig,
   RegexConfig,
@@ -6,6 +6,7 @@ import type {
   GuardrailsAIConfig,
   WebhookConfig,
   LLMClassifierConfig,
+  PresidioGuardConfig,
 } from "@/lib/types";
 
 export interface GuardTypeMeta {
@@ -53,6 +54,12 @@ export const GUARD_TYPES: GuardTypeMeta[] = [
     description: "Ask a small LLM whether text violates a plain-language policy.",
     icon: BrainCircuit,
   },
+  {
+    value: "presidio",
+    label: "Presidio PII Detection",
+    description: "Reject text containing PII detected by self-hosted Presidio.",
+    icon: UserX,
+  },
 ];
 
 export function guardTypeMeta(value: string): GuardTypeMeta | undefined {
@@ -92,6 +99,14 @@ export function defaultConfig(guardType: string): Record<string, unknown> {
         instructions: "",
         timeout_seconds: 15,
       } satisfies LLMClassifierConfig;
+    case "presidio":
+      return {
+        analyzer_url: "",
+        language: "en",
+        entities: [],
+        score_threshold: 0.5,
+        timeout_seconds: 10,
+      } satisfies PresidioGuardConfig;
     default:
       return {};
   }

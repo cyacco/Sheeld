@@ -1208,11 +1208,15 @@ components:
           type: string
           description: >
             One of the built-in types: "blocklist", "regex",
-            "openai_moderation", "guardrails_ai", "webhook", or
+            "openai_moderation", "guardrails_ai", "webhook",
             "llm_classifier" (config: {"base_url", "api_key"?, "model",
             "instructions", "timeout_seconds"?} — asks an OpenAI-compatible
             chat model whether the text matches a plain-language policy;
-            a flagged verdict fails the guard).
+            a flagged verdict fails the guard), or "presidio" (config:
+            {"analyzer_url", "language"? = "en", "entities"?,
+            "score_threshold"? = 0.5, "timeout_seconds"?} — rejects text
+            containing PII detected by a self-hosted Microsoft Presidio
+            analyzer; the presidio transformer redacts instead).
         phase:
           type: string
           enum: [input, output, both]

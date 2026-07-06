@@ -29,6 +29,7 @@ func NewRegistry() *Registry {
 	r.Register("guardrails_ai", guardrailsAIFactory)
 	r.Register("webhook", webhookFactory)
 	r.Register("llm_classifier", llmClassifierFactory)
+	r.Register("presidio", presidioFactory)
 
 	return r
 }
@@ -106,6 +107,21 @@ func guardrailsAIFactory(name string, config json.RawMessage) (Guard, error) {
 		return nil, fmt.Errorf("guardrails_ai: guard_name is required")
 	}
 	return NewGuardrailsAIGuard(name, cfg), nil
+}
+
+func presidioFactory(name string, config json.RawMessage) (Guard, error) {
+	var cfg PresidioConfig
+	if err := json.Unmarshal(config, &cfg); err != nil {
+		return nil, fmt.Errorf("invalid presidio config: %w", err)
+	}
+	if cfg.AnalyzerURL == "" {
+		return nil, fmt.Errorf("presidio: analyzer_url is required")
+	}
+	u, err := url.Parse(cfg.AnalyzerURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return nil, fmt.Errorf("presidio: analyzer_url must be a valid http(s) URL")
+	}
+	return NewPresidioGuard(name, cfg), nil
 }
 
 func llmClassifierFactory(name string, config json.RawMessage) (Guard, error) {
