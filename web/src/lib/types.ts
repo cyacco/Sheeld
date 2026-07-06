@@ -74,6 +74,29 @@ export interface CreateGuardrailParams {
 
 export type UpdateGuardrailParams = CreateGuardrailParams;
 
+export interface Transformer {
+  id: string;
+  organization_id: string;
+  name: string;
+  transformer_type: string;
+  phase: string;
+  config: Record<string, unknown>;
+  enabled: boolean;
+  position?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateTransformerParams {
+  name: string;
+  transformer_type: string;
+  phase: string;
+  config: Record<string, unknown>;
+  enabled: boolean;
+}
+
+export type UpdateTransformerParams = CreateTransformerParams;
+
 export interface APIKey {
   id: string;
   organization_id: string;
@@ -163,5 +186,24 @@ export interface GuardrailsAIConfig {
 export interface WebhookConfig {
   url: string;
   headers: Record<string, string>;
+  timeout_seconds: number;
+}
+
+// Transformer config types
+export interface RegexReplaceRule {
+  pattern: string;
+  replace: string;
+}
+
+export interface RegexReplaceConfig {
+  rules: RegexReplaceRule[];
+}
+
+export interface PresidioConfig {
+  analyzer_url: string;
+  anonymizer_url: string;
+  language?: string;
+  entities?: string[];
+  score_threshold?: number;
   timeout_seconds: number;
 }

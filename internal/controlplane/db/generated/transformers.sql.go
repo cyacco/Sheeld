@@ -236,6 +236,47 @@ func (q *Queries) ListAllSourceTransformers(ctx context.Context) ([]ListAllSourc
 	return items, nil
 }
 
+const listSourcesByTransformer = `-- name: ListSourcesByTransformer :many
+SELECT s.id, s.organization_id, s.name, s.route, s.description, s.llm_provider, s.llm_model, s.llm_api_key_enc, s.pass_criteria, s.pass_threshold, s.enabled, s.created_at, s.updated_at FROM sources s
+JOIN source_transformers st ON st.source_id = s.id
+WHERE st.transformer_id = $1
+ORDER BY s.created_at ASC
+`
+
+func (q *Queries) ListSourcesByTransformer(ctx context.Context, transformerID uuid.UUID) ([]Source, error) {
+	rows, err := q.db.Query(ctx, listSourcesByTransformer, transformerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Source{}
+	for rows.Next() {
+		var i Source
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.Name,
+			&i.Route,
+			&i.Description,
+			&i.LlmProvider,
+			&i.LlmModel,
+			&i.LlmApiKeyEnc,
+			&i.PassCriteria,
+			&i.PassThreshold,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTransformersByOrg = `-- name: ListTransformersByOrg :many
 SELECT id, organization_id, name, transformer_type, phase, config, enabled, created_at, updated_at FROM transformers WHERE organization_id = $1 ORDER BY created_at ASC
 `

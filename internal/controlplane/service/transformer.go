@@ -134,6 +134,11 @@ func (s *TransformerService) DetachFromSource(ctx context.Context, transformerID
 	})
 }
 
+// ListSources returns all sources attached to a transformer.
+func (s *TransformerService) ListSources(ctx context.Context, transformerID uuid.UUID) ([]generated.Source, error) {
+	return s.queries.ListSourcesByTransformer(ctx, transformerID)
+}
+
 // ListBySource returns a source's transformers in chain order.
 func (s *TransformerService) ListBySource(ctx context.Context, sourceID uuid.UUID) ([]generated.ListTransformersBySourceRow, error) {
 	return s.queries.ListTransformersBySource(ctx, sourceID)

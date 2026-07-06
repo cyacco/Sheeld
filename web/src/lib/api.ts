@@ -9,6 +9,9 @@ import type {
   UpdateGuardrailParams,
   APIKey,
   CreateAPIKeyResult,
+  Transformer,
+  CreateTransformerParams,
+  UpdateTransformerParams,
   AuditLog,
   ModelInfo,
   SourceSummary,
@@ -179,6 +182,80 @@ export async function detachGuardrail(
 ): Promise<void> {
   return request<void>(`/v1/guardrails/${guardrailId}/sources/${sourceId}`, {
     method: "DELETE",
+  });
+}
+
+// Transformers ("Transformations" in the UI)
+export async function listTransformers(): Promise<Transformer[]> {
+  return request<Transformer[]>("/v1/transformers");
+}
+
+export async function listTransformersBySource(
+  sourceId: string,
+): Promise<Transformer[]> {
+  return request<Transformer[]>(`/v1/sources/${sourceId}/transformers`);
+}
+
+export async function getTransformer(id: string): Promise<Transformer> {
+  return request<Transformer>(`/v1/transformers/${id}`);
+}
+
+export async function createTransformer(
+  params: CreateTransformerParams,
+): Promise<Transformer> {
+  return request<Transformer>("/v1/transformers", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function updateTransformer(
+  id: string,
+  params: UpdateTransformerParams,
+): Promise<Transformer> {
+  return request<Transformer>(`/v1/transformers/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function deleteTransformer(id: string): Promise<void> {
+  return request<void>(`/v1/transformers/${id}`, { method: "DELETE" });
+}
+
+export async function attachTransformer(
+  transformerId: string,
+  sourceId: string,
+): Promise<void> {
+  return request<void>(`/v1/transformers/${transformerId}/sources`, {
+    method: "POST",
+    body: JSON.stringify({ source_id: sourceId }),
+  });
+}
+
+export async function detachTransformer(
+  transformerId: string,
+  sourceId: string,
+): Promise<void> {
+  return request<void>(
+    `/v1/transformers/${transformerId}/sources/${sourceId}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function listTransformerSources(
+  transformerId: string,
+): Promise<SourceSummary[]> {
+  return request<SourceSummary[]>(`/v1/transformers/${transformerId}/sources`);
+}
+
+export async function setSourceTransformers(
+  sourceId: string,
+  transformerIds: string[],
+): Promise<void> {
+  return request<void>(`/v1/sources/${sourceId}/transformers`, {
+    method: "PUT",
+    body: JSON.stringify({ transformer_ids: transformerIds }),
   });
 }
 

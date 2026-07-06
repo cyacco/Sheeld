@@ -193,6 +193,24 @@ func (h *TransformerHandler) AttachToSource(w http.ResponseWriter, r *http.Reque
 	response.JSON(w, http.StatusCreated, map[string]string{"status": "attached"})
 }
 
+// ListSources handles GET /v1/transformers/{id}/sources.
+func (h *TransformerHandler) ListSources(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.orgID(w, r); !ok {
+		return
+	}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid transformer ID")
+		return
+	}
+	sources, err := h.transformerService.ListSources(r.Context(), id)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "failed to list sources")
+		return
+	}
+	response.JSON(w, http.StatusOK, toSourceSummaries(sources))
+}
+
 // DetachFromSource handles DELETE /v1/transformers/{id}/sources/{sourceID}.
 func (h *TransformerHandler) DetachFromSource(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.orgID(w, r); !ok {

@@ -152,6 +152,7 @@ func NewRouter(
 			r.Put("/{id}", transformerHandler.Update)
 			r.Delete("/{id}", transformerHandler.Delete)
 
+			r.Get("/{id}/sources", transformerHandler.ListSources)
 			r.Post("/{id}/sources", transformerHandler.AttachToSource)
 			r.Delete("/{id}/sources/{sourceID}", transformerHandler.DetachFromSource)
 		})

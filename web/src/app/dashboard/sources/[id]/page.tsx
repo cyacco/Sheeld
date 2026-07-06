@@ -12,6 +12,7 @@ import { AuditLogTable } from "@/components/audit-log-table";
 import { ResourceHeader } from "@/components/resource-header";
 import { SourceForm, sourceDraftFrom, sourceDraftToParams } from "@/components/source-form";
 import { AddGuardrailWizard } from "@/components/wizards/add-guardrail-wizard";
+import { SourceTransformationsTab } from "@/components/source-transformations-tab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,6 +31,7 @@ export default function SourceDetailPage() {
   const [attached, setAttached] = useState<Guardrail[]>([]);
   const [allGuardrails, setAllGuardrails] = useState<Guardrail[]>([]);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [transformerCount, setTransformerCount] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -133,6 +135,9 @@ export default function SourceDetailPage() {
         <TabsList>
           <TabsTrigger value="configuration">Configuration</TabsTrigger>
           <TabsTrigger value="guardrails">Guardrails ({attached.length})</TabsTrigger>
+          <TabsTrigger value="transformations">
+            Transformations{transformerCount !== null ? ` (${transformerCount})` : ""}
+          </TabsTrigger>
           <TabsTrigger value="events">Events</TabsTrigger>
         </TabsList>
 
@@ -195,6 +200,13 @@ export default function SourceDetailPage() {
               })}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="transformations" className="pt-4">
+          <SourceTransformationsTab
+            sourceId={source.id}
+            onCountChange={setTransformerCount}
+          />
         </TabsContent>
 
         <TabsContent value="events" className="pt-4">
