@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/sheeld/sheeld/internal/controlplane/crypto"
 	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
+	"github.com/sheeld/sheeld/internal/shared/crypto"
 	"github.com/sheeld/sheeld/internal/shared/domain"
 )
 
