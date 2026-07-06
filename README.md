@@ -12,12 +12,17 @@ Segment for LLM guardrails — a full LLM proxy that validates input, proxies LL
                                     │ polls workspace config (~5s)
                        ┌────────────┴─────────────┐
   User's App ─────────▶│ Data Plane (:8081)       │──▶ dp-db (audit logs)
-   (API key)           │ input guards → LLM →      │──▶ LiteLLM → LLM provider
-                       │ output guards             │
+   (API key)           │ transforms → input guards │──▶ LiteLLM → LLM provider
+                       │ → LLM → output transforms │
+                       │ → output guards           │
                        └──────────────────────────┘
 ```
 
-The proxy pipeline is: request → input transformers (sequential rewrites, e.g. redaction — "Transformations" in the UI) → input guards (concurrent) → LLM → output transformers (rewrite the response) → output guards (concurrent) → response. Built-in transformer types: `regex_replace` (pattern rules), `webhook` (your own rewrite endpoint), and `presidio` (self-hosted Microsoft Presidio PII redaction).
+The proxy pipeline is: request → input transformers (sequential rewrites — "Transformations" in the UI) → input guards (concurrent) → LLM → output transformers (rewrite the response) → output guards (concurrent) → response.
+
+**Built-in guard types**: `blocklist`, `regex`, `openai_moderation`, `guardrails_ai`, `webhook` (your own validation endpoint), `llm_classifier` (a small LLM enforces a plain-language policy), and `presidio` (reject on PII detected by self-hosted Microsoft Presidio). Every guard accepts `on_error: fail_closed (default) | fail_open` and `scope: last_message (default) | all_messages`.
+
+**Built-in transformer types**: `regex_replace` (pattern rules), `webhook` (your own rewrite endpoint), `presidio` (PII anonymization — `mode: redact` replaces entities irreversibly; `mode: reversible` substitutes placeholders the LLM sees), and `deanonymize` (output phase; restores the original values in the response so PII round-trips without ever reaching the LLM provider).
 
 The data plane holds its full config in memory and keeps serving proxy traffic even if the control plane goes down. No control-plane DB access happens on the request path.
 
@@ -125,7 +130,7 @@ sheeld/
 │   │   └── workspaceconfig/ # Builds + serves the config payload
 │   ├── dataplane/
 │   │   ├── gateway/         # HTTP layer: in-memory API-key auth, proxy route
-│   │   ├── processor/       # Input guards → LLM → output guards
+│   │   ├── processor/       # Transforms → input guards → LLM → output transforms → guards
 │   │   ├── backendconfig/   # Config poller + atomic in-memory store
 │   │   ├── auditstore/      # Async batched audit writer + query API
 │   │   └── db/              # goose migrations + sqlc (audit logs)
@@ -148,6 +153,7 @@ sheeld/
 | `POST` | `/v1/auth/login` | None | Login |
 | `CRUD` | `/v1/sources` | JWT | Source management |
 | `CRUD` | `/v1/guardrails` | JWT | Guardrail management + source attachment |
+| `CRUD` | `/v1/transformers` | JWT | Transformer management; `PUT /v1/sources/:id/transformers` reorders a source's chain |
 | `GET` | `/v1/audit-logs` | JWT | Audit logs (proxied from the data plane) |
 | `GET` | `/v1/internal/workspace-config` | DP token | Config payload for data planes |
 
