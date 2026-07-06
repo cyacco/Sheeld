@@ -48,8 +48,8 @@ func (s *TransformerService) validate(params CreateTransformerParams) (string, b
 	if phase == "" {
 		phase = "input"
 	}
-	if phase != "input" {
-		return "", false, nil, fmt.Errorf("phase must be \"input\" (only input transformers are supported)")
+	if phase != "input" && phase != "output" {
+		return "", false, nil, fmt.Errorf("phase must be \"input\" or \"output\"")
 	}
 	enabled := true
 	if params.Enabled != nil {

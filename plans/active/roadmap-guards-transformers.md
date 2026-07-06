@@ -4,7 +4,17 @@ Gap analysis after PR #35 (built-in transformer types + Transformations UI).
 Priority order reflects user value vs. build cost. Each item should get its
 own plan before implementation.
 
-## 1. Output-phase transformers
+## 1. Output-phase transformers — SHIPPED
+
+Implemented in the `output-transformers` branch/PR: migration 009 relaxes
+the phase CHECK to `('input','output')`; the data plane splits each
+source's chain into Input/OutputTransformers preserving order; the
+processor runs the output chain on the LLM response (all choices) before
+output guards; audit reserves `output_transforms`; UI gains a phase
+selector and badges. Ordering decision: transform-then-validate, so output
+guards see the text the client actually receives.
+
+Original notes:
 
 The strongest redaction case is often the *response*: the LLM echoing PII
 from context, leaking system-prompt contents, or emitting markup/links to

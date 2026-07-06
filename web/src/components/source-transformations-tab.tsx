@@ -116,7 +116,9 @@ export function SourceTransformationsTab({
       ) : (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">
-            Runs top to bottom before input guardrails and the LLM.
+            Runs top to bottom; input-phase steps rewrite the request before
+            input guardrails, output-phase steps rewrite the response before
+            output guardrails.
           </p>
           {chain.map((t, i) => {
             const meta = transformerTypeMeta(t.transformer_type);
@@ -127,6 +129,7 @@ export function SourceTransformationsTab({
                 </span>
                 <span className="text-sm font-medium">{t.name}</span>
                 <Badge variant="secondary">{meta?.label ?? t.transformer_type}</Badge>
+                <Badge variant="outline">{t.phase}</Badge>
                 {!t.enabled && <Badge variant="outline">disabled</Badge>}
                 <div className="ml-auto flex items-center gap-1">
                   <Button

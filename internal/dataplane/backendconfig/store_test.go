@@ -100,11 +100,52 @@ func TestApplyTransformerOrdering(t *testing.T) {
 	if !ok {
 		t.Fatal("source not found")
 	}
-	if len(src.Transformers) != 2 {
-		t.Fatalf("expected 2 transformers, got %d", len(src.Transformers))
+	if len(src.InputTransformers) != 2 {
+		t.Fatalf("expected 2 input transformers, got %d", len(src.InputTransformers))
 	}
-	if src.Transformers[0].Name() != "first" || src.Transformers[1].Name() != "second" {
-		t.Errorf("chain order not preserved: %s, %s", src.Transformers[0].Name(), src.Transformers[1].Name())
+	if src.InputTransformers[0].Name() != "first" || src.InputTransformers[1].Name() != "second" {
+		t.Errorf("chain order not preserved: %s, %s", src.InputTransformers[0].Name(), src.InputTransformers[1].Name())
+	}
+}
+
+func TestApplyTransformerPhaseSplit(t *testing.T) {
+	orgID := uuid.New()
+	tIn, tOut := uuid.New(), uuid.New()
+
+	cfg := &domain.WorkspaceConfig{
+		Version: "v1",
+		Organizations: []domain.OrgConfig{{
+			ID: orgID,
+			Transformers: []domain.TransformerConfig{
+				{ID: tIn, Name: "in", TransformerType: "test_replace", Phase: "input", Config: json.RawMessage(`{"find":"a","replace":"b"}`)},
+				{ID: tOut, Name: "out", TransformerType: "test_replace", Phase: "output", Config: json.RawMessage(`{"find":"b","replace":"c"}`)},
+			},
+			Sources: []domain.SourceConfig{{
+				ID:             uuid.New(),
+				Route:          "r",
+				Enabled:        true,
+				GuardrailIDs:   []uuid.UUID{},
+				TransformerIDs: []uuid.UUID{tIn, tOut},
+			}},
+		}},
+	}
+
+	tr := transform.NewRegistry()
+	tr.Register("test_replace", transform.TestReplaceFactory)
+
+	store := NewStore()
+	if err := store.Apply(cfg, guard.NewRegistry(), tr); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+	src, ok := store.LookupSource(orgID, "r")
+	if !ok {
+		t.Fatal("source not found")
+	}
+	if len(src.InputTransformers) != 1 || src.InputTransformers[0].Name() != "in" {
+		t.Errorf("input chain wrong: %+v", src.InputTransformers)
+	}
+	if len(src.OutputTransformers) != 1 || src.OutputTransformers[0].Name() != "out" {
+		t.Errorf("output chain wrong: %+v", src.OutputTransformers)
 	}
 }
 

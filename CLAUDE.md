@@ -139,7 +139,7 @@ Two PostgreSQL databases, each with its own goose migrations:
 - `GET /v1/internal/workspace-config` — Config payload for data planes (DP token)
 - `GET /healthz` — Health check
 
-Proxy pipeline: transformers (sequential, whole messages array, never reject; on_error fail_closed aborts) → input guards → LLM → output guards. Built-in transformer types: `regex_replace`, `webhook`, `presidio` (self-hosted PII redaction). Guards accept `scope: all_messages` to validate full history. Audit `guard_results` JSONB reserves the key `transforms` for the chain outcome; `input_hash` is post-transform.
+Proxy pipeline: input transformers (sequential, whole messages array, never reject; on_error fail_closed aborts) → input guards → LLM → output transformers (rewrite the response) → output guards. Built-in transformer types: `regex_replace`, `webhook`, `presidio` (self-hosted PII redaction). Guards accept `scope: all_messages` to validate full history. Audit `guard_results` JSONB reserves the keys `transforms` (input chain) and `output_transforms` (output chain); `input_hash` is post-transform.
 
 **Data plane (:8081)**
 - `POST /v1/proxy/:source_route` — Main proxy endpoint (API key auth)

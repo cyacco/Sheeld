@@ -1212,11 +1212,11 @@ func TestTransformers(t *testing.T) {
 		resp.Body.Close()
 	})
 
-	t.Run("create rejects non-input phase", func(t *testing.T) {
+	t.Run("create rejects unknown phase", func(t *testing.T) {
 		resp := doRequest(t, "POST", "/v1/transformers", map[string]interface{}{
-			"name":             "OutPhase",
+			"name":             "BothPhase",
 			"transformer_type": "test_replace",
-			"phase":            "output",
+			"phase":            "both",
 			"config":           map[string]interface{}{"find": "x"},
 		}, token)
 		expectStatus(t, resp, http.StatusUnprocessableEntity)
@@ -1373,4 +1373,48 @@ func TestBuiltinTransformers(t *testing.T) {
 			t.Errorf("expected LLM to receive 'the [MASKED] is XX', got %+v", lastReq.Messages)
 		}
 	})
+}
+
+// TestOutputTransformers proves an output-phase transformer rewrites the
+// LLM response before it reaches the client.
+func TestOutputTransformers(t *testing.T) {
+	token := registerUser(t, "Output Transformer Org", "output-transformer@example.com", "strongpassword123")
+	setMockLLMResponse("the secret is 42")
+	sourceID := createSource(t, token, "Output Transform Source", "output-transform")
+
+	resp := doRequest(t, "POST", "/v1/transformers", map[string]interface{}{
+		"name":             "mask-output",
+		"transformer_type": "regex_replace",
+		"phase":            "output",
+		"config": map[string]interface{}{
+			"rules": []map[string]string{{"pattern": `\bsecret\b`, "replace": "[MASKED]"}},
+		},
+	}, token)
+	expectStatus(t, resp, http.StatusCreated)
+	var created map[string]interface{}
+	decodeBody(t, resp, &created)
+	if created["phase"] != "output" {
+		t.Fatalf("expected output phase, got %v", created["phase"])
+	}
+
+	resp = doRequest(t, "POST", "/v1/transformers/"+created["id"].(string)+"/sources",
+		map[string]interface{}{"source_id": sourceID}, token)
+	expectStatus(t, resp, http.StatusCreated)
+	resp.Body.Close()
+
+	apiKey := createAPIKey(t, token, "output-transformer-key")
+	resp = doRequest(t, "POST", "/v1/proxy/output-transform", map[string]interface{}{
+		"messages": []map[string]string{{"role": "user", "content": "hi"}},
+	}, apiKey)
+	expectStatus(t, resp, http.StatusOK)
+	if got := resp.Header.Get("X-Sheeld-Status"); got != "pass" {
+		t.Errorf("X-Sheeld-Status = %q, want pass", got)
+	}
+	// The proxy body is the OpenAI-compatible chat completion — the client
+	// must receive the transformed text.
+	var chatResp llm.ChatResponse
+	decodeBody(t, resp, &chatResp)
+	if len(chatResp.Choices) == 0 || chatResp.Choices[0].Message.Content != "the [MASKED] is 42" {
+		t.Errorf("client response not transformed: %+v", chatResp.Choices)
+	}
 }
