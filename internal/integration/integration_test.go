@@ -3,6 +3,7 @@
 package integration
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -1627,4 +1628,91 @@ func TestReversibleAnonymization(t *testing.T) {
 	if len(chatResp.Choices) == 0 || chatResp.Choices[0].Message.Content != "OK, I will tell Alice hi." {
 		t.Errorf("client response not deanonymized: %+v", chatResp.Choices)
 	}
+}
+
+// TestBufferedStreaming verifies "stream": true replays the guard-approved
+// response as OpenAI-compatible SSE, and that rejections stay JSON errors.
+func TestBufferedStreaming(t *testing.T) {
+	token := registerUser(t, "Streaming Org", "streaming@example.com", "strongpassword123")
+	sourceID := createSource(t, token, "Streaming Source", "streaming-source")
+	full := "the quick brown fox jumps over the lazy dog and keeps on running far away"
+	setMockLLMResponse(full)
+
+	gID := createGuardrail(t, token, map[string]interface{}{
+		"name":       "stream-blocklist",
+		"guard_type": "blocklist",
+		"phase":      "input",
+		"config":     map[string]interface{}{"words": []string{"forbidden"}},
+		"enabled":    true,
+	})
+	attachGuardrail(t, token, gID, sourceID)
+	apiKey := createAPIKey(t, token, "streaming-key")
+
+	t.Run("pass streams SSE chunks", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/proxy/streaming-source", map[string]interface{}{
+			"messages": []map[string]string{{"role": "user", "content": "hello"}},
+			"stream":   true,
+		}, apiKey)
+		defer resp.Body.Close()
+		expectStatus(t, resp, http.StatusOK)
+		if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" {
+			t.Fatalf("Content-Type = %q", ct)
+		}
+
+		var content strings.Builder
+		var sawDone bool
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			payload := strings.TrimPrefix(line, "data: ")
+			if payload == "[DONE]" {
+				sawDone = true
+				continue
+			}
+			var chunk struct {
+				Object  string `json:"object"`
+				Choices []struct {
+					Delta struct {
+						Content string `json:"content"`
+					} `json:"delta"`
+				} `json:"choices"`
+			}
+			if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+				t.Fatalf("bad chunk %q: %v", payload, err)
+			}
+			if chunk.Object != "chat.completion.chunk" {
+				t.Errorf("object = %q", chunk.Object)
+			}
+			content.WriteString(chunk.Choices[0].Delta.Content)
+		}
+		if !sawDone {
+			t.Error("missing [DONE] terminator")
+		}
+		if content.String() != full {
+			t.Errorf("reassembled = %q, want %q", content.String(), full)
+		}
+		// The LLM gateway must have been called non-streaming.
+		if getMockLLMLastRequest().Stream {
+			t.Error("LLM gateway was asked to stream; buffered streaming must call it non-streaming")
+		}
+	})
+
+	t.Run("rejection stays a JSON error", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/proxy/streaming-source", map[string]interface{}{
+			"messages": []map[string]string{{"role": "user", "content": "this is forbidden"}},
+			"stream":   true,
+		}, apiKey)
+		expectStatus(t, resp, http.StatusUnprocessableEntity)
+		if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+			t.Errorf("rejection Content-Type = %q, want JSON", ct)
+		}
+		var result map[string]map[string]interface{}
+		decodeBody(t, resp, &result)
+		if result["error"]["code"] != "input_rejected" {
+			t.Errorf("expected input_rejected, got %v", result["error"])
+		}
+	})
 }

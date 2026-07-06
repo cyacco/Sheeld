@@ -1315,6 +1315,16 @@ components:
       properties:
         model:
           type: string
+        stream:
+          type: boolean
+          default: false
+          description: >
+            Buffered streaming: the full pipeline (transformers and guards)
+            runs on the complete response first, then the approved text is
+            replayed as OpenAI-compatible SSE (chat.completion.chunk events
+            terminated by [DONE]). The upstream LLM is always called
+            non-streaming. Guardrail rejections return the usual JSON 422
+            before any stream starts.
         messages:
           type: array
           items:

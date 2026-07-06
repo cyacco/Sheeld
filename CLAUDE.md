@@ -142,7 +142,7 @@ Two PostgreSQL databases, each with its own goose migrations:
 Proxy pipeline: input transformers (sequential, whole messages array, never reject; on_error fail_closed aborts) → input guards → LLM → output transformers (rewrite the response) → output guards. Built-in transformer types: `regex_replace`, `webhook`, `presidio` (self-hosted PII redaction; `mode: reversible` + a `deanonymize` output transformer restore originals in the response via per-request `transform.State`). Guards accept `scope: all_messages` to validate full history. Audit `guard_results` JSONB reserves the keys `transforms` (input chain) and `output_transforms` (output chain); `input_hash` is post-transform.
 
 **Data plane (:8081)**
-- `POST /v1/proxy/:source_route` — Main proxy endpoint (API key auth)
+- `POST /v1/proxy/:source_route` — Main proxy endpoint (API key auth; `"stream": true` = buffered streaming — full pipeline first, then SSE replay)
 - `GET /v1/internal/audit-logs` — Audit queries for the control plane (DP token)
 - `GET /healthz` — Health + config version
 

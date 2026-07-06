@@ -75,6 +75,12 @@ func (h *ProxyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Buffered streaming: honor "stream": true at the edge but always call
+	// the LLM gateway non-streaming, so transformers and guards evaluate
+	// the complete response before the client sees any of it.
+	streamRequested := chatReq.Stream
+	chatReq.Stream = false
+
 	result, err := h.processor.Execute(r.Context(), orgID, sourceRoute, &chatReq)
 	if err != nil {
 		writeOpenAIError(w, http.StatusInternalServerError, "api_error", "proxy_error", err.Error())
@@ -88,6 +94,11 @@ func (h *ProxyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		writeOpenAIError(w, http.StatusUnprocessableEntity, "guardrail_rejection",
 			result.Phase+"_rejected",
 			fmt.Sprintf("request rejected by %s guardrails; see audit logs for details", result.Phase))
+		return
+	}
+
+	if streamRequested {
+		writeSSEResponse(w, result.LLMResponse)
 		return
 	}
 
