@@ -38,8 +38,8 @@ func NewTransformerService(queries *generated.Queries, pool *pgxpool.Pool, regis
 	return &TransformerService{queries: queries, pool: pool, registry: registry}
 }
 
-// validate applies defaults and validates type/phase. Returns the resolved
-// phase, enabled flag, and marshaled config.
+// validate applies defaults and validates type/phase/config. Returns the
+// resolved phase, enabled flag, and marshaled config.
 func (s *TransformerService) validate(params CreateTransformerParams) (string, bool, []byte, error) {
 	if !s.registry.Has(params.TransformerType) {
 		return "", false, nil, fmt.Errorf("unknown transformer_type: %q", params.TransformerType)
@@ -62,6 +62,11 @@ func (s *TransformerService) validate(params CreateTransformerParams) (string, b
 	configJSON, err := json.Marshal(config)
 	if err != nil {
 		return "", false, nil, fmt.Errorf("marshaling config: %w", err)
+	}
+	// Instantiate through the registry so config errors (bad regex, missing
+	// URL) surface here instead of at data-plane resolution time.
+	if _, err := s.registry.Create(params.TransformerType, params.Name, configJSON); err != nil {
+		return "", false, nil, err
 	}
 	return phase, enabled, configJSON, nil
 }

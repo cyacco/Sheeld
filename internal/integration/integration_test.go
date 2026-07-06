@@ -1294,3 +1294,83 @@ func TestTransformers(t *testing.T) {
 		}
 	})
 }
+
+// TestBuiltinTransformers exercises the shipped transformer types end to
+// end: a regex_replace and a webhook transformer chained on one source,
+// observed at the mock LLM.
+func TestBuiltinTransformers(t *testing.T) {
+	token := registerUser(t, "Builtin Transformer Org", "builtin-transformer@example.com", "strongpassword123")
+	setMockLLMResponse("done")
+	sourceID := createSource(t, token, "Builtin Transform Source", "builtin-transform")
+
+	// User-hosted rewrite endpoint: replaces "42" with "XX" in every message.
+	hook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Messages []llm.Message `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("webhook decode: %v", err)
+		}
+		for i := range req.Messages {
+			req.Messages[i].Content = strings.ReplaceAll(req.Messages[i].Content, "42", "XX")
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"messages": req.Messages})
+	}))
+	defer hook.Close()
+
+	mk := func(name, transformerType string, cfg map[string]interface{}) string {
+		resp := doRequest(t, "POST", "/v1/transformers", map[string]interface{}{
+			"name":             name,
+			"transformer_type": transformerType,
+			"config":           cfg,
+		}, token)
+		expectStatus(t, resp, http.StatusCreated)
+		var result map[string]interface{}
+		decodeBody(t, resp, &result)
+		return result["id"].(string)
+	}
+
+	regexID := mk("mask-secret", "regex_replace", map[string]interface{}{
+		"rules": []map[string]string{{"pattern": `\bsecret\b`, "replace": "[MASKED]"}},
+	})
+	hookID := mk("rewrite-hook", "webhook", map[string]interface{}{"url": hook.URL})
+
+	for _, id := range []string{regexID, hookID} {
+		resp := doRequest(t, "POST", "/v1/transformers/"+id+"/sources",
+			map[string]interface{}{"source_id": sourceID}, token)
+		expectStatus(t, resp, http.StatusCreated)
+		resp.Body.Close()
+	}
+
+	t.Run("create validates config", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/transformers", map[string]interface{}{
+			"name":             "bad-regex",
+			"transformer_type": "regex_replace",
+			"config":           map[string]interface{}{"rules": []map[string]string{{"pattern": "[", "replace": ""}}},
+		}, token)
+		expectStatus(t, resp, http.StatusUnprocessableEntity)
+		resp.Body.Close()
+
+		resp = doRequest(t, "POST", "/v1/transformers", map[string]interface{}{
+			"name":             "bad-presidio",
+			"transformer_type": "presidio",
+			"config":           map[string]interface{}{"analyzer_url": "http://a:3000"},
+		}, token)
+		expectStatus(t, resp, http.StatusUnprocessableEntity)
+		resp.Body.Close()
+	})
+
+	t.Run("proxy applies regex_replace then webhook", func(t *testing.T) {
+		apiKey := createAPIKey(t, token, "builtin-transformer-key")
+		resp := doRequest(t, "POST", "/v1/proxy/builtin-transform", map[string]interface{}{
+			"messages": []map[string]string{{"role": "user", "content": "the secret is 42"}},
+		}, apiKey)
+		expectStatus(t, resp, http.StatusOK)
+		resp.Body.Close()
+
+		lastReq := getMockLLMLastRequest()
+		if len(lastReq.Messages) == 0 || lastReq.Messages[len(lastReq.Messages)-1].Content != "the [MASKED] is XX" {
+			t.Errorf("expected LLM to receive 'the [MASKED] is XX', got %+v", lastReq.Messages)
+		}
+	})
+}

@@ -737,10 +737,16 @@ paths:
       description: >
         Transformers rewrite the whole messages array sequentially before
         input guards and the LLM call; they never reject requests. v1 is
-        input-phase only and ships no built-in transformer types.
-        transformer_type is validated against the server's registry.
-        Config accepts "on_error": "fail_closed" (default — an errored
-        transformer aborts the request) | "fail_open" (skip it).
+        input-phase only. Built-in types: "regex_replace" (config:
+        {"rules": [{"pattern", "replace"}]}, Go RE2 syntax, $1 group refs),
+        "webhook" (config: {"url", "headers"?, "timeout_seconds"?}; POSTs
+        {"messages", "phase", "source_route"} and expects {"messages": [...]}
+        back), and "presidio" (config: {"analyzer_url", "anonymizer_url",
+        "language"? = "en", "entities"?, "score_threshold"?,
+        "timeout_seconds"?}; self-hosted Microsoft Presidio PII redaction).
+        transformer_type and config are validated against the server's
+        registry. Config also accepts "on_error": "fail_closed" (default —
+        an errored transformer aborts the request) | "fail_open" (skip it).
       operationId: createTransformer
       tags: [Transformers]
       security:
@@ -759,7 +765,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Transformer"
         "422":
-          description: Unknown transformer_type or invalid phase
+          description: Unknown transformer_type, invalid phase, or invalid config
           content:
             application/json:
               schema:
@@ -841,6 +847,30 @@ paths:
           description: Deleted
 
   /v1/transformers/{id}/sources:
+    get:
+      summary: List sources a transformer is attached to
+      operationId: listTransformerSources
+      tags: [Transformers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Attached sources (id, name, route)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    name: { type: string }
+                    route: { type: string }
     post:
       summary: Attach a transformer to a source (appends to the chain)
       operationId: attachTransformerToSource
