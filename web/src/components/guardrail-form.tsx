@@ -10,6 +10,7 @@ import type {
   GuardrailsAIConfig,
   WebhookConfig,
   LLMClassifierConfig,
+  PresidioGuardConfig,
 } from "@/lib/types";
 import { GUARD_TYPES, defaultConfig } from "@/components/guard-type-meta";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import { OpenAIModConfigForm } from "@/components/guard-config/openai-mod-config
 import { GuardrailsAIConfigForm } from "@/components/guard-config/guardrails-ai-config";
 import { WebhookConfigForm } from "@/components/guard-config/webhook-config";
 import { LLMClassifierConfigForm } from "@/components/guard-config/llm-classifier-config";
+import { PresidioGuardConfigForm } from "@/components/guard-config/presidio-guard-config";
 
 // GuardrailDraft is the shared editing state for the guardrail form and
 // the add-guardrail wizard.
@@ -156,6 +158,12 @@ export function GuardConfigFields({ draft, onChange }: FieldGroupProps) {
       {draft.guardType === "llm_classifier" && (
         <LLMClassifierConfigForm
           config={draft.config as unknown as LLMClassifierConfig}
+          onChange={(c) => setConfig(c as unknown as Record<string, unknown>)}
+        />
+      )}
+      {draft.guardType === "presidio" && (
+        <PresidioGuardConfigForm
+          config={draft.config as unknown as PresidioGuardConfig}
           onChange={(c) => setConfig(c as unknown as Record<string, unknown>)}
         />
       )}

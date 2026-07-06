@@ -30,15 +30,12 @@ Items logged here should be addressed before production. Each item includes cont
 - **Fix**: Persist the last-applied workspace config to disk (encrypted or with keys stripped + refetch) and load it at startup as a fallback
 - **Risk**: LOW — resilience improvement; compose restarts both services together today
 
-### 5. Render `transforms` Audit Key in Events UI
-- **Location**: `web/src/components/audit-log-table.tsx`, `web/src/lib/types.ts`
-- **Issue**: `guard_results` JSONB carries the reserved `transforms` key (chain steps, changed flags, durations) but the Events table only renders the input/output phase results
-- **Fix**: Type the `transforms` key (`ChainResult`) in `AuditLog` and show the chain outcome in the expanded row
-- **Risk**: LOW — display-only
-
 ---
 
 ## Resolved Items
+
+### Render `transforms` Audit Key in Events UI
+- **Resolved in**: presidio-guard-audit-ui branch — expanded audit rows show input/output transformation chains (per-step changed/errored/skipped badges and durations) in pipeline order alongside guard results
 
 ### Guard Config Validation at Create Time
 - **Resolved in**: guard-config-validation branch — `GuardrailService` now instantiates the guard through `guard.Registry` on create/update; unknown types and invalid configs return 422 (parity with transformers)

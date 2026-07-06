@@ -52,7 +52,14 @@ long tail of policies no regex or moderation API handles.
 - Works for both phases via the existing guard engine; `scope:
   all_messages` applies.
 
-## 3. Presidio as a guard (detect-and-reject)
+## 3. Presidio as a guard (detect-and-reject) — SHIPPED
+
+Implemented alongside the audit-UI item: guard type `presidio` (config:
+analyzer_url, language, entities, score_threshold default 0.5); rejects on
+any detection at/above threshold; detections (types + positions, never the
+matched text) land in audit details.
+
+Original notes:
 
 Same self-hosted `/analyze` endpoint the presidio transformer calls, but
 reject-on-detection instead of rewrite — "block any request containing a

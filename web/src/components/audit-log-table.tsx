@@ -1,7 +1,13 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useState } from "react";
-import type { AuditLog, GuardResultEntry, Source } from "@/lib/types";
+import type {
+  AuditLog,
+  GuardResultEntry,
+  PhaseGuardResults,
+  Source,
+  TransformChainResult,
+} from "@/lib/types";
 import * as api from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -125,46 +131,30 @@ export function AuditLogTable({ sourceId, sources }: AuditLogTableProps) {
                     className="bg-muted/50"
                   >
                     <div className="space-y-3 p-2">
-                      {Object.entries(log.guard_results ?? {}).map(
-                        ([phase, phaseResult]) => (
-                          <div key={phase} className="space-y-2">
-                            <h4 className="text-sm font-medium capitalize">
-                              {phase} guards ({phaseResult.pass_count} passed,{" "}
-                              {phaseResult.fail_count} failed)
-                            </h4>
-                            {(phaseResult.results ?? []).map(
-                              (gr: GuardResultEntry, i: number) => (
-                                <div
-                                  key={i}
-                                  className="flex items-center gap-3 text-sm"
-                                >
-                                  <Badge
-                                    variant={gr.passed ? "default" : "destructive"}
-                                    className="w-12 justify-center"
-                                  >
-                                    {gr.passed ? "pass" : "fail"}
-                                  </Badge>
-                                  <span className="font-mono">{gr.guard_name}</span>
-                                  <span className="text-muted-foreground">
-                                    ({gr.guard_type})
-                                  </span>
-                                  <span className="text-muted-foreground">
-                                    {gr.message}
-                                  </span>
-                                  <span className="ml-auto text-muted-foreground">
-                                    {gr.duration_ms}ms
-                                  </span>
-                                </div>
-                              ),
-                            )}
-                          </div>
-                        ),
-                      )}
-                      {Object.keys(log.guard_results ?? {}).length === 0 && (
-                        <p className="text-sm text-muted-foreground">
-                          No guards ran for this request.
-                        </p>
-                      )}
+                      <TransformChainSection
+                        title="Input transformations"
+                        chain={log.guard_results?.transforms}
+                      />
+                      <GuardPhaseSection
+                        title="Input guards"
+                        result={log.guard_results?.input}
+                      />
+                      <TransformChainSection
+                        title="Output transformations"
+                        chain={log.guard_results?.output_transforms}
+                      />
+                      <GuardPhaseSection
+                        title="Output guards"
+                        result={log.guard_results?.output}
+                      />
+                      {!log.guard_results?.input &&
+                        !log.guard_results?.output &&
+                        !log.guard_results?.transforms &&
+                        !log.guard_results?.output_transforms && (
+                          <p className="text-sm text-muted-foreground">
+                            No guards or transformations ran for this request.
+                          </p>
+                        )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -196,5 +186,70 @@ export function AuditLogTable({ sourceId, sources }: AuditLogTableProps) {
         </Button>
       </div>
     </>
+  );
+}
+
+function GuardPhaseSection({
+  title,
+  result,
+}: {
+  title: string;
+  result?: PhaseGuardResults;
+}) {
+  if (!result) return null;
+  return (
+    <div className="space-y-2">
+      <h4 className="text-sm font-medium">
+        {title} ({result.pass_count} passed, {result.fail_count} failed)
+      </h4>
+      {(result.results ?? []).map((gr: GuardResultEntry, i: number) => (
+        <div key={i} className="flex items-center gap-3 text-sm">
+          <Badge
+            variant={gr.passed ? "default" : "destructive"}
+            className="w-12 justify-center"
+          >
+            {gr.passed ? "pass" : "fail"}
+          </Badge>
+          <span className="font-mono">{gr.guard_name}</span>
+          <span className="text-muted-foreground">({gr.guard_type})</span>
+          <span className="text-muted-foreground">{gr.message}</span>
+          <span className="ml-auto text-muted-foreground">{gr.duration_ms}ms</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TransformChainSection({
+  title,
+  chain,
+}: {
+  title: string;
+  chain?: TransformChainResult;
+}) {
+  if (!chain) return null;
+  return (
+    <div className="space-y-2">
+      <h4 className="text-sm font-medium">
+        {title} ({chain.changed ? "changed" : "no changes"},{" "}
+        {chain.total_duration_ms}ms)
+      </h4>
+      {(chain.steps ?? []).map((step, i) => (
+        <div key={i} className="flex items-center gap-3 text-sm">
+          <Badge
+            variant={step.errored ? "destructive" : step.changed ? "default" : "secondary"}
+            className="w-20 justify-center"
+          >
+            {step.errored ? (step.skipped ? "skipped" : "errored") : step.changed ? "changed" : "no-op"}
+          </Badge>
+          <span className="font-mono">{step.name}</span>
+          <span className="text-muted-foreground">({step.type})</span>
+          {step.message && (
+            <span className="text-muted-foreground">{step.message}</span>
+          )}
+          <span className="ml-auto text-muted-foreground">{step.duration_ms}ms</span>
+        </div>
+      ))}
+    </div>
   );
 }

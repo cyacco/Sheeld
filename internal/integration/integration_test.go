@@ -1492,3 +1492,70 @@ func TestLLMClassifierGuard(t *testing.T) {
 		}
 	})
 }
+
+// TestPresidioGuard exercises the presidio guard against a fake analyzer
+// that detects credit-card-looking content.
+func TestPresidioGuard(t *testing.T) {
+	token := registerUser(t, "Presidio Guard Org", "presidio-guard@example.com", "strongpassword123")
+	setMockLLMResponse("ok")
+	sourceID := createSource(t, token, "Presidio Guard Source", "presidio-guard-source")
+
+	analyzer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Text string `json:"text"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("analyzer decode: %v", err)
+		}
+		if i := strings.Index(req.Text, "4111"); i >= 0 {
+			fmt.Fprintf(w, `[{"entity_type":"CREDIT_CARD","start":%d,"end":%d,"score":0.9}]`, i, i+16)
+			return
+		}
+		w.Write([]byte(`[]`))
+	}))
+	defer analyzer.Close()
+
+	gID := createGuardrail(t, token, map[string]interface{}{
+		"name":       "block-pii",
+		"guard_type": "presidio",
+		"phase":      "input",
+		"config": map[string]interface{}{
+			"analyzer_url": analyzer.URL,
+			"entities":     []string{"CREDIT_CARD"},
+		},
+		"enabled": true,
+	})
+	attachGuardrail(t, token, gID, sourceID)
+	apiKey := createAPIKey(t, token, "presidio-guard-key")
+
+	t.Run("clean input passes", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/proxy/presidio-guard-source", map[string]interface{}{
+			"messages": []map[string]string{{"role": "user", "content": "hello"}},
+		}, apiKey)
+		expectStatus(t, resp, http.StatusOK)
+		resp.Body.Close()
+	})
+
+	t.Run("PII input rejected", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/proxy/presidio-guard-source", map[string]interface{}{
+			"messages": []map[string]string{{"role": "user", "content": "card: 4111111111111111"}},
+		}, apiKey)
+		expectStatus(t, resp, http.StatusUnprocessableEntity)
+		var result map[string]map[string]interface{}
+		decodeBody(t, resp, &result)
+		if result["error"]["code"] != "input_rejected" {
+			t.Errorf("expected input_rejected, got %v", result["error"])
+		}
+	})
+
+	t.Run("create validates config", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/guardrails", map[string]interface{}{
+			"name":       "bad-presidio-guard",
+			"guard_type": "presidio",
+			"phase":      "input",
+			"config":     map[string]interface{}{},
+		}, token)
+		expectStatus(t, resp, http.StatusUnprocessableEntity)
+		resp.Body.Close()
+	})
+}

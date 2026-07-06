@@ -117,10 +117,36 @@ export interface AuditLog {
   organization_id: string;
   source_id: string;
   input_hash: string | null;
-  guard_results: Record<string, PhaseGuardResults> | null;
+  // Phase keys ("input"/"output") hold engine results; the reserved keys
+  // "transforms" / "output_transforms" hold transformer chain outcomes.
+  guard_results: AuditGuardResults | null;
   overall_result: string;
   latency_ms: number;
   created_at: string;
+}
+
+export interface AuditGuardResults {
+  input?: PhaseGuardResults;
+  output?: PhaseGuardResults;
+  transforms?: TransformChainResult;
+  output_transforms?: TransformChainResult;
+}
+
+// TransformChainResult mirrors the data plane's transform.ChainResult.
+export interface TransformChainResult {
+  steps: TransformStepResult[];
+  changed: boolean;
+  total_duration_ms: number;
+}
+
+export interface TransformStepResult {
+  name: string;
+  type: string;
+  changed: boolean;
+  errored?: boolean;
+  skipped?: boolean;
+  message?: string;
+  duration_ms: number;
 }
 
 // PhaseGuardResults is one phase's ("input"/"output") engine result within
@@ -186,6 +212,14 @@ export interface GuardrailsAIConfig {
 export interface WebhookConfig {
   url: string;
   headers: Record<string, string>;
+  timeout_seconds: number;
+}
+
+export interface PresidioGuardConfig {
+  analyzer_url: string;
+  language?: string;
+  entities?: string[];
+  score_threshold?: number;
   timeout_seconds: number;
 }
 
