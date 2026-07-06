@@ -3,6 +3,13 @@
 import type { PresidioConfig } from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Props {
   config: PresidioConfig;
@@ -10,8 +17,27 @@ interface Props {
 }
 
 export function PresidioConfigForm({ config, onChange }: Props) {
+  const mode = config.mode || "redact";
   return (
     <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>Mode</Label>
+        <Select value={mode} onValueChange={(v) => onChange({ ...config, mode: v })}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="redact">Redact (irreversible)</SelectItem>
+            <SelectItem value="reversible">Reversible (restore on output)</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Reversible replaces entities with numbered placeholders and restores
+          the originals in the response — attach a Deanonymize transformation
+          to the output phase.
+        </p>
+      </div>
+
       <div className="space-y-2">
         <Label>Analyzer URL</Label>
         <Input
@@ -22,19 +48,21 @@ export function PresidioConfigForm({ config, onChange }: Props) {
         />
       </div>
 
-      <div className="space-y-2">
-        <Label>Anonymizer URL</Label>
-        <Input
-          value={config.anonymizer_url || ""}
-          onChange={(e) => onChange({ ...config, anonymizer_url: e.target.value })}
-          placeholder="http://presidio-anonymizer:3000"
-          required
-        />
-        <p className="text-xs text-muted-foreground">
-          Base URLs of your self-hosted Presidio services; detected entities
-          are replaced with &lt;ENTITY_TYPE&gt; placeholders.
-        </p>
-      </div>
+      {mode === "redact" && (
+        <div className="space-y-2">
+          <Label>Anonymizer URL</Label>
+          <Input
+            value={config.anonymizer_url || ""}
+            onChange={(e) => onChange({ ...config, anonymizer_url: e.target.value })}
+            placeholder="http://presidio-anonymizer:3000"
+            required
+          />
+          <p className="text-xs text-muted-foreground">
+            Base URLs of your self-hosted Presidio services; detected entities
+            are replaced with &lt;ENTITY_TYPE&gt; placeholders.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">

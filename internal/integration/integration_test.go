@@ -1559,3 +1559,72 @@ func TestPresidioGuard(t *testing.T) {
 		resp.Body.Close()
 	})
 }
+
+// TestReversibleAnonymization proves the full round trip through the API:
+// PII is replaced with placeholders before the LLM and restored in the
+// response the client receives.
+func TestReversibleAnonymization(t *testing.T) {
+	token := registerUser(t, "Reversible Org", "reversible@example.com", "strongpassword123")
+	sourceID := createSource(t, token, "Reversible Source", "reversible-source")
+
+	analyzer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Text string `json:"text"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("analyzer decode: %v", err)
+		}
+		if i := strings.Index(req.Text, "Alice"); i >= 0 {
+			fmt.Fprintf(w, `[{"entity_type":"PERSON","start":%d,"end":%d,"score":0.9}]`, i, i+5)
+			return
+		}
+		w.Write([]byte(`[]`))
+	}))
+	defer analyzer.Close()
+
+	mk := func(name, transformerType, phase string, cfg map[string]interface{}) string {
+		resp := doRequest(t, "POST", "/v1/transformers", map[string]interface{}{
+			"name":             name,
+			"transformer_type": transformerType,
+			"phase":            phase,
+			"config":           cfg,
+		}, token)
+		expectStatus(t, resp, http.StatusCreated)
+		var result map[string]interface{}
+		decodeBody(t, resp, &result)
+		return result["id"].(string)
+	}
+	anonID := mk("anon", "presidio", "input", map[string]interface{}{
+		"analyzer_url": analyzer.URL,
+		"mode":         "reversible",
+	})
+	deanID := mk("dean", "deanonymize", "output", map[string]interface{}{})
+	for _, id := range []string{anonID, deanID} {
+		resp := doRequest(t, "POST", "/v1/transformers/"+id+"/sources",
+			map[string]interface{}{"source_id": sourceID}, token)
+		expectStatus(t, resp, http.StatusCreated)
+		resp.Body.Close()
+	}
+
+	// The placeholder is deterministic (fresh state per request, first
+	// PERSON entity), so the canned LLM response can echo it.
+	setMockLLMResponse("OK, I will tell <PERSON_1> hi.")
+
+	apiKey := createAPIKey(t, token, "reversible-key")
+	resp := doRequest(t, "POST", "/v1/proxy/reversible-source", map[string]interface{}{
+		"messages": []map[string]string{{"role": "user", "content": "tell Alice hi"}},
+	}, apiKey)
+	expectStatus(t, resp, http.StatusOK)
+	var chatResp llm.ChatResponse
+	decodeBody(t, resp, &chatResp)
+
+	// The LLM never saw the real name.
+	lastReq := getMockLLMLastRequest()
+	if len(lastReq.Messages) == 0 || lastReq.Messages[len(lastReq.Messages)-1].Content != "tell <PERSON_1> hi" {
+		t.Errorf("LLM should see the placeholder, got %+v", lastReq.Messages)
+	}
+	// The client gets the real name restored.
+	if len(chatResp.Choices) == 0 || chatResp.Choices[0].Message.Content != "OK, I will tell Alice hi." {
+		t.Errorf("client response not deanonymized: %+v", chatResp.Choices)
+	}
+}

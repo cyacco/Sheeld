@@ -748,9 +748,15 @@ paths:
         {"rules": [{"pattern", "replace"}]}, Go RE2 syntax, $1 group refs),
         "webhook" (config: {"url", "headers"?, "timeout_seconds"?}; POSTs
         {"messages", "phase", "source_route"} and expects {"messages": [...]}
-        back), and "presidio" (config: {"analyzer_url", "anonymizer_url",
-        "language"? = "en", "entities"?, "score_threshold"?,
-        "timeout_seconds"?}; self-hosted Microsoft Presidio PII redaction).
+        back), "presidio" (config: {"analyzer_url", "anonymizer_url"?,
+        "mode"? = "redact" | "reversible", "language"? = "en", "entities"?,
+        "score_threshold"?, "timeout_seconds"?}; self-hosted Microsoft
+        Presidio PII anonymization — "redact" replaces entities
+        irreversibly via the anonymizer; "reversible" substitutes numbered
+        placeholders locally and records the originals in per-request state),
+        and "deanonymize" (no config; attach to the output phase to restore
+        values recorded by a reversible presidio step — without it the
+        client receives placeholders, never leaked PII).
         transformer_type and config are validated against the server's
         registry. Config also accepts "on_error": "fail_closed" (default —
         an errored transformer aborts the request) | "fail_open" (skip it).

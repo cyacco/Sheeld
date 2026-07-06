@@ -1,4 +1,4 @@
-import { Replace, UserX, Webhook, type LucideIcon } from "lucide-react";
+import { Replace, Undo2, UserX, Webhook, type LucideIcon } from "lucide-react";
 import type {
   RegexReplaceConfig,
   PresidioConfig,
@@ -32,6 +32,13 @@ export const TRANSFORMER_TYPES: TransformerTypeMeta[] = [
     description: "Call your own HTTP endpoint to rewrite messages.",
     icon: Webhook,
   },
+  {
+    value: "deanonymize",
+    label: "Deanonymize",
+    description:
+      "Restore values anonymized by a reversible Presidio step. Attach to the output phase.",
+    icon: Undo2,
+  },
 ];
 
 export function transformerTypeMeta(
@@ -50,10 +57,13 @@ export function defaultTransformerConfig(
       return {
         analyzer_url: "",
         anonymizer_url: "",
+        mode: "redact",
         language: "en",
         entities: [],
         timeout_seconds: 10,
       } satisfies PresidioConfig;
+    case "deanonymize":
+      return {};
     case "webhook":
       return {
         url: "",

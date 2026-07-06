@@ -84,6 +84,10 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 		return nil, fmt.Errorf("source %q is disabled", sourceRoute)
 	}
 
+	// Per-request transformer state, shared by the input and output chains
+	// (e.g. reversible anonymization mappings). Never logged or audited.
+	ctx = transform.WithState(ctx)
+
 	evalCfg := guard.EvalConfig{
 		Criteria: guard.PassCriteria(source.PassCriteria),
 	}

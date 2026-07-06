@@ -70,13 +70,16 @@ credit card number" is a different policy than "mask it."
 - HTTP client/config conventions already exist in the transformer — keep
   the shapes aligned.
 
-## 4. Reversible anonymization (deanonymize on output)
+## 4. Reversible anonymization (deanonymize on output) — SHIPPED
 
-Replace entities with placeholders on input, restore the real values in the
-response. Presidio supports this, but it needs per-request state shared
-between the input and output stages — real architectural work (a request-
-scoped entity map carried through the processor). The natural endgame of
-the transformer design; wait for demand before building.
+Implemented via `transform.State`: a per-request placeholder → original map
+the processor attaches to the context before both chains. The presidio
+transformer gained `mode: "reversible"` (numbered placeholders substituted
+locally from analyzer spans — no anonymizer call; same original reuses the
+same placeholder), and a new `deanonymize` transformer (output phase, no
+config) restores the values. Forgetting to attach deanonymize fails safe:
+the client sees placeholders, never leaked PII. Mappings live in memory
+only for the request's duration and are never logged or audited.
 
 ## 5. Streaming responses
 
