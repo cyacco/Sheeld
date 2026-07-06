@@ -168,6 +168,8 @@ sheeld/
 
 The proxy is a drop-in OpenAI replacement: point your SDK's `base_url` at `http://<data-plane>/v1/proxy/<route>` with your Sheeld API key and the response is a raw chat completion. Guardrail rejections return HTTP 422 with an OpenAI-style error (`"type": "guardrail_rejection"`); full guard results are in the audit logs, correlated by the `X-Request-ID` response header.
 
+`"stream": true` is supported as **buffered streaming**: guards and transformers always evaluate the complete response first, then the approved text is replayed as standard SSE chunks. Time-to-first-token therefore equals the full pipeline latency — the safety semantics are identical to non-streaming, and rejections surface as the usual 422 before any stream starts.
+
 ```python
 from openai import OpenAI
 client = OpenAI(base_url="http://localhost:8081/v1/proxy/feedback", api_key="shld_...")

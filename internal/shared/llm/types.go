@@ -22,6 +22,12 @@ type ChatRequest struct {
 
 	// Stop sequences.
 	Stop []string `json:"stop,omitempty"`
+
+	// Stream requests an SSE response. Sheeld buffers the full pipeline
+	// (transformers and guards see the complete response) and then replays
+	// the approved text as chunks; the LLM gateway is always called
+	// non-streaming.
+	Stream bool `json:"stream,omitempty"`
 }
 
 // Message represents a single message in the conversation.

@@ -81,18 +81,15 @@ config) restores the values. Forgetting to attach deanonymize fails safe:
 the client sees placeholders, never leaked PII. Mappings live in memory
 only for the request's duration and are never logged or audited.
 
-## 5. Streaming responses
+## 5. Streaming responses — SHIPPED (buffered streaming)
 
-The proxy buffers the full LLM response today; output guards and
-transformers fundamentally conflict with token streaming. Options, in
-increasing complexity:
-
-1. Document the tradeoff (status quo).
-2. "Buffered streaming": run output guards/transforms on the complete
-   response, then stream the approved text to the client (client-perceived
-   streaming UX, unchanged safety semantics).
-3. True incremental scanning (chunked guards) — large effort, weaker
-   guarantees; not planned.
+Option 2 implemented: `"stream": true` on the proxy runs the full pipeline
+on the complete response (LLM always called non-streaming), then replays
+the approved text as OpenAI-compatible SSE chunks (word-boundary,
+rune-safe splitting; [DONE] terminator). Rejections stay JSON 422 before
+any stream starts. Time-to-first-token equals full pipeline latency —
+documented in the README. True incremental scanning (option 3) remains
+not planned.
 
 ## Deferred / covered by webhook types
 
