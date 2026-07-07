@@ -114,6 +114,29 @@ npm run dev
 
 The dashboard will be available at http://localhost:3000.
 
+## Kubernetes (Helm)
+
+The chart in [`helm/sheeld`](helm/sheeld) deploys both planes, the dashboard, and
+(optionally) a Postgres instance per plane. The three security-sensitive secrets have
+no defaults — the install fails fast until you set them:
+
+```bash
+helm install sheeld ./helm/sheeld \
+  --set secrets.jwtSecret=$(openssl rand -hex 32) \
+  --set secrets.encryptionKey=$(openssl rand -hex 32) \
+  --set secrets.dataplaneToken=$(openssl rand -hex 32)
+```
+
+This renders the control plane (`-api`), the **data plane** (`-dataplane` — the proxy),
+the dashboard (`-web`), and `-cp-postgres` / `-dp-postgres`. Send proxied traffic to the
+data-plane service. For production, disable the bundled databases
+(`--set postgresql.enabled=false`) and point `secrets.databaseURL` / `secrets.dpDatabaseURL`
+at managed Postgres. CP↔DP traffic is plain HTTP on the pod network by default
+(`SHEELD_DP_ALLOW_INSECURE_CP=true`); front it with mTLS or a service mesh — the
+workspace-config payload carries decrypted LLM keys. In-cluster guard targets resolve to
+private IPs, so `allowPrivateGuardURLs` defaults to `true` in the chart (see the SSRF note
+below).
+
 ## Project Structure
 
 ```

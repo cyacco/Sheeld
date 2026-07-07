@@ -2,20 +2,20 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "sheeld.fullname" . }}-postgres
+  name: {{ include "sheeld.fullname" . }}-cp-postgres
   labels:
     {{- include "sheeld.labels" . | nindent 4 }}
-    {{- include "sheeld.postgres.selectorLabels" . | nindent 4 }}
+    {{- include "sheeld.cpPostgres.selectorLabels" . | nindent 4 }}
 spec:
-  serviceName: {{ include "sheeld.fullname" . }}-postgres
+  serviceName: {{ include "sheeld.fullname" . }}-cp-postgres
   replicas: 1
   selector:
     matchLabels:
-      {{- include "sheeld.postgres.selectorLabels" . | nindent 6 }}
+      {{- include "sheeld.cpPostgres.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "sheeld.postgres.selectorLabels" . | nindent 8 }}
+        {{- include "sheeld.cpPostgres.selectorLabels" . | nindent 8 }}
     spec:
       containers:
         - name: postgres
@@ -31,18 +31,14 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "sheeld.fullname" . }}-secret
-                  key: SHEELD_DATABASE_URL
-                  optional: true
+                  key: POSTGRES_PASSWORD
             - name: POSTGRES_DB
               value: sheeld
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           readinessProbe:
             exec:
-              command:
-                - pg_isready
-                - -U
-                - sheeld
+              command: ["pg_isready", "-U", "sheeld"]
             initialDelaySeconds: 5
             periodSeconds: 10
           volumeMounts:

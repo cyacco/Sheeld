@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sheeld.fullname" . }}-dataplane
+  labels:
+    {{- include "sheeld.labels" . | nindent 4 }}
+    {{- include "sheeld.dataplane.selectorLabels" . | nindent 4 }}
+spec:
+  {{- if not .Values.dataplane.hpa.enabled }}
+  replicas: {{ .Values.dataplane.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "sheeld.dataplane.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "sheeld.dataplane.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "sheeld.serviceAccountName" . }}
+      containers:
+        - name: dataplane
+          image: "{{ .Values.dataplane.image.repository }}:{{ .Values.dataplane.image.tag }}"
+          imagePullPolicy: {{ .Values.dataplane.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "sheeld.fullname" . }}-dataplane-config
+            - secretRef:
+                name: {{ include "sheeld.fullname" . }}-dataplane-secret
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.dataplane.resources | nindent 12 }}

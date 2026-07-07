@@ -5,12 +5,12 @@ metadata:
   labels:
     {{- include "sheeld.labels" . | nindent 4 }}
 data:
-  SHEELD_PORT: {{ .Values.config.port | quote }}
   SHEELD_LOG_LEVEL: {{ .Values.config.logLevel | quote }}
-  SHEELD_LLM_GATEWAY_URL: {{ .Values.config.llmGatewayURL | quote }}
-  SHEELD_LLM_REQUEST_TIMEOUT: {{ .Values.config.llmRequestTimeout | quote }}
   SHEELD_PROXY_TIMEOUT: {{ .Values.config.proxyTimeout | quote }}
   SHEELD_RATE_LIMIT_RPS: {{ .Values.config.rateLimitRPS | quote }}
   SHEELD_RATE_LIMIT_BURST: {{ .Values.config.rateLimitBurst | quote }}
   SHEELD_MAX_BODY_BYTES: {{ .Values.config.maxBodyBytes | quote }}
   SHEELD_CORS_ALLOWED_ORIGINS: {{ .Values.config.corsAllowedOrigins | quote }}
+  SHEELD_ALLOW_PRIVATE_GUARD_URLS: {{ .Values.config.allowPrivateGuardURLs | quote }}
+  # Data plane the control plane proxies audit-log queries to.
+  SHEELD_DATAPLANE_URL: "http://{{ include "sheeld.fullname" . }}-dataplane:{{ .Values.dataplane.service.port }}"

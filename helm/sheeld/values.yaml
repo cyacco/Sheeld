@@ -1,6 +1,6 @@
 ## Sheeld Helm chart values
 
-## API (Go backend)
+## Control plane (Go, :8080) — auth, CRUD, dashboard backend, workspace-config
 api:
   replicaCount: 2
   image:
@@ -10,6 +10,29 @@ api:
   service:
     type: ClusterIP
     port: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+## Data plane (Go, :8081) — the proxy: input guards → LLM → output guards
+dataplane:
+  replicaCount: 2
+  image:
+    repository: sheeld/sheeld-server
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8081
   resources:
     requests:
       cpu: 100m
@@ -41,7 +64,9 @@ web:
       cpu: 200m
       memory: 256Mi
 
-## PostgreSQL
+## PostgreSQL — one instance per plane (cp-db: users/orgs/config, dp-db: audit
+## logs), sharing this image/resources/storage spec. Disable and point the
+## databaseURL / dpDatabaseURL secrets at external Postgres for production.
 postgresql:
   enabled: true
   image:
@@ -58,7 +83,7 @@ postgresql:
       cpu: 500m
       memory: 512Mi
 
-## Ingress
+## Ingress (routes to the web dashboard)
 ingress:
   enabled: false
   className: nginx
@@ -68,23 +93,45 @@ ingress:
     secretName: sheeld-tls
   annotations: {}
 
-## Config (non-sensitive)
+## Control-plane config (non-sensitive)
 config:
-  port: "8080"
   logLevel: info
-  llmGatewayURL: "http://litellm:4000"
-  llmRequestTimeout: "30s"
   proxyTimeout: "60s"
   rateLimitRPS: "100"
   rateLimitBurst: "200"
   maxBodyBytes: "1048576"
   corsAllowedOrigins: "https://sheeld.example.com"
+  # Allow guard/transformer URLs on private/loopback addresses (SSRF off).
+  # In-cluster guard targets (e.g. a Presidio service) resolve to private
+  # IPs, so this is on by default for the bundled deployment.
+  allowPrivateGuardURLs: "true"
 
-## Secrets (sensitive — override in production)
+## Data-plane config (non-sensitive)
+dataplaneConfig:
+  logLevel: info
+  pollInterval: "5s"
+  llmGatewayURL: "http://litellm:4000"
+  llmRequestTimeout: "30s"
+  allowPrivateGuardURLs: "true"
+
+## Secrets (sensitive). jwtSecret, encryptionKey, and dataplaneToken have no
+## usable defaults — the chart refuses to install until you set them:
+##   helm install ... \
+##     --set secrets.jwtSecret=$(openssl rand -hex 32) \
+##     --set secrets.encryptionKey=$(openssl rand -hex 32) \
+##     --set secrets.dataplaneToken=$(openssl rand -hex 32)
 secrets:
-  databaseURL: "postgres://sheeld:sheeld@sheeld-postgres:5432/sheeld?sslmode=disable"
-  jwtSecret: "change-me-in-production"
-  encryptionKey: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  # Password for the bundled Postgres instances (ignored when postgresql
+  # is disabled and you supply full *DatabaseURL overrides).
+  postgresPassword: "sheeld"
+  # Leave empty to use the bundled cp-db/dp-db; set to point at external
+  # Postgres (the value must include credentials).
+  databaseURL: ""
+  dpDatabaseURL: ""
+  jwtSecret: ""
+  encryptionKey: ""
+  # Shared static token authenticating the data plane to the control plane.
+  dataplaneToken: ""
 
 ## Service account
 serviceAccount:

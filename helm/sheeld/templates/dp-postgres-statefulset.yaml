@@ -1,0 +1,60 @@
+{{- if .Values.postgresql.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "sheeld.fullname" . }}-dp-postgres
+  labels:
+    {{- include "sheeld.labels" . | nindent 4 }}
+    {{- include "sheeld.dpPostgres.selectorLabels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "sheeld.fullname" . }}-dp-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "sheeld.dpPostgres.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "sheeld.dpPostgres.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              value: sheeld
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "sheeld.fullname" . }}-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              value: sheeld
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "sheeld"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            {{- toYaml .Values.postgresql.resources | nindent 12 }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.postgresql.storage.storageClassName }}
+        storageClassName: {{ .Values.postgresql.storage.storageClassName | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.postgresql.storage.size }}
+{{- end }}

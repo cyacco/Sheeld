@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sheeld.fullname" . }}-dataplane-config
+  labels:
+    {{- include "sheeld.labels" . | nindent 4 }}
+data:
+  SHEELD_DP_LOG_LEVEL: {{ .Values.dataplaneConfig.logLevel | quote }}
+  SHEELD_DP_CONTROL_PLANE_URL: "http://{{ include "sheeld.fullname" . }}-api:{{ .Values.api.service.port }}"
+  SHEELD_DP_POLL_INTERVAL: {{ .Values.dataplaneConfig.pollInterval | quote }}
+  SHEELD_DP_LLM_GATEWAY_URL: {{ .Values.dataplaneConfig.llmGatewayURL | quote }}
+  SHEELD_DP_LLM_REQUEST_TIMEOUT: {{ .Values.dataplaneConfig.llmRequestTimeout | quote }}
+  SHEELD_DP_ALLOW_PRIVATE_GUARD_URLS: {{ .Values.dataplaneConfig.allowPrivateGuardURLs | quote }}
+  # In-cluster CP↔DP traffic is plain HTTP over the pod network. Front it
+  # with a service mesh / mTLS for real deployments; the payload carries
+  # decrypted LLM keys.
+  SHEELD_DP_ALLOW_INSECURE_CP: "true"

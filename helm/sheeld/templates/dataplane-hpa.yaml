@@ -1,0 +1,22 @@
+{{- if .Values.dataplane.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "sheeld.fullname" . }}-dataplane
+  labels:
+    {{- include "sheeld.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "sheeld.fullname" . }}-dataplane
+  minReplicas: {{ .Values.dataplane.hpa.minReplicas }}
+  maxReplicas: {{ .Values.dataplane.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.dataplane.hpa.targetCPUUtilizationPercentage }}
+{{- end }}

@@ -47,11 +47,49 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Selector labels for postgres
+Selector labels for the data plane
 */}}
-{{- define "sheeld.postgres.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "sheeld.name" . }}-postgres
+{{- define "sheeld.dataplane.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "sheeld.name" . }}-dataplane
 app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Selector labels for the control-plane database
+*/}}
+{{- define "sheeld.cpPostgres.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "sheeld.name" . }}-cp-postgres
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Selector labels for the data-plane database
+*/}}
+{{- define "sheeld.dpPostgres.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "sheeld.name" . }}-dp-postgres
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Control-plane database URL: explicit override, else the bundled cp-postgres.
+*/}}
+{{- define "sheeld.databaseURL" -}}
+{{- if .Values.secrets.databaseURL -}}
+{{- .Values.secrets.databaseURL -}}
+{{- else -}}
+{{- printf "postgres://sheeld:%s@%s-cp-postgres:5432/sheeld?sslmode=disable" .Values.secrets.postgresPassword (include "sheeld.fullname" .) -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Data-plane database URL: explicit override, else the bundled dp-postgres.
+*/}}
+{{- define "sheeld.dpDatabaseURL" -}}
+{{- if .Values.secrets.dpDatabaseURL -}}
+{{- .Values.secrets.dpDatabaseURL -}}
+{{- else -}}
+{{- printf "postgres://sheeld:%s@%s-dp-postgres:5432/sheeld?sslmode=disable" .Values.secrets.postgresPassword (include "sheeld.fullname" .) -}}
+{{- end -}}
 {{- end }}
 
 {{/*
