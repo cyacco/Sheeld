@@ -78,6 +78,10 @@ func NewRouter(
 	auditLogHandler := handler.NewAuditLogHandler(cfg.DataPlaneURL, cfg.DataPlaneToken)
 	modelsHandler := handler.NewModelsHandler()
 
+	// Per-org rate limiter for authenticated control-plane routes. Keys on
+	// the org ID set by JWTAuth, so it is applied after auth in each group.
+	cpRateLimiter := middleware.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)
+
 	// API v1
 	r.Route("/v1", func(r chi.Router) {
 		// Public auth routes
@@ -88,6 +92,7 @@ func NewRouter(
 			// Protected auth routes (JWT)
 			r.Group(func(r chi.Router) {
 				r.Use(cpmw.JWTAuth(authService))
+				r.Use(cpRateLimiter.Middleware)
 				r.Post("/refresh", authHandler.Refresh)
 				r.Post("/api-keys", authHandler.CreateAPIKey)
 				r.Get("/api-keys", authHandler.ListAPIKeys)
@@ -98,12 +103,14 @@ func NewRouter(
 		// Models list (JWT for dashboard)
 		r.Group(func(r chi.Router) {
 			r.Use(cpmw.JWTAuth(authService))
+			r.Use(cpRateLimiter.Middleware)
 			r.Get("/models", modelsHandler.List)
 		})
 
 		// Protected source routes (JWT for dashboard)
 		r.Route("/sources", func(r chi.Router) {
 			r.Use(cpmw.JWTAuth(authService))
+			r.Use(cpRateLimiter.Middleware)
 
 			r.Post("/", sourceHandler.Create)
 			r.Get("/", sourceHandler.List)
@@ -122,6 +129,7 @@ func NewRouter(
 		// Guardrail routes (org-scoped via JWT)
 		r.Route("/guardrails", func(r chi.Router) {
 			r.Use(cpmw.JWTAuth(authService))
+			r.Use(cpRateLimiter.Middleware)
 
 			r.Post("/", guardrailHandler.Create)
 			r.Get("/", guardrailHandler.List)
@@ -138,6 +146,7 @@ func NewRouter(
 		// Connections list for the dashboard wiring view (JWT)
 		r.Group(func(r chi.Router) {
 			r.Use(cpmw.JWTAuth(authService))
+			r.Use(cpRateLimiter.Middleware)
 			connectionsHandler := handler.NewConnectionsHandler(queries)
 			r.Get("/connections", connectionsHandler.List)
 		})
@@ -145,6 +154,7 @@ func NewRouter(
 		// Transformer routes (org-scoped via JWT)
 		r.Route("/transformers", func(r chi.Router) {
 			r.Use(cpmw.JWTAuth(authService))
+			r.Use(cpRateLimiter.Middleware)
 
 			r.Post("/", transformerHandler.Create)
 			r.Get("/", transformerHandler.List)
@@ -160,6 +170,7 @@ func NewRouter(
 		// Audit log routes (JWT for dashboard)
 		r.Route("/audit-logs", func(r chi.Router) {
 			r.Use(cpmw.JWTAuth(authService))
+			r.Use(cpRateLimiter.Middleware)
 			r.Get("/", auditLogHandler.List)
 		})
 

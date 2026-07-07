@@ -40,6 +40,7 @@ type TransformerResponse struct {
 func toTransformerResponse(t generated.Transformer) TransformerResponse {
 	var config map[string]interface{}
 	json.Unmarshal(t.Config, &config)
+	config = service.SanitizeConfig(config)
 	return TransformerResponse{
 		ID:              t.ID,
 		OrganizationID:  t.OrganizationID,
@@ -195,7 +196,8 @@ func (h *TransformerHandler) AttachToSource(w http.ResponseWriter, r *http.Reque
 
 // ListSources handles GET /v1/transformers/{id}/sources.
 func (h *TransformerHandler) ListSources(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.orgID(w, r); !ok {
+	orgID, ok := h.orgID(w, r)
+	if !ok {
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -203,9 +205,9 @@ func (h *TransformerHandler) ListSources(w http.ResponseWriter, r *http.Request)
 		response.Error(w, http.StatusBadRequest, "invalid transformer ID")
 		return
 	}
-	sources, err := h.transformerService.ListSources(r.Context(), id)
+	sources, err := h.transformerService.ListSources(r.Context(), orgID, id)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "failed to list sources")
+		response.Error(w, http.StatusNotFound, "transformer not found")
 		return
 	}
 	response.JSON(w, http.StatusOK, toSourceSummaries(sources))
@@ -213,7 +215,8 @@ func (h *TransformerHandler) ListSources(w http.ResponseWriter, r *http.Request)
 
 // DetachFromSource handles DELETE /v1/transformers/{id}/sources/{sourceID}.
 func (h *TransformerHandler) DetachFromSource(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.orgID(w, r); !ok {
+	orgID, ok := h.orgID(w, r)
+	if !ok {
 		return
 	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
@@ -226,8 +229,8 @@ func (h *TransformerHandler) DetachFromSource(w http.ResponseWriter, r *http.Req
 		response.Error(w, http.StatusBadRequest, "invalid source ID")
 		return
 	}
-	if err := h.transformerService.DetachFromSource(r.Context(), id, sourceID); err != nil {
-		response.Error(w, http.StatusInternalServerError, "failed to detach transformer")
+	if err := h.transformerService.DetachFromSource(r.Context(), orgID, id, sourceID); err != nil {
+		response.Error(w, http.StatusNotFound, "transformer not found")
 		return
 	}
 	response.JSON(w, http.StatusOK, map[string]string{"status": "detached"})
@@ -235,7 +238,8 @@ func (h *TransformerHandler) DetachFromSource(w http.ResponseWriter, r *http.Req
 
 // ListBySource handles GET /v1/sources/{sourceID}/transformers.
 func (h *TransformerHandler) ListBySource(w http.ResponseWriter, r *http.Request) {
-	if _, ok := h.orgID(w, r); !ok {
+	orgID, ok := h.orgID(w, r)
+	if !ok {
 		return
 	}
 	sourceID, err := uuid.Parse(chi.URLParam(r, "sourceID"))
@@ -243,9 +247,9 @@ func (h *TransformerHandler) ListBySource(w http.ResponseWriter, r *http.Request
 		response.Error(w, http.StatusBadRequest, "invalid source ID")
 		return
 	}
-	rows, err := h.transformerService.ListBySource(r.Context(), sourceID)
+	rows, err := h.transformerService.ListBySource(r.Context(), orgID, sourceID)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "failed to list transformers")
+		response.Error(w, http.StatusNotFound, "source not found")
 		return
 	}
 	out := make([]TransformerResponse, len(rows))

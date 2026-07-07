@@ -173,6 +173,8 @@ func (h *GuardrailHandler) AttachToSource(w http.ResponseWriter, r *http.Request
 
 // DetachFromSource handles DELETE /v1/guardrails/:id/sources/:sourceID.
 func (h *GuardrailHandler) DetachFromSource(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.OrgIDFromContext(r.Context())
+
 	guardrailID, err := parseGuardrailID(r)
 	if err != nil {
 		response.Error(w, http.StatusBadRequest, "invalid guardrail ID")
@@ -185,8 +187,8 @@ func (h *GuardrailHandler) DetachFromSource(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := h.guardrailService.DetachFromSource(r.Context(), guardrailID, sourceID); err != nil {
-		response.Error(w, http.StatusInternalServerError, "failed to detach guardrail from source")
+	if err := h.guardrailService.DetachFromSource(r.Context(), orgID, guardrailID, sourceID); err != nil {
+		response.Error(w, http.StatusNotFound, "guardrail not found")
 		return
 	}
 
@@ -195,15 +197,17 @@ func (h *GuardrailHandler) DetachFromSource(w http.ResponseWriter, r *http.Reque
 
 // ListSources handles GET /v1/guardrails/:id/sources.
 func (h *GuardrailHandler) ListSources(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.OrgIDFromContext(r.Context())
+
 	guardrailID, err := parseGuardrailID(r)
 	if err != nil {
 		response.Error(w, http.StatusBadRequest, "invalid guardrail ID")
 		return
 	}
 
-	sources, err := h.guardrailService.ListSources(r.Context(), guardrailID)
+	sources, err := h.guardrailService.ListSources(r.Context(), orgID, guardrailID)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "failed to list sources")
+		response.Error(w, http.StatusNotFound, "guardrail not found")
 		return
 	}
 
@@ -212,15 +216,17 @@ func (h *GuardrailHandler) ListSources(w http.ResponseWriter, r *http.Request) {
 
 // ListBySource handles GET /v1/sources/:sourceID/guardrails.
 func (h *GuardrailHandler) ListBySource(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.OrgIDFromContext(r.Context())
+
 	sourceID, err := parseSourceIDParam(r)
 	if err != nil {
 		response.Error(w, http.StatusBadRequest, "invalid source ID")
 		return
 	}
 
-	guardrails, err := h.guardrailService.ListBySource(r.Context(), sourceID)
+	guardrails, err := h.guardrailService.ListBySource(r.Context(), orgID, sourceID)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "failed to list guardrails")
+		response.Error(w, http.StatusNotFound, "source not found")
 		return
 	}
 

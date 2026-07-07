@@ -3,8 +3,9 @@ package guard
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"sync"
+
+	"github.com/sheeld/sheeld/internal/shared/urlpolicy"
 )
 
 // Factory creates a Guard instance from a name and JSON configuration.
@@ -117,9 +118,8 @@ func presidioFactory(name string, config json.RawMessage) (Guard, error) {
 	if cfg.AnalyzerURL == "" {
 		return nil, fmt.Errorf("presidio: analyzer_url is required")
 	}
-	u, err := url.Parse(cfg.AnalyzerURL)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return nil, fmt.Errorf("presidio: analyzer_url must be a valid http(s) URL")
+	if err := urlpolicy.ValidatePublicHTTPURL(cfg.AnalyzerURL, "presidio: analyzer_url"); err != nil {
+		return nil, err
 	}
 	return NewPresidioGuard(name, cfg), nil
 }
@@ -132,9 +132,8 @@ func llmClassifierFactory(name string, config json.RawMessage) (Guard, error) {
 	if cfg.BaseURL == "" {
 		return nil, fmt.Errorf("llm_classifier: base_url is required")
 	}
-	u, err := url.Parse(cfg.BaseURL)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return nil, fmt.Errorf("llm_classifier: base_url must be a valid http(s) URL")
+	if err := urlpolicy.ValidatePublicHTTPURL(cfg.BaseURL, "llm_classifier: base_url"); err != nil {
+		return nil, err
 	}
 	if cfg.Model == "" {
 		return nil, fmt.Errorf("llm_classifier: model is required")
@@ -153,9 +152,8 @@ func webhookFactory(name string, config json.RawMessage) (Guard, error) {
 	if cfg.URL == "" {
 		return nil, fmt.Errorf("webhook: url is required")
 	}
-	u, err := url.Parse(cfg.URL)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return nil, fmt.Errorf("webhook: url must be a valid http(s) URL")
+	if err := urlpolicy.ValidatePublicHTTPURL(cfg.URL, "webhook: url"); err != nil {
+		return nil, err
 	}
 	return NewWebhookGuard(name, cfg), nil
 }

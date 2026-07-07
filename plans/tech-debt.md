@@ -17,6 +17,9 @@ Items logged here should be addressed before production. Each item includes cont
 
 ## Resolved Items
 
+### Security & Tenancy Hardening
+- **Resolved in**: security-tenancy-hardening branch — fixed cross-org IDOR on guardrail/transformer detach & list (org ownership now validated, 404 on mismatch); redacted provider secrets (`api_key`, `headers`, `*_key`) from config in API responses with round-trip-safe update; added SSRF protection (`urlpolicy.ValidatePublicHTTPURL` rejects private/loopback/link-local, opt-out `*_ALLOW_PRIVATE_GUARD_URLS`); trimmed API-key list response to non-secret fields; added per-org rate limiting to control-plane JWT routes
+
 ### Per-Phase Pass Criteria
 - **Resolved in**: per-phase-pass-criteria branch — migration 010 renames to `input_pass_criteria`/`input_pass_threshold` and adds `output_pass_criteria`/`output_pass_threshold` (existing values copied to both phases); processor evaluates each phase with its own criteria; API/UI expose both pairs; `n_of_m` validates threshold >= 1 per phase (422). Validating thresholds against live attachment counts was deliberately skipped — attachments change after source creation, and an unsatisfiable `n_of_m` fails closed, which is the safe behavior
 

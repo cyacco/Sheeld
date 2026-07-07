@@ -3,8 +3,9 @@ package transform
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"sync"
+
+	"github.com/sheeld/sheeld/internal/shared/urlpolicy"
 )
 
 // Factory creates a Transformer instance from a name and JSON configuration.
@@ -84,15 +85,13 @@ func deanonymizeFactory(name string, _ json.RawMessage) (Transformer, error) {
 	return NewDeanonymizeTransformer(name), nil
 }
 
+// validateHTTPURL requires the field and rejects private/loopback targets
+// (SSRF), unless the process is configured to allow internal guard URLs.
 func validateHTTPURL(raw, field string) error {
 	if raw == "" {
 		return fmt.Errorf("%s is required", field)
 	}
-	u, err := url.Parse(raw)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return fmt.Errorf("%s must be a valid http(s) URL", field)
-	}
-	return nil
+	return urlpolicy.ValidatePublicHTTPURL(raw, field)
 }
 
 // Register adds a transformer type factory to the registry.

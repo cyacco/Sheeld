@@ -41,6 +41,12 @@ type Config struct {
 	RateLimitRPS   float64 `envconfig:"RATE_LIMIT_RPS" default:"100"`
 	RateLimitBurst int     `envconfig:"RATE_LIMIT_BURST" default:"200"`
 
+	// AllowPrivateGuardURLs permits guard/transformer URLs that resolve to
+	// private, loopback, or link-local addresses. Off by default (SSRF
+	// protection); enable only when guards target a trusted internal
+	// network. Validated at guardrail/transformer create time.
+	AllowPrivateGuardURLs bool `envconfig:"ALLOW_PRIVATE_GUARD_URLS" default:"false"`
+
 	// Request Body Limit
 	MaxBodyBytes int64 `envconfig:"MAX_BODY_BYTES" default:"1048576"`
 

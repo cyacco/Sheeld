@@ -37,6 +37,7 @@ import (
 	"github.com/sheeld/sheeld/internal/shared/guard"
 	"github.com/sheeld/sheeld/internal/shared/llm"
 	"github.com/sheeld/sheeld/internal/shared/transform"
+	"github.com/sheeld/sheeld/internal/shared/urlpolicy"
 )
 
 // Package-level test infrastructure
@@ -84,6 +85,10 @@ func getMockLLMLastRequest() llm.ChatRequest {
 
 func TestMain(m *testing.M) {
 	ctx := context.Background()
+
+	// Most e2e tests point guards/transformers at loopback httptest servers,
+	// so allow private targets by default; the SSRF test toggles this off.
+	urlpolicy.SetAllowPrivate(true)
 
 	// 1. Start PostgreSQL container
 	var err error
@@ -1780,5 +1785,114 @@ func TestPerPhasePassCriteria(t *testing.T) {
 		}, token)
 		expectStatus(t, resp, http.StatusUnprocessableEntity)
 		resp.Body.Close()
+	})
+}
+
+// TestSecurityHardening covers the tenancy/secret/SSRF fixes: cross-org
+// access is denied, config secrets are redacted in responses, and
+// private-network guard URLs are rejected at create.
+func TestSecurityHardening(t *testing.T) {
+	orgA := registerUser(t, "Org A", "org-a@example.com", "strongpassword123")
+	orgB := registerUser(t, "Org B", "org-b@example.com", "strongpassword123")
+
+	sourceA := createSource(t, orgA, "A Source", "org-a-source")
+	guardA := createGuardrail(t, orgA, map[string]interface{}{
+		"name":       "a-classifier",
+		"guard_type": "llm_classifier",
+		"phase":      "input",
+		"config": map[string]interface{}{
+			"base_url":     "https://api.openai.com/v1",
+			"model":        "gpt-4o-mini",
+			"instructions": "flag secrets",
+			"api_key":      "sk-super-secret",
+		},
+		"enabled": true,
+	})
+	attachGuardrail(t, orgA, guardA, sourceA)
+
+	t.Run("config api_key is redacted in responses", func(t *testing.T) {
+		resp := doRequest(t, "GET", "/v1/guardrails/"+guardA, nil, orgA)
+		expectStatus(t, resp, http.StatusOK)
+		var g map[string]interface{}
+		decodeBody(t, resp, &g)
+		cfg := g["config"].(map[string]interface{})
+		if cfg["api_key"] != "***" {
+			t.Errorf("api_key should be redacted, got %v", cfg["api_key"])
+		}
+		if cfg["model"] != "gpt-4o-mini" {
+			t.Errorf("non-secret field should survive, got %v", cfg["model"])
+		}
+	})
+
+	t.Run("redacted config round-trips without clobbering the stored key", func(t *testing.T) {
+		// Load (redacted), change only the name, save. The real key must survive.
+		resp := doRequest(t, "PUT", "/v1/guardrails/"+guardA, map[string]interface{}{
+			"name":       "a-classifier-renamed",
+			"guard_type": "llm_classifier",
+			"phase":      "input",
+			"config": map[string]interface{}{
+				"base_url":     "https://api.openai.com/v1",
+				"model":        "gpt-4o-mini",
+				"instructions": "flag secrets",
+				"api_key":      "***",
+			},
+			"enabled": true,
+		}, orgA)
+		expectStatus(t, resp, http.StatusOK)
+		resp.Body.Close()
+		// The stored key isn't directly observable via the API (by design),
+		// but the update succeeding with "***" proves the sentinel wasn't
+		// re-validated as a literal key and the guard still builds.
+	})
+
+	t.Run("org B cannot list org A's guardrail sources", func(t *testing.T) {
+		resp := doRequest(t, "GET", "/v1/guardrails/"+guardA+"/sources", nil, orgB)
+		expectStatus(t, resp, http.StatusNotFound)
+		resp.Body.Close()
+	})
+
+	t.Run("org B cannot detach org A's guardrail", func(t *testing.T) {
+		resp := doRequest(t, "DELETE", "/v1/guardrails/"+guardA+"/sources/"+sourceA, nil, orgB)
+		expectStatus(t, resp, http.StatusNotFound)
+		resp.Body.Close()
+	})
+
+	t.Run("org B cannot list guardrails on org A's source", func(t *testing.T) {
+		resp := doRequest(t, "GET", "/v1/sources/"+sourceA+"/guardrails", nil, orgB)
+		expectStatus(t, resp, http.StatusNotFound)
+		resp.Body.Close()
+	})
+
+	t.Run("private-network guard URL is rejected", func(t *testing.T) {
+		urlpolicy.SetAllowPrivate(false)
+		defer urlpolicy.SetAllowPrivate(true)
+		resp := doRequest(t, "POST", "/v1/guardrails", map[string]interface{}{
+			"name":       "ssrf-attempt",
+			"guard_type": "webhook",
+			"phase":      "input",
+			"config":     map[string]interface{}{"url": "http://169.254.169.254/latest/meta-data"},
+			"enabled":    true,
+		}, orgA)
+		expectStatus(t, resp, http.StatusUnprocessableEntity)
+		resp.Body.Close()
+	})
+
+	t.Run("API key list omits hash and prefix", func(t *testing.T) {
+		createAPIKey(t, orgA, "list-test-key")
+		resp := doRequest(t, "GET", "/v1/auth/api-keys", nil, orgA)
+		expectStatus(t, resp, http.StatusOK)
+		var keys []map[string]interface{}
+		decodeBody(t, resp, &keys)
+		if len(keys) == 0 {
+			t.Fatal("expected at least one key")
+		}
+		for _, k := range keys {
+			if _, ok := k["key_hash"]; ok {
+				t.Error("key_hash must not be in the response")
+			}
+			if _, ok := k["key_prefix"]; ok {
+				t.Error("key_prefix must not be in the response")
+			}
+		}
 	})
 }

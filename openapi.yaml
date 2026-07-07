@@ -1106,16 +1106,14 @@ components:
 
     ApiKey:
       type: object
+      description: >
+        Returned by GET /v1/auth/api-keys. The key hash and prefix are never
+        exposed; the raw key is shown only once, in the create response.
       properties:
         id:
           type: string
           format: uuid
-        organization_id:
-          type: string
-          format: uuid
         name:
-          type: string
-        key_prefix:
           type: string
         created_at:
           type: string
@@ -1258,6 +1256,11 @@ components:
             "all_messages" — all_messages validates the full serialized
             conversation (closes history-injection bypasses; applies to the
             input phase only).
+            Secret fields ("api_key", "headers", any "*_key") are redacted to
+            "***" in GET responses; resubmitting a redacted value on update
+            keeps the stored secret. URLs that resolve to private, loopback,
+            or link-local addresses are rejected unless the server is
+            configured to allow internal guard URLs.
             The "webhook" guard type takes {"url", "headers"?, "timeout_seconds"?}
             and POSTs {"input", "phase", "source_route"} to the URL, expecting
             {"passed": bool, "message"?, "details"?} back; non-2xx or malformed

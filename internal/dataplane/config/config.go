@@ -27,6 +27,12 @@ type Config struct {
 	// local development.
 	AllowInsecureCP bool `envconfig:"ALLOW_INSECURE_CP" default:"false"`
 
+	// AllowPrivateGuardURLs permits guard/transformer URLs resolving to
+	// private/loopback/link-local addresses (SSRF protection is off).
+	// Enable inside the compose stack where presidio/webhook targets run on
+	// the internal network. Applies when the data plane builds guards.
+	AllowPrivateGuardURLs bool `envconfig:"ALLOW_PRIVATE_GUARD_URLS" default:"false"`
+
 	// Config snapshot: when both are set, each applied workspace config is
 	// persisted to disk (AES-256-GCM encrypted, 0600) and used as a startup
 	// fallback if the control plane is unreachable. The payload contains
