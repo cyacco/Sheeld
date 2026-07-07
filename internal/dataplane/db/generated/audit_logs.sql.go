@@ -8,6 +8,7 @@ package generated
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -52,6 +53,30 @@ func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) 
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const deleteAuditLogsBefore = `-- name: DeleteAuditLogsBefore :execrows
+DELETE FROM audit_logs
+WHERE ctid IN (
+    SELECT al.ctid FROM audit_logs al
+    WHERE al.created_at < $1
+    LIMIT $2
+)
+`
+
+type DeleteAuditLogsBeforeParams struct {
+	CreatedAt time.Time `json:"created_at"`
+	Limit     int32     `json:"limit"`
+}
+
+// Deletes up to $2 audit rows older than $1. Batched via ctid so a large
+// backlog is cleared incrementally instead of one table-locking statement.
+func (q *Queries) DeleteAuditLogsBefore(ctx context.Context, arg DeleteAuditLogsBeforeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAuditLogsBefore, arg.CreatedAt, arg.Limit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const listAuditLogsByOrganization = `-- name: ListAuditLogsByOrganization :many

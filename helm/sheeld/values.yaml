@@ -113,6 +113,10 @@ dataplaneConfig:
   llmGatewayURL: "http://litellm:4000"
   llmRequestTimeout: "30s"
   allowPrivateGuardURLs: "true"
+  # Audit-log retention. "0" keeps rows forever (default); set a duration
+  # (e.g. "720h" for 30 days) to prune older rows periodically.
+  auditRetention: "0"
+  auditPruneInterval: "1h"
 
 ## Secrets (sensitive). jwtSecret, encryptionKey, and dataplaneToken have no
 ## usable defaults — the chart refuses to install until you set them:

@@ -81,6 +81,9 @@ func run() error {
 	auditWriter := auditstore.NewWriter(queries)
 	defer auditWriter.Close()
 
+	// Audit-log retention (opt-in; no-op unless SHEELD_DP_AUDIT_RETENTION is set).
+	go auditstore.NewPruner(queries, cfg.AuditRetention, cfg.AuditPruneInterval).Run(ctx)
+
 	// Config store + poller
 	guardRegistry := guard.NewRegistry()
 	transformRegistry := transform.NewRegistry()

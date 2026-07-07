@@ -11,6 +11,8 @@ data:
   SHEELD_DP_LLM_GATEWAY_URL: {{ .Values.dataplaneConfig.llmGatewayURL | quote }}
   SHEELD_DP_LLM_REQUEST_TIMEOUT: {{ .Values.dataplaneConfig.llmRequestTimeout | quote }}
   SHEELD_DP_ALLOW_PRIVATE_GUARD_URLS: {{ .Values.dataplaneConfig.allowPrivateGuardURLs | quote }}
+  SHEELD_DP_AUDIT_RETENTION: {{ .Values.dataplaneConfig.auditRetention | quote }}
+  SHEELD_DP_AUDIT_PRUNE_INTERVAL: {{ .Values.dataplaneConfig.auditPruneInterval | quote }}
   # In-cluster CP↔DP traffic is plain HTTP over the pod network. Front it
   # with a service mesh / mTLS for real deployments; the payload carries
   # decrypted LLM keys.

@@ -61,6 +61,12 @@ type Config struct {
 	// Proxy Timeout
 	ProxyTimeout time.Duration `envconfig:"PROXY_TIMEOUT" default:"60s"`
 
+	// Audit-log retention. AuditRetention <= 0 (the default) keeps rows
+	// forever; set it to enable periodic pruning of rows older than the
+	// window, swept every AuditPruneInterval.
+	AuditRetention     time.Duration `envconfig:"AUDIT_RETENTION" default:"0"`
+	AuditPruneInterval time.Duration `envconfig:"AUDIT_PRUNE_INTERVAL" default:"1h"`
+
 	// Logging
 	LogLevel string `envconfig:"LOG_LEVEL" default:"info"`
 }

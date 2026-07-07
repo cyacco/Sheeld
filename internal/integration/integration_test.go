@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -47,6 +48,7 @@ var (
 	poller      *backendconfig.Poller
 	auditWriter *auditstore.Writer
 	pool        *pgxpool.Pool
+	dpPool      *pgxpool.Pool
 	pgCtr       *postgres.PostgresContainer
 
 	// mockLLMResponseContent controls what the mock LLM server returns.
@@ -166,7 +168,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	dpConnStr := strings.Replace(connStr, "/sheeld_test", "/sheeld_dp_test", 1)
-	dpPool, err := pgxpool.New(ctx, dpConnStr)
+	dpPool, err = pgxpool.New(ctx, dpConnStr)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to connect to data-plane database: %v\n", err)
 		os.Exit(1)
@@ -1895,4 +1897,59 @@ func TestSecurityHardening(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestAuditLogRetention verifies the pruner deletes rows older than the
+// retention window and keeps newer ones.
+func TestAuditLogRetention(t *testing.T) {
+	orgID := uuid.New()
+	sourceID := uuid.New()
+
+	// Seed two rows: one 48h old, one just now.
+	insert := func(age time.Duration) {
+		_, err := dpPool.Exec(context.Background(),
+			`INSERT INTO audit_logs (organization_id, source_id, input_hash, guard_results, overall_result, latency_ms, created_at)
+			 VALUES ($1, $2, 'h', '{}', 'pass', 1, now() - $3::interval)`,
+			orgID, sourceID, fmt.Sprintf("%d hours", int(age.Hours())))
+		if err != nil {
+			t.Fatalf("seed audit row: %v", err)
+		}
+	}
+	insert(48 * time.Hour)
+	insert(0)
+
+	count := func() int {
+		var n int
+		if err := dpPool.QueryRow(context.Background(),
+			`SELECT count(*) FROM audit_logs WHERE organization_id = $1`, orgID).Scan(&n); err != nil {
+			t.Fatalf("count: %v", err)
+		}
+		return n
+	}
+	if count() != 2 {
+		t.Fatalf("expected 2 seeded rows, got %d", count())
+	}
+
+	// Prune anything older than 24h. Run does one immediate sweep; cancel
+	// once the ticker would fire.
+	ctx, cancel := context.WithCancel(context.Background())
+	pruner := auditstore.NewPruner(dpgenerated.New(dpPool), 24*time.Hour, time.Hour)
+	done := make(chan struct{})
+	go func() { pruner.Run(ctx); close(done) }()
+
+	// Poll until the old row is gone (immediate sweep), then stop the pruner.
+	deadline := time.Now().Add(3 * time.Second)
+	for count() != 1 {
+		if time.Now().After(deadline) {
+			cancel()
+			t.Fatalf("expected 1 row after prune, got %d", count())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	cancel()
+	<-done
+
+	if count() != 1 {
+		t.Errorf("recent row should survive; got %d rows", count())
+	}
 }
