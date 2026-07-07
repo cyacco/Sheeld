@@ -20,8 +20,10 @@ that work. Assessment done via codebase review on 2026-07-07.
   counters, audit-buffer depth + drop counter, config version/staleness gauge.
 - Audit-log retention: `audit_logs` grows unbounded — add a retention window +
   prune path (config-driven).
-- LLM client resilience: single synchronous call with no retry/circuit-breaker
-  (`internal/shared/llm`) — a LiteLLM blip 500s every proxy request.
+- LLM client resilience — **SHIPPED**: retry with exponential backoff on
+  transient failures (connection errors, HTTP 429/5xx), never on deterministic
+  4xx; context-aware backoff; tunable via SHEELD_DP_LLM_MAX_RETRIES /
+  SHEELD_DP_LLM_RETRY_BACKOFF.
 - Release workflow: tag → build & push images to GHCR → GitHub Release; add a
   CHANGELOG; cut `v0.1.0`. CI currently builds images but never publishes them.
 

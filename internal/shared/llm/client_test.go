@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -118,7 +119,7 @@ func TestClient_ChatCompletion_Timeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient(server.URL, 50*time.Millisecond)
+	client := NewClient(server.URL, 50*time.Millisecond).WithRetry(0, 0)
 
 	_, err := client.ChatCompletion(context.Background(), "key", &ChatRequest{
 		Model:    "openai/gpt-4o",
@@ -210,5 +211,90 @@ func TestExtractOutputText(t *testing.T) {
 				t.Errorf("got %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func okResponse(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"id":"x","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`))
+}
+
+func TestClient_RetriesTransientThenSucceeds(t *testing.T) {
+	var attempts int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&attempts, 1)
+		if n < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		okResponse(w)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, 5*time.Second).WithRetry(2, time.Millisecond)
+	resp, err := client.ChatCompletion(context.Background(), "k", &ChatRequest{Messages: []Message{{Role: "user", Content: "hi"}}})
+	if err != nil {
+		t.Fatalf("expected success after retries, got %v", err)
+	}
+	if resp.Choices[0].Message.Content != "ok" {
+		t.Errorf("unexpected content: %q", resp.Choices[0].Message.Content)
+	}
+	if got := atomic.LoadInt32(&attempts); got != 3 {
+		t.Errorf("expected 3 attempts, got %d", got)
+	}
+}
+
+func TestClient_NoRetryOn4xx(t *testing.T) {
+	var attempts int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, 5*time.Second).WithRetry(3, time.Millisecond)
+	if _, err := client.ChatCompletion(context.Background(), "k", &ChatRequest{Messages: []Message{{Role: "user", Content: "hi"}}}); err == nil {
+		t.Fatal("expected error")
+	}
+	if got := atomic.LoadInt32(&attempts); got != 1 {
+		t.Errorf("4xx must not retry: got %d attempts", got)
+	}
+}
+
+func TestClient_RetriesExhausted(t *testing.T) {
+	var attempts int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusBadGateway)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, 5*time.Second).WithRetry(2, time.Millisecond)
+	if _, err := client.ChatCompletion(context.Background(), "k", &ChatRequest{Messages: []Message{{Role: "user", Content: "hi"}}}); err == nil {
+		t.Fatal("expected error after exhausting retries")
+	}
+	if got := atomic.LoadInt32(&attempts); got != 3 {
+		t.Errorf("expected 3 attempts (1 + 2 retries), got %d", got)
+	}
+}
+
+func TestClient_RespectsContextDuringBackoff(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	// Long backoff, but a short context deadline: must return promptly, not
+	// wait out the backoff.
+	client := NewClient(server.URL, 5*time.Second).WithRetry(5, 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	if _, err := client.ChatCompletion(ctx, "k", &ChatRequest{Messages: []Message{{Role: "user", Content: "hi"}}}); err == nil {
+		t.Fatal("expected error")
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Errorf("should abort on context, took %s", elapsed)
 	}
 }
