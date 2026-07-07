@@ -255,6 +255,8 @@ gofmt -w .
 | `SHEELD_DP_STARTUP_TIMEOUT` | Max wait for initial config at startup | `60s` |
 | `SHEELD_DP_LLM_GATEWAY_URL` | LiteLLM gateway URL | `http://localhost:4000` |
 | `SHEELD_DP_LLM_REQUEST_TIMEOUT` | Timeout for LLM requests | `30s` |
+| `SHEELD_DP_LLM_MAX_RETRIES` | Retries on transient LLM gateway failures (429/5xx/connection) | `2` |
+| `SHEELD_DP_LLM_RETRY_BACKOFF` | Initial retry backoff (doubles per retry) | `200ms` |
 | `SHEELD_DP_LOG_LEVEL` | Log level (debug, info, warn, error) | `info` |
 
 ## Operational notes

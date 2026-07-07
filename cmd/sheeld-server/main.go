@@ -103,9 +103,12 @@ func run() error {
 
 	// Processor: guards + LLM client, config from the in-memory store
 	guardEngine := guard.NewEngine(guardRegistry)
-	llmClient := llm.NewClient(cfg.LLMGatewayURL, cfg.LLMRequestTimeout)
+	llmClient := llm.NewClient(cfg.LLMGatewayURL, cfg.LLMRequestTimeout).
+		WithRetry(cfg.LLMMaxRetries, cfg.LLMRetryBackoff)
 	proc := processor.NewProcessor(store, guardEngine, llmClient, auditWriter)
-	slog.Info("LLM gateway configured", "url", cfg.LLMGatewayURL, "timeout", cfg.LLMRequestTimeout)
+	slog.Info("LLM gateway configured",
+		"url", cfg.LLMGatewayURL, "timeout", cfg.LLMRequestTimeout,
+		"max_retries", cfg.LLMMaxRetries, "retry_backoff", cfg.LLMRetryBackoff)
 
 	// Build HTTP router
 	router := gateway.NewRouter(cfg, store, proc, auditstore.NewHandler(queries))

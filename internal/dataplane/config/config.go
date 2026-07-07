@@ -46,6 +46,10 @@ type Config struct {
 	// LLM Gateway (LiteLLM)
 	LLMGatewayURL     string        `envconfig:"LLM_GATEWAY_URL" default:"http://localhost:4000"`
 	LLMRequestTimeout time.Duration `envconfig:"LLM_REQUEST_TIMEOUT" default:"30s"`
+	// Retries after the first attempt for transient gateway failures
+	// (connection errors, HTTP 429/5xx), with exponential backoff.
+	LLMMaxRetries   int           `envconfig:"LLM_MAX_RETRIES" default:"2"`
+	LLMRetryBackoff time.Duration `envconfig:"LLM_RETRY_BACKOFF" default:"200ms"`
 
 	// Rate Limiting
 	RateLimitRPS   float64 `envconfig:"RATE_LIMIT_RPS" default:"100"`
