@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sheeld.fullname" . }}-dataplane
+  labels:
+    {{- include "sheeld.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.dataplane.service.type }}
+  ports:
+    - port: {{ .Values.dataplane.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "sheeld.dataplane.selectorLabels" . | nindent 4 }}

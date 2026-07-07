@@ -1,0 +1,24 @@
+Sheeld {{ .Chart.AppVersion }} installed as release "{{ .Release.Name }}".
+
+Components:
+  control plane : {{ include "sheeld.fullname" . }}-api        (:{{ .Values.api.service.port }})
+  data plane    : {{ include "sheeld.fullname" . }}-dataplane  (:{{ .Values.dataplane.service.port }})  ← the proxy
+  dashboard     : {{ include "sheeld.fullname" . }}-web        (:{{ .Values.web.service.port }})
+{{- if .Values.postgresql.enabled }}
+  databases     : {{ include "sheeld.fullname" . }}-cp-postgres, {{ include "sheeld.fullname" . }}-dp-postgres
+{{- end }}
+
+Send proxied LLM traffic to the data-plane service:
+  POST http://{{ include "sheeld.fullname" . }}-dataplane:{{ .Values.dataplane.service.port }}/v1/proxy/<source-route>/chat/completions
+
+Point an OpenAI SDK's base_url there with a Sheeld API key created in the dashboard.
+
+{{- if not .Values.ingress.enabled }}
+
+The dashboard has no Ingress. To reach it locally:
+  kubectl port-forward svc/{{ include "sheeld.fullname" . }}-web {{ .Values.web.service.port }}:{{ .Values.web.service.port }}
+{{- end }}
+
+Reminder: CP↔DP traffic uses plain HTTP on the pod network (SHEELD_DP_ALLOW_INSECURE_CP=true);
+front it with mTLS/a service mesh in production — the workspace-config payload carries
+decrypted LLM keys.
