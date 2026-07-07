@@ -100,8 +100,12 @@ func (s *GuardrailService) List(ctx context.Context, orgID uuid.UUID) ([]generat
 	return s.queries.ListGuardrailsByOrg(ctx, orgID)
 }
 
-// ListBySource returns all guardrails attached to a source.
-func (s *GuardrailService) ListBySource(ctx context.Context, sourceID uuid.UUID) ([]generated.Guardrail, error) {
+// ListBySource returns all guardrails attached to a source, validating org
+// ownership of the source first.
+func (s *GuardrailService) ListBySource(ctx context.Context, orgID, sourceID uuid.UUID) ([]generated.Guardrail, error) {
+	if _, err := s.queries.GetSource(ctx, generated.GetSourceParams{ID: sourceID, OrganizationID: orgID}); err != nil {
+		return nil, fmt.Errorf("source not found: %w", err)
+	}
 	return s.queries.ListGuardrailsBySource(ctx, sourceID)
 }
 
@@ -112,6 +116,14 @@ func (s *GuardrailService) ListEnabledBySource(ctx context.Context, sourceID uui
 
 // Update updates a guardrail, scoped to an organization.
 func (s *GuardrailService) Update(ctx context.Context, orgID, guardrailID uuid.UUID, params UpdateGuardrailParams) (generated.Guardrail, error) {
+	// Preserve stored secrets when the client resubmits a redacted config
+	// (loaded from a sanitized GET response).
+	if existing, err := s.Get(ctx, orgID, guardrailID); err == nil {
+		var storedConfig map[string]interface{}
+		json.Unmarshal(existing.Config, &storedConfig)
+		params.Config = PreserveRedactedSecrets(params.Config, storedConfig)
+	}
+
 	configJSON, err := s.validateConfig(params.Name, params.GuardType, params.Config)
 	if err != nil {
 		return generated.Guardrail{}, err
@@ -155,16 +167,24 @@ func (s *GuardrailService) AttachToSource(ctx context.Context, orgID, guardrailI
 	})
 }
 
-// DetachFromSource detaches a guardrail from a source.
-func (s *GuardrailService) DetachFromSource(ctx context.Context, guardrailID, sourceID uuid.UUID) error {
+// DetachFromSource detaches a guardrail from a source, validating org
+// ownership of the guardrail first.
+func (s *GuardrailService) DetachFromSource(ctx context.Context, orgID, guardrailID, sourceID uuid.UUID) error {
+	if _, err := s.Get(ctx, orgID, guardrailID); err != nil {
+		return fmt.Errorf("guardrail not found: %w", err)
+	}
 	return s.queries.DetachGuardrailFromSource(ctx, generated.DetachGuardrailFromSourceParams{
 		SourceID:    sourceID,
 		GuardrailID: guardrailID,
 	})
 }
 
-// ListSources returns all sources attached to a guardrail.
-func (s *GuardrailService) ListSources(ctx context.Context, guardrailID uuid.UUID) ([]generated.Source, error) {
+// ListSources returns all sources attached to a guardrail, validating org
+// ownership of the guardrail first.
+func (s *GuardrailService) ListSources(ctx context.Context, orgID, guardrailID uuid.UUID) ([]generated.Source, error) {
+	if _, err := s.Get(ctx, orgID, guardrailID); err != nil {
+		return nil, fmt.Errorf("guardrail not found: %w", err)
+	}
 	return s.queries.ListSourcesByGuardrail(ctx, guardrailID)
 }
 
@@ -185,6 +205,7 @@ type GuardrailResponse struct {
 func ToGuardrailResponse(g generated.Guardrail) GuardrailResponse {
 	var config map[string]interface{}
 	json.Unmarshal(g.Config, &config)
+	config = SanitizeConfig(config)
 
 	return GuardrailResponse{
 		ID:             g.ID,

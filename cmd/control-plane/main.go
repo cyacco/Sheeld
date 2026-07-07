@@ -18,6 +18,7 @@ import (
 	"github.com/sheeld/sheeld/internal/controlplane/service"
 	"github.com/sheeld/sheeld/internal/shared/guard"
 	"github.com/sheeld/sheeld/internal/shared/transform"
+	"github.com/sheeld/sheeld/internal/shared/urlpolicy"
 )
 
 func main() {
@@ -51,6 +52,10 @@ func run() error {
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	slog.SetDefault(logger)
+
+	// SSRF policy for user-supplied guard/transformer URLs, validated at
+	// create/update time.
+	urlpolicy.SetAllowPrivate(cfg.AllowPrivateGuardURLs)
 
 	// Connect to database
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)

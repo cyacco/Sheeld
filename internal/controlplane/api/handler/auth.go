@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
 	"github.com/sheeld/sheeld/internal/controlplane/service"
 	"github.com/sheeld/sheeld/internal/shared/middleware"
 	"github.com/sheeld/sheeld/internal/shared/response"
@@ -131,7 +132,33 @@ func (h *AuthHandler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.JSON(w, http.StatusOK, keys)
+	response.JSON(w, http.StatusOK, toAPIKeySummaries(keys))
+}
+
+// apiKeySummary is the safe API-key representation: never exposes the hash
+// or raw prefix.
+type apiKeySummary struct {
+	ID        uuid.UUID `json:"id"`
+	Name      string    `json:"name"`
+	CreatedAt string    `json:"created_at"`
+	RevokedAt *string   `json:"revoked_at"`
+}
+
+func toAPIKeySummaries(keys []generated.ApiKey) []apiKeySummary {
+	out := make([]apiKeySummary, len(keys))
+	for i, k := range keys {
+		s := apiKeySummary{
+			ID:        k.ID,
+			Name:      k.Name,
+			CreatedAt: k.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		}
+		if k.RevokedAt.Valid {
+			r := k.RevokedAt.Time.Format("2006-01-02T15:04:05Z")
+			s.RevokedAt = &r
+		}
+		out[i] = s
+	}
+	return out
 }
 
 // Refresh handles POST /v1/auth/refresh.

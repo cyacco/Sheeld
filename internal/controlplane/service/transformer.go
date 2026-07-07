@@ -99,6 +99,13 @@ func (s *TransformerService) List(ctx context.Context, orgID uuid.UUID) ([]gener
 
 // Update updates a transformer, scoped to an organization.
 func (s *TransformerService) Update(ctx context.Context, orgID, id uuid.UUID, params UpdateTransformerParams) (generated.Transformer, error) {
+	// Preserve stored secrets when the client resubmits a redacted config.
+	if existing, err := s.Get(ctx, orgID, id); err == nil {
+		var storedConfig map[string]interface{}
+		json.Unmarshal(existing.Config, &storedConfig)
+		params.Config = PreserveRedactedSecrets(params.Config, storedConfig)
+	}
+
 	phase, enabled, configJSON, err := s.validate(params)
 	if err != nil {
 		return generated.Transformer{}, err
@@ -131,21 +138,33 @@ func (s *TransformerService) AttachToSource(ctx context.Context, orgID, transfor
 	})
 }
 
-// DetachFromSource detaches a transformer from a source.
-func (s *TransformerService) DetachFromSource(ctx context.Context, transformerID, sourceID uuid.UUID) error {
+// DetachFromSource detaches a transformer from a source, validating org
+// ownership of the transformer first.
+func (s *TransformerService) DetachFromSource(ctx context.Context, orgID, transformerID, sourceID uuid.UUID) error {
+	if _, err := s.Get(ctx, orgID, transformerID); err != nil {
+		return fmt.Errorf("transformer not found: %w", err)
+	}
 	return s.queries.DetachTransformerFromSource(ctx, generated.DetachTransformerFromSourceParams{
 		SourceID:      sourceID,
 		TransformerID: transformerID,
 	})
 }
 
-// ListSources returns all sources attached to a transformer.
-func (s *TransformerService) ListSources(ctx context.Context, transformerID uuid.UUID) ([]generated.Source, error) {
+// ListSources returns all sources attached to a transformer, validating org
+// ownership of the transformer first.
+func (s *TransformerService) ListSources(ctx context.Context, orgID, transformerID uuid.UUID) ([]generated.Source, error) {
+	if _, err := s.Get(ctx, orgID, transformerID); err != nil {
+		return nil, fmt.Errorf("transformer not found: %w", err)
+	}
 	return s.queries.ListSourcesByTransformer(ctx, transformerID)
 }
 
-// ListBySource returns a source's transformers in chain order.
-func (s *TransformerService) ListBySource(ctx context.Context, sourceID uuid.UUID) ([]generated.ListTransformersBySourceRow, error) {
+// ListBySource returns a source's transformers in chain order, validating
+// org ownership of the source first.
+func (s *TransformerService) ListBySource(ctx context.Context, orgID, sourceID uuid.UUID) ([]generated.ListTransformersBySourceRow, error) {
+	if _, err := s.queries.GetSource(ctx, generated.GetSourceParams{ID: sourceID, OrganizationID: orgID}); err != nil {
+		return nil, fmt.Errorf("source not found: %w", err)
+	}
 	return s.queries.ListTransformersBySource(ctx, sourceID)
 }
 
@@ -165,6 +184,9 @@ func (s *TransformerService) SetSourceTransformers(ctx context.Context, orgID, s
 	}
 	if int(count) != len(ids) {
 		return fmt.Errorf("one or more transformer ids not found in organization")
+	}
+	if _, err := s.queries.GetSource(ctx, generated.GetSourceParams{ID: sourceID, OrganizationID: orgID}); err != nil {
+		return fmt.Errorf("source not found: %w", err)
 	}
 
 	tx, err := s.pool.Begin(ctx)

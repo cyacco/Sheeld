@@ -213,6 +213,7 @@ gofmt -w .
 | `SHEELD_DATAPLANE_TOKEN` | Static token authenticating data planes | — (disables data-plane endpoints) |
 | `SHEELD_DATAPLANE_URL` | Data-plane base URL for audit-log queries | — (disables audit queries) |
 | `SHEELD_CORS_ALLOWED_ORIGINS` | Comma-separated CORS origins | `http://localhost:3000` |
+| `SHEELD_ALLOW_PRIVATE_GUARD_URLS` | Allow guard/transformer URLs on private/loopback addresses (SSRF off) | `false` |
 | `SHEELD_LOG_LEVEL` | Log level (debug, info, warn, error) | `info` |
 
 ### Data plane (`SHEELD_DP_` prefix)
@@ -224,6 +225,7 @@ gofmt -w .
 | `SHEELD_DP_CONTROL_PLANE_URL` | Control-plane base URL | required |
 | `SHEELD_DP_TOKEN` | Shared static token (matches `SHEELD_DATAPLANE_TOKEN`) | required |
 | `SHEELD_DP_ALLOW_INSECURE_CP` | Allow http:// control-plane URL (local dev only) | `false` |
+| `SHEELD_DP_ALLOW_PRIVATE_GUARD_URLS` | Allow guard/transformer URLs on private/loopback addresses (SSRF off) | `false` |
 | `SHEELD_DP_POLL_INTERVAL` | Workspace-config poll interval | `5s` |
 | `SHEELD_DP_CONFIG_SNAPSHOT_PATH` | Path for an encrypted disk snapshot of the applied config (startup fallback) | — (disabled) |
 | `SHEELD_DP_CONFIG_SNAPSHOT_KEY` | 64-char hex AES-256 key for the snapshot (required with the path) | — |
@@ -239,6 +241,7 @@ gofmt -w .
 - **Control-plane outages**: data planes keep serving proxy traffic from the in-memory config; only config changes and audit-log dashboard queries are unavailable until it returns. To also survive a data-plane *restart* during an outage, set `SHEELD_DP_CONFIG_SNAPSHOT_PATH` + `SHEELD_DP_CONFIG_SNAPSHOT_KEY` — the last applied config is persisted encrypted (AES-256-GCM, 0600) and loaded as a startup fallback.
 - **Migrations**: each binary runs its own goose migrations at startup — fine for single replicas; run migrations as a separate step when deploying multiple replicas.
 - **Rate limits are per data-plane replica** (in-memory), so effective limits scale with replica count.
+- **SSRF protection**: guard/transformer URLs (webhook, presidio, llm_classifier) that resolve to private, loopback, or link-local addresses are rejected at create time. When your guard targets run on a trusted internal network (e.g. the compose stack, or in-cluster services), set `SHEELD_ALLOW_PRIVATE_GUARD_URLS=true` on the control plane and `SHEELD_DP_ALLOW_PRIVATE_GUARD_URLS=true` on the data plane. Provider API keys and webhook auth headers in guard configs are redacted (`***`) in API responses; resubmitting a redacted config on update keeps the stored secret.
 - **Migrating from the single-binary layout**: audit logs moved to the data-plane DB. To keep existing rows, dump them before the control plane applies migration 007: `pg_dump -t audit_logs <cp-db-url> | psql <dp-db-url>`.
 
 ## Key Technologies
