@@ -257,6 +257,8 @@ gofmt -w .
 | `SHEELD_DP_LLM_REQUEST_TIMEOUT` | Timeout for LLM requests | `30s` |
 | `SHEELD_DP_LLM_MAX_RETRIES` | Retries on transient LLM gateway failures (429/5xx/connection) | `2` |
 | `SHEELD_DP_LLM_RETRY_BACKOFF` | Initial retry backoff (doubles per retry) | `200ms` |
+| `SHEELD_DP_AUDIT_RETENTION` | Prune audit rows older than this; `0` keeps forever | `0` |
+| `SHEELD_DP_AUDIT_PRUNE_INTERVAL` | How often the retention sweep runs | `1h` |
 | `SHEELD_DP_LOG_LEVEL` | Log level (debug, info, warn, error) | `info` |
 
 ## Operational notes

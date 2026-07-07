@@ -18,8 +18,9 @@ that work. Assessment done via codebase review on 2026-07-07.
 ## M2 — "Can be trusted & run" (production hardening + release plumbing)
 - Prometheus metrics on both planes: request/guard-latency histograms, LLM error
   counters, audit-buffer depth + drop counter, config version/staleness gauge.
-- Audit-log retention: `audit_logs` grows unbounded — add a retention window +
-  prune path (config-driven).
+- Audit-log retention — **SHIPPED**: opt-in background pruner (batched deletes,
+  disabled by default so audit history is never silently discarded);
+  SHEELD_DP_AUDIT_RETENTION / SHEELD_DP_AUDIT_PRUNE_INTERVAL.
 - LLM client resilience — **SHIPPED**: retry with exponential backoff on
   transient failures (connection errors, HTTP 429/5xx), never on deterministic
   4xx; context-aware backoff; tunable via SHEELD_DP_LLM_MAX_RETRIES /
