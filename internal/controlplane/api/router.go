@@ -16,6 +16,7 @@ import (
 	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
 	"github.com/sheeld/sheeld/internal/controlplane/service"
 	"github.com/sheeld/sheeld/internal/controlplane/workspaceconfig"
+	"github.com/sheeld/sheeld/internal/shared/metrics"
 	"github.com/sheeld/sheeld/internal/shared/middleware"
 	"github.com/sheeld/sheeld/internal/shared/response"
 )
@@ -38,6 +39,7 @@ func NewRouter(
 	r.Use(chimiddleware.Recoverer)
 	r.Use(chimiddleware.RealIP)
 	r.Use(middleware.MaxBodySize(cfg.MaxBodyBytes))
+	r.Use(metrics.HTTP)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   cfg.CORSAllowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -64,6 +66,9 @@ func NewRouter(
 			"db":     "connected",
 		})
 	})
+
+	// Prometheus scrape endpoint.
+	r.Handle("/metrics", metrics.Handler())
 
 	// Serve OpenAPI spec
 	r.Get("/openapi.yaml", func(w http.ResponseWriter, r *http.Request) {

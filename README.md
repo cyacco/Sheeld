@@ -172,6 +172,7 @@ sheeld/
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/healthz` | None | Health check |
+| `GET` | `/metrics` | None | Prometheus metrics |
 | `POST` | `/v1/auth/register` | None | Register a new account |
 | `POST` | `/v1/auth/login` | None | Login |
 | `CRUD` | `/v1/sources` | JWT | Source management |
@@ -185,6 +186,7 @@ sheeld/
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/healthz` | None | Health + config version |
+| `GET` | `/metrics` | None | Prometheus metrics |
 | `POST` | `/v1/proxy/:source_route` | API Key | Main proxy endpoint (OpenAI-compatible) |
 | `POST` | `/v1/proxy/:source_route/chat/completions` | API Key | Alias for OpenAI SDK base_url compatibility |
 | `GET` | `/v1/internal/audit-logs` | DP token | Audit-log queries for the control plane |
@@ -268,6 +270,7 @@ gofmt -w .
 - **Control-plane outages**: data planes keep serving proxy traffic from the in-memory config; only config changes and audit-log dashboard queries are unavailable until it returns. To also survive a data-plane *restart* during an outage, set `SHEELD_DP_CONFIG_SNAPSHOT_PATH` + `SHEELD_DP_CONFIG_SNAPSHOT_KEY` — the last applied config is persisted encrypted (AES-256-GCM, 0600) and loaded as a startup fallback.
 - **Migrations**: each binary runs its own goose migrations at startup — fine for single replicas; run migrations as a separate step when deploying multiple replicas.
 - **Rate limits are per data-plane replica** (in-memory), so effective limits scale with replica count.
+- **Metrics**: both planes expose Prometheus metrics at `/metrics` (unauthenticated — keep it network-scoped, like a typical ops endpoint). The data plane publishes proxy request count/latency by status and rejection phase, guard-batch latency by phase, LLM request outcome and retry counters, an audit buffer-depth gauge plus entry/batch drop counters, and `sheeld_config_loaded` / `sheeld_config_last_reload_timestamp_seconds` for staleness alerting (`time() - ...`). Both planes also export standard Go/process metrics and per-route HTTP counters. The Helm chart adds `prometheus.io/scrape` pod annotations out of the box.
 - **SSRF protection**: guard/transformer URLs (webhook, presidio, llm_classifier) that resolve to private, loopback, or link-local addresses are rejected at create time. When your guard targets run on a trusted internal network (e.g. the compose stack, or in-cluster services), set `SHEELD_ALLOW_PRIVATE_GUARD_URLS=true` on the control plane and `SHEELD_DP_ALLOW_PRIVATE_GUARD_URLS=true` on the data plane. Provider API keys and webhook auth headers in guard configs are redacted (`***`) in API responses; resubmitting a redacted config on update keeps the stored secret.
 - **Migrating from the single-binary layout**: audit logs moved to the data-plane DB. To keep existing rows, dump them before the control plane applies migration 007: `pg_dump -t audit_logs <cp-db-url> | psql <dp-db-url>`.
 
