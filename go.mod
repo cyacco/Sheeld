@@ -1,4 +1,4 @@
-module github.com/sheeld/sheeld
+module github.com/cyacco/Sheeld
 
 go 1.25.0
 

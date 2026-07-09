@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/sheeld/sheeld/internal/dataplane/backendconfig"
-	"github.com/sheeld/sheeld/internal/shared/middleware"
-	"github.com/sheeld/sheeld/internal/shared/response"
+	"github.com/cyacco/Sheeld/internal/dataplane/backendconfig"
+	"github.com/cyacco/Sheeld/internal/shared/middleware"
+	"github.com/cyacco/Sheeld/internal/shared/response"
 )
 
 // APIKeyAuth validates API keys against the in-memory config store — no

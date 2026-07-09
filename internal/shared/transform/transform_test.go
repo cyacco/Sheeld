@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/sheeld/sheeld/internal/shared/llm"
+	"github.com/cyacco/Sheeld/internal/shared/llm"
 )
 
 func msgs(contents ...string) []llm.Message {

@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/sheeld/sheeld/internal/shared/metrics"
+	"github.com/cyacco/Sheeld/internal/shared/metrics"
 )
 
 // Client is an HTTP client for OpenAI-compatible chat-completions endpoints

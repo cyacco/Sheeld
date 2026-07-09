@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
-	"github.com/sheeld/sheeld/internal/shared/transform"
+	"github.com/cyacco/Sheeld/internal/controlplane/db/generated"
+	"github.com/cyacco/Sheeld/internal/shared/transform"
 )
 
 // CreateTransformerParams holds the input for creating a transformer.

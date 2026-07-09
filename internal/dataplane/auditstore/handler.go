@@ -6,8 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/sheeld/sheeld/internal/dataplane/db/generated"
-	"github.com/sheeld/sheeld/internal/shared/response"
+	"github.com/cyacco/Sheeld/internal/dataplane/db/generated"
+	"github.com/cyacco/Sheeld/internal/shared/response"
 )
 
 // Handler serves audit-log queries to the control plane.

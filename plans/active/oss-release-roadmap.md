@@ -10,10 +10,10 @@ that work. Assessment done via codebase review on 2026-07-07.
 ## M1 — "Can exist publicly" (blockers)  — IN PROGRESS
 - Governance files: CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, issue/PR templates,
   CODEOWNERS; fill LICENSE copyright. **(this PR)**
-- **Deferred (user decision pending):** Go module path is `github.com/sheeld/sheeld`
-  but the repo is `github.com/cyacco/Sheeld` — `go get` / external imports fail.
-  Resolve by renaming the module to match the repo, or moving to a `sheeld` GitHub
-  org. 144 import references across 132 files; one-shot rewrite once decided.
+- Go module path — **SHIPPED**: renamed `github.com/sheeld/sheeld` →
+  `github.com/cyacco/Sheeld` to match the repo, so `go get` / external imports
+  work. Mechanical rewrite across all Go files + go.mod; build/vet/test +
+  integration green.
 
 ## M2 — "Can be trusted & run" (production hardening + release plumbing)
 - Prometheus metrics on both planes — **SHIPPED**: `/metrics` endpoint on CP and
@@ -66,8 +66,7 @@ that work. Assessment done via codebase review on 2026-07-07.
   key validation, #17 per-guard duration, #18 error-detail leaks, #19 guard
   cancellation). #28 SSE client / #29 tool passthrough overlap with the
   API-surface + streaming items. An ignored queue is a bad launch signal.
-- Module-path rename `github.com/sheeld/sheeld` → repo path (see M1) — do before
-  tagging so the release has a fetchable module path.
+- Module-path rename `github.com/sheeld/sheeld` → repo path — **SHIPPED** (see M1).
 
 ## Post-launch (feature milestones)
 - Multi-user-per-org + roles + invitations (today one registration = one user).

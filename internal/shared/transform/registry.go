@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/sheeld/sheeld/internal/shared/urlpolicy"
+	"github.com/cyacco/Sheeld/internal/shared/urlpolicy"
 )
 
 // Factory creates a Transformer instance from a name and JSON configuration.

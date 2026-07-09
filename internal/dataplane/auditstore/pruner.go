@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/sheeld/sheeld/internal/dataplane/db/generated"
+	"github.com/cyacco/Sheeld/internal/dataplane/db/generated"
 )
 
 // pruneBatchSize bounds each DELETE so clearing a large backlog doesn't lock

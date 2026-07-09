@@ -6,7 +6,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/sheeld/sheeld/internal/shared/llm"
+	"github.com/cyacco/Sheeld/internal/shared/llm"
 )
 
 // testReplace replaces Find with Replace in every message's content. It is

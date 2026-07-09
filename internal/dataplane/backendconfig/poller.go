@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/sheeld/sheeld/internal/shared/domain"
-	"github.com/sheeld/sheeld/internal/shared/guard"
-	"github.com/sheeld/sheeld/internal/shared/metrics"
-	"github.com/sheeld/sheeld/internal/shared/transform"
+	"github.com/cyacco/Sheeld/internal/shared/domain"
+	"github.com/cyacco/Sheeld/internal/shared/guard"
+	"github.com/cyacco/Sheeld/internal/shared/metrics"
+	"github.com/cyacco/Sheeld/internal/shared/transform"
 )
 
 // Poller periodically fetches the workspace config from the control plane

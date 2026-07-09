@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
+	"github.com/cyacco/Sheeld/internal/controlplane/db/generated"
 )
 
 // TokenClaims holds the JWT payload.

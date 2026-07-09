@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/sheeld/sheeld/internal/shared/guard"
-	"github.com/sheeld/sheeld/internal/shared/llm"
+	"github.com/cyacco/Sheeld/internal/shared/guard"
+	"github.com/cyacco/Sheeld/internal/shared/llm"
 )
 
 const (
