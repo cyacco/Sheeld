@@ -36,9 +36,11 @@ that work. Assessment done via codebase review on 2026-07-07.
 - README rework: value-prop lede, badges (CI/license/release), a 60-second
   copy-paste quickstart ending in a working guarded LLM call, a screenshot.
 - `docker compose up` demo that works end-to-end out of the box — **SHIPPED**:
-  LiteLLM `sheeld-demo` mock model (litellm.config.yaml) so the full pipeline
-  runs with no provider key; README quickstart now ends in a copy-paste guarded
-  call (pass → 200, blocked → 422). Verified live against the built stack.
+  LiteLLM replaced by a 15MB Go mock provider (cmd/mock-llm, OpenAI-compatible)
+  so the full pipeline runs with no provider key and no Python sidecar; README
+  quickstart now ends in a copy-paste guarded call (pass → 200, blocked → 422).
+  Verified live against the built stack. LiteLLM remains supported as a
+  bring-your-own gateway (any OpenAI-compatible base URL works).
 - Fill test gaps: HTTP handler layer, `auditstore`, dashboard have no unit tests.
 
 ## Post-launch (feature milestones)

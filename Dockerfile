@@ -8,7 +8,8 @@ RUN go mod download
 
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /control-plane ./cmd/control-plane && \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /sheeld-server ./cmd/sheeld-server
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /sheeld-server ./cmd/sheeld-server && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /mock-llm ./cmd/mock-llm
 
 # Runtime base
 FROM alpine:3.20 AS base
@@ -30,6 +31,18 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD wget -qO- http://localhost:8080/healthz || exit 1
 
 ENTRYPOINT ["/control-plane"]
+
+# Mock LLM: OpenAI-compatible canned-response server for the compose demo
+FROM base AS mock-llm
+
+COPY --from=builder /mock-llm /mock-llm
+
+EXPOSE 4000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD wget -qO- http://localhost:4000/healthz || exit 1
+
+ENTRYPOINT ["/mock-llm"]
 
 # Data plane: proxy + guard engine
 FROM base AS sheeld-server

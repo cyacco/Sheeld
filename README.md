@@ -12,7 +12,7 @@ Segment for LLM guardrails — a full LLM proxy that validates input, proxies LL
                                     │ polls workspace config (~5s)
                        ┌────────────┴─────────────┐
   User's App ─────────▶│ Data Plane (:8081)       │──▶ dp-db (audit logs)
-   (API key)           │ transforms → input guards │──▶ LiteLLM → LLM provider
+   (API key)           │ transforms → input guards │──▶ LLM provider (OpenAI-compatible)
                        │ → LLM → output transforms │
                        │ → output guards           │
                        └──────────────────────────┘
@@ -57,7 +57,7 @@ This starts six services:
 | **control-plane** | http://localhost:8080 | Config API, auth, dashboard backend |
 | **sheeld-server** | http://localhost:8081 | Data plane: proxy + guard engine |
 | **Dashboard** | http://localhost:3000 | Next.js management UI |
-| **LiteLLM** | http://localhost:4000 | LLM gateway proxy |
+| **mock-llm** | http://localhost:4000 | OpenAI-compatible mock provider (demo only) |
 | **cp-db** | localhost:5432 | Control-plane PostgreSQL (users, orgs, config) |
 | **dp-db** | localhost:5433 | Data-plane PostgreSQL (audit logs) |
 
@@ -71,9 +71,9 @@ curl http://localhost:8081/healthz   # data plane (includes config version)
 
 ### Make your first guarded call
 
-The compose stack ships a LiteLLM `sheeld-demo` model that returns a canned
-response, so the full pipeline works with **no provider API key**. Register an
-account, wire up a source with one guard, and call the proxy:
+The compose stack ships a tiny OpenAI-compatible mock provider that returns a
+canned response, so the full pipeline works with **no provider API key**.
+Register an account, wire up a source with one guard, and call the proxy:
 
 ```bash
 CP=http://localhost:8080; DP=http://localhost:8081
@@ -113,8 +113,9 @@ curl -s -X POST $DP/v1/proxy/chat -H "Authorization: Bearer $APIKEY" \
 
 The first call returns a chat completion; the second returns a
 `guardrail_rejection` error. Open the dashboard at http://localhost:3000 to see
-both in the audit log. To point at a real provider, add a model to
-[`litellm.config.yaml`](litellm.config.yaml) and set the source's LLM model to it.
+both in the audit log. To send real traffic, point `SHEELD_DP_LLM_GATEWAY_URL`
+at any OpenAI-compatible endpoint (a provider directly, or your own gateway such
+as LiteLLM) and set the source's model accordingly.
 
 To stop all services:
 
@@ -302,7 +303,7 @@ gofmt -w .
 | `SHEELD_DP_CONFIG_SNAPSHOT_PATH` | Path for an encrypted disk snapshot of the applied config (startup fallback) | — (disabled) |
 | `SHEELD_DP_CONFIG_SNAPSHOT_KEY` | 64-char hex AES-256 key for the snapshot (required with the path) | — |
 | `SHEELD_DP_STARTUP_TIMEOUT` | Max wait for initial config at startup | `60s` |
-| `SHEELD_DP_LLM_GATEWAY_URL` | LiteLLM gateway URL | `http://localhost:4000` |
+| `SHEELD_DP_LLM_GATEWAY_URL` | Base URL of any OpenAI-compatible LLM endpoint (provider or gateway) | `http://localhost:4000` |
 | `SHEELD_DP_LLM_REQUEST_TIMEOUT` | Timeout for LLM requests | `30s` |
 | `SHEELD_DP_LLM_MAX_RETRIES` | Retries on transient LLM gateway failures (429/5xx/connection) | `2` |
 | `SHEELD_DP_LLM_RETRY_BACKOFF` | Initial retry backoff (doubles per retry) | `200ms` |
