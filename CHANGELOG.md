@@ -23,6 +23,11 @@ validates output.
   traffic directly to any OpenAI-compatible provider (OpenAI, Anthropic,
   Gemini, Groq, Ollama, vLLM, OpenRouter, or a gateway like LiteLLM); sources
   without one use the data plane's default gateway URL.
+- **Full OpenAI schema passthrough**: request/response fields the pipeline
+  doesn't act on (`tools`/`tool_calls`, `response_format`, multimodal content
+  arrays, `top_p`, `seed`, `logprobs`, …) now round-trip to and from the
+  provider unchanged, so function calling and structured outputs work through
+  the proxy.
 - **Guards**: fan-out engine with `all` / `any` / `n_of_m` pass criteria,
   per-guard `on_error` fail-open/closed, and `scope: all_messages`. Built-in
   types include regex, OpenAI moderation, LLM classifier, Presidio PII

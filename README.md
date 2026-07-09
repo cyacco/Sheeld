@@ -306,7 +306,7 @@ sheeld/
 | `POST` | `/v1/proxy/:source_route/chat/completions` | API Key | Alias for OpenAI SDK base_url compatibility |
 | `GET` | `/v1/internal/audit-logs` | DP token | Audit-log queries for the control plane |
 
-The proxy is a drop-in OpenAI replacement: point your SDK's `base_url` at `http://<data-plane>/v1/proxy/<route>` with your Sheeld API key and the response is a raw chat completion. Guardrail rejections return HTTP 422 with an OpenAI-style error (`"type": "guardrail_rejection"`); full guard results are in the audit logs, correlated by the `X-Request-ID` response header.
+The proxy is a drop-in OpenAI replacement: point your SDK's `base_url` at `http://<data-plane>/v1/proxy/<route>` with your Sheeld API key and the response is a raw chat completion. Request and response fields Sheeld doesn't itself act on — `tools`/`tool_calls` (function calling), `response_format`, multimodal content arrays, `top_p`, `seed`, `logprobs`, and so on — pass through to and from the provider unchanged, so function calling and structured outputs work as usual. Guardrail rejections return HTTP 422 with an OpenAI-style error (`"type": "guardrail_rejection"`); full guard results are in the audit logs, correlated by the `X-Request-ID` response header.
 
 `"stream": true` is supported as **buffered streaming**: guards and transformers always evaluate the complete response first, then the approved text is replayed as standard SSE chunks. Time-to-first-token therefore equals the full pipeline latency — the safety semantics are identical to non-streaming, and rejections surface as the usual 422 before any stream starts.
 
