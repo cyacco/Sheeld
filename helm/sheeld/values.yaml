@@ -4,7 +4,7 @@
 api:
   replicaCount: 2
   image:
-    repository: sheeld/api
+    repository: ghcr.io/cyacco/sheeld-api
     tag: latest
     pullPolicy: IfNotPresent
   service:
@@ -27,7 +27,7 @@ api:
 dataplane:
   replicaCount: 2
   image:
-    repository: sheeld/sheeld-server
+    repository: ghcr.io/cyacco/sheeld-server
     tag: latest
     pullPolicy: IfNotPresent
   service:
@@ -50,7 +50,7 @@ dataplane:
 web:
   replicaCount: 1
   image:
-    repository: sheeld/web
+    repository: ghcr.io/cyacco/sheeld-web
     tag: latest
     pullPolicy: IfNotPresent
   service:
