@@ -37,8 +37,10 @@ that work. Assessment done via codebase review on 2026-07-07.
   `ghcr.io/cyacco/*`. Cutting `v0.1.0` is now just pushing the tag.
 
 ## M3 — "Attracts users" (polish)
-- README rework: value-prop lede, badges (CI/license/release), a 60-second
-  copy-paste quickstart ending in a working guarded LLM call, a screenshot.
+- README rework — **SHIPPED**: value-prop lede ("Segment for LLM guardrails" +
+  four differentiators), CI/release/license/Go badges, dashboard connections
+  screenshot up top and audit-log screenshot in the quickstart
+  (docs/images/), quickstart already ends in a working guarded call.
 - `docker compose up` demo that works end-to-end out of the box — **SHIPPED**:
   LiteLLM replaced by a 15MB Go mock provider (cmd/mock-llm, OpenAI-compatible)
   so the full pipeline runs with no provider key and no Python sidecar; README
