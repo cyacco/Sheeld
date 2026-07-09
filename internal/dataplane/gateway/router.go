@@ -12,6 +12,7 @@ import (
 	"github.com/sheeld/sheeld/internal/dataplane/backendconfig"
 	"github.com/sheeld/sheeld/internal/dataplane/config"
 	"github.com/sheeld/sheeld/internal/dataplane/processor"
+	"github.com/sheeld/sheeld/internal/shared/metrics"
 	"github.com/sheeld/sheeld/internal/shared/middleware"
 	"github.com/sheeld/sheeld/internal/shared/response"
 )
@@ -25,6 +26,10 @@ func NewRouter(cfg *config.Config, store *backendconfig.Store, proc *processor.P
 	r.Use(chimiddleware.Recoverer)
 	r.Use(chimiddleware.RealIP)
 	r.Use(middleware.MaxBodySize(cfg.MaxBodyBytes))
+	r.Use(metrics.HTTP)
+
+	// Prometheus scrape endpoint.
+	r.Handle("/metrics", metrics.Handler())
 
 	// Health check reflects config state: not ready until the first
 	// workspace config has been applied.

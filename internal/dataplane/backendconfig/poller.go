@@ -11,6 +11,7 @@ import (
 
 	"github.com/sheeld/sheeld/internal/shared/domain"
 	"github.com/sheeld/sheeld/internal/shared/guard"
+	"github.com/sheeld/sheeld/internal/shared/metrics"
 	"github.com/sheeld/sheeld/internal/shared/transform"
 )
 
@@ -82,6 +83,7 @@ func (p *Poller) FetchOnce(ctx context.Context) error {
 		if err := p.store.Apply(&cfg, p.registry, p.transformRegistry); err != nil {
 			return fmt.Errorf("applying workspace config: %w", err)
 		}
+		metrics.ConfigApplied()
 		p.lastETag = resp.Header.Get("ETag")
 		slog.Info("workspace config applied", "version", cfg.Version, "organizations", len(cfg.Organizations))
 		if p.snap != nil {
@@ -113,6 +115,7 @@ func (p *Poller) WaitForInitial(ctx context.Context, timeout time.Duration) erro
 			if p.snap != nil {
 				if cfg, err := p.snap.Load(); err == nil {
 					if err := p.store.Apply(cfg, p.registry, p.transformRegistry); err == nil {
+						metrics.ConfigApplied()
 						slog.Warn("control plane unreachable; serving from disk config snapshot",
 							"version", cfg.Version)
 						return nil

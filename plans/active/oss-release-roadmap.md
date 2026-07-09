@@ -16,8 +16,12 @@ that work. Assessment done via codebase review on 2026-07-07.
   org. 144 import references across 132 files; one-shot rewrite once decided.
 
 ## M2 — "Can be trusted & run" (production hardening + release plumbing)
-- Prometheus metrics on both planes: request/guard-latency histograms, LLM error
-  counters, audit-buffer depth + drop counter, config version/staleness gauge.
+- Prometheus metrics on both planes — **SHIPPED**: `/metrics` endpoint on CP and
+  DP (unauthenticated, network-scoped like the rest of ops); shared
+  `internal/shared/metrics` package with HTTP request count/latency (by chi route
+  pattern), proxy request count/latency by status+phase, guard-batch latency by
+  phase, LLM request outcome + retry counters, audit buffer-depth gauge + entry/
+  batch drop counters, and config loaded/last-reload gauges for staleness alerting.
 - Audit-log retention — **SHIPPED**: opt-in background pruner (batched deletes,
   disabled by default so audit history is never silently discarded);
   SHEELD_DP_AUDIT_RETENTION / SHEELD_DP_AUDIT_PRUNE_INTERVAL.

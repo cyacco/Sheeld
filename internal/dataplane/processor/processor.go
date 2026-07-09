@@ -11,6 +11,7 @@ import (
 	"github.com/sheeld/sheeld/internal/dataplane/backendconfig"
 	"github.com/sheeld/sheeld/internal/shared/guard"
 	"github.com/sheeld/sheeld/internal/shared/llm"
+	"github.com/sheeld/sheeld/internal/shared/metrics"
 	"github.com/sheeld/sheeld/internal/shared/middleware"
 	"github.com/sheeld/sheeld/internal/shared/transform"
 )
@@ -71,10 +72,23 @@ func requestID(ctx context.Context) string {
 }
 
 // Execute runs the full proxy flow for a given source and chat request.
-func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute string, chatReq *llm.ChatRequest) (*Result, error) {
+func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute string, chatReq *llm.ChatRequest) (result *Result, err error) {
 	start := time.Now()
 	log := slog.With("request_id", requestID(ctx), "source", sourceRoute)
 	log.Info("proxy request started")
+
+	// Record proxy outcome metrics once, regardless of exit path.
+	defer func() {
+		metrics.ProxyDuration.Observe(time.Since(start).Seconds())
+		switch {
+		case err != nil:
+			metrics.ProxyRequests.WithLabelValues("error", "").Inc()
+		case result != nil && result.Status == "rejected":
+			metrics.ProxyRequests.WithLabelValues("rejected", result.Phase).Inc()
+		default:
+			metrics.ProxyRequests.WithLabelValues("pass", "").Inc()
+		}
+	}()
 
 	source, ok := p.store.LookupSource(orgID, sourceRoute)
 	if !ok {
@@ -128,6 +142,7 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 			AllMessagesText: llm.SerializeMessages(chatReq.Messages),
 		})
 		inputResult, err := p.engine.Run(inputCtx, source.InputGuards, inputText, inputEval)
+		metrics.GuardDuration.WithLabelValues("input").Observe(time.Since(guardStart).Seconds())
 		if err != nil {
 			return nil, fmt.Errorf("running input guards: %w", err)
 		}
@@ -140,7 +155,7 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 
 		// Reject at input: no LLM call, tokens saved
 		if !inputResult.Passed {
-			result := &Result{
+			result = &Result{
 				Status:       "rejected",
 				Phase:        "input",
 				GuardResults: guardResults,
@@ -199,6 +214,7 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 		outputText := llm.ExtractOutputText(chatResp)
 		outputCtx := guard.WithCallMeta(ctx, guard.CallMeta{Phase: "output", SourceRoute: source.Route})
 		outputResult, err := p.engine.Run(outputCtx, source.OutputGuards, outputText, outputEval)
+		metrics.GuardDuration.WithLabelValues("output").Observe(time.Since(guardStart).Seconds())
 		if err != nil {
 			return nil, fmt.Errorf("running output guards: %w", err)
 		}
@@ -211,7 +227,7 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 
 		// Reject at output: LLM was called, but response blocked
 		if !outputResult.Passed {
-			result := &Result{
+			result = &Result{
 				Status:           "rejected",
 				Phase:            "output",
 				GuardResults:     guardResults,
@@ -225,7 +241,7 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 		}
 	}
 
-	result := &Result{
+	result = &Result{
 		Status:           "pass",
 		LLMResponse:      chatResp,
 		GuardResults:     guardResults,

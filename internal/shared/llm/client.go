@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/sheeld/sheeld/internal/shared/metrics"
 )
 
 // Client is an OpenAI-compatible HTTP client that talks to LiteLLM.
@@ -54,7 +56,15 @@ func (c *Client) WithRetry(maxRetries int, baseBackoff time.Duration) *Client {
 // ChatCompletion sends a chat completion request through the LLM gateway,
 // retrying transient failures with exponential backoff. The apiKey is the
 // provider API key which LiteLLM forwards to the appropriate provider.
-func (c *Client) ChatCompletion(ctx context.Context, apiKey string, req *ChatRequest) (*ChatResponse, error) {
+func (c *Client) ChatCompletion(ctx context.Context, apiKey string, req *ChatRequest) (resp *ChatResponse, err error) {
+	defer func() {
+		if err != nil {
+			metrics.LLMRequests.WithLabelValues("error").Inc()
+		} else {
+			metrics.LLMRequests.WithLabelValues("success").Inc()
+		}
+	}()
+
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling request: %w", err)
@@ -70,6 +80,7 @@ func (c *Client) ChatCompletion(ctx context.Context, apiKey string, req *ChatReq
 				return nil, ctx.Err()
 			case <-time.After(backoff):
 			}
+			metrics.LLMRetries.Inc()
 			backoff *= 2
 			slog.Warn("retrying LLM gateway request",
 				"attempt", attempt+1, "max_attempts", c.maxRetries+1, "error", lastErr)

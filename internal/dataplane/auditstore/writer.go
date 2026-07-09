@@ -14,6 +14,7 @@ import (
 
 	"github.com/sheeld/sheeld/internal/dataplane/db/generated"
 	"github.com/sheeld/sheeld/internal/shared/guard"
+	"github.com/sheeld/sheeld/internal/shared/metrics"
 	"github.com/sheeld/sheeld/internal/shared/transform"
 )
 
@@ -50,6 +51,7 @@ func NewWriter(queries *generated.Queries) *Writer {
 		ch:      make(chan entry, bufferSize),
 		done:    make(chan struct{}),
 	}
+	metrics.RegisterAuditBufferDepth(func() float64 { return float64(len(w.ch)) })
 	go w.run()
 	return w
 }
@@ -93,6 +95,7 @@ func (w *Writer) Record(orgID, sourceID uuid.UUID, inputText string, guardResult
 	select {
 	case w.ch <- e:
 	default:
+		metrics.AuditDropped.Inc()
 		slog.Error("audit buffer full; dropping entry", "source_id", sourceID)
 	}
 }
@@ -169,5 +172,6 @@ func (w *Writer) flush(batch []entry) {
 		}
 		slog.Warn("audit batch insert failed", "error", err, "attempt", attempt+1, "entries", len(batch))
 	}
+	metrics.AuditBatchesDropped.Inc()
 	slog.Error("dropping audit batch after retries", "entries", len(batch))
 }
