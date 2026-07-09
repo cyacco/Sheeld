@@ -106,6 +106,7 @@ func (b *Builder) Build(ctx context.Context) (*domain.WorkspaceConfig, error) {
 			Enabled:            s.Enabled,
 			LLMModel:           s.LlmModel,
 			LLMAPIKey:          apiKey,
+			LLMBaseURL:         s.LlmBaseUrl,
 			InputPassCriteria:  domain.PassCriteria(s.InputPassCriteria),
 			OutputPassCriteria: domain.PassCriteria(s.OutputPassCriteria),
 			GuardrailIDs:       guardrailsBySource[s.ID],

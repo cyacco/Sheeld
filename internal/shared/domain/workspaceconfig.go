@@ -39,7 +39,8 @@ type SourceConfig struct {
 	Route               string       `json:"route"`
 	Enabled             bool         `json:"enabled"`
 	LLMModel            string       `json:"llm_model"`
-	LLMAPIKey           string       `json:"llm_api_key"` // plaintext, decrypted by the control plane
+	LLMAPIKey           string       `json:"llm_api_key"`            // plaintext, decrypted by the control plane
+	LLMBaseURL          string       `json:"llm_base_url,omitempty"` // per-source OpenAI-compatible endpoint; empty = data plane's gateway
 	InputPassCriteria   PassCriteria `json:"input_pass_criteria"`
 	InputPassThreshold  *int         `json:"input_pass_threshold,omitempty"`
 	OutputPassCriteria  PassCriteria `json:"output_pass_criteria"`

@@ -57,6 +57,7 @@ type Source struct {
 	UpdatedAt           time.Time   `json:"updated_at"`
 	OutputPassCriteria  string      `json:"output_pass_criteria"`
 	OutputPassThreshold pgtype.Int4 `json:"output_pass_threshold"`
+	LlmBaseUrl          string      `json:"llm_base_url"`
 }
 
 type SourceGuardrail struct {

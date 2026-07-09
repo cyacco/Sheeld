@@ -113,9 +113,35 @@ curl -s -X POST $DP/v1/proxy/chat -H "Authorization: Bearer $APIKEY" \
 
 The first call returns a chat completion; the second returns a
 `guardrail_rejection` error. Open the dashboard at http://localhost:3000 to see
-both in the audit log. To send real traffic, point `SHEELD_DP_LLM_GATEWAY_URL`
-at any OpenAI-compatible endpoint (a provider directly, or your own gateway such
-as LiteLLM) and set the source's model accordingly.
+both in the audit log. To send real traffic, set `llm_base_url` on the source
+(see [LLM providers](#llm-providers)).
+
+## LLM providers
+
+Sheeld speaks the OpenAI chat-completions protocol outbound, so any
+OpenAI-compatible endpoint works. Each source can set its own `llm_base_url`
+(dashboard: *LLM Base URL*); sources without one use the data plane's default
+(`SHEELD_DP_LLM_GATEWAY_URL`). Mix freely — one source on OpenAI, another on a
+local Ollama, another through your own gateway:
+
+| Provider | `llm_base_url` |
+|----------|----------------|
+| OpenAI | `https://api.openai.com/v1` |
+| Anthropic | `https://api.anthropic.com/v1` |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| Mistral | `https://api.mistral.ai/v1` |
+| Groq | `https://api.groq.com/openai/v1` |
+| OpenRouter (300+ models) | `https://openrouter.ai/api/v1` |
+| Ollama (self-hosted) | `http://your-host:11434/v1` |
+| vLLM (self-hosted) | `http://your-host:8000/v1` |
+| LiteLLM / any gateway | your gateway URL |
+
+The source's LLM API key is sent as the bearer token to that endpoint. For
+providers that don't speak the OpenAI protocol (e.g. AWS Bedrock), point the
+source at a translation gateway such as [LiteLLM](https://docs.litellm.ai/).
+Base URLs resolving to private/loopback addresses are rejected unless
+`*_ALLOW_PRIVATE_GUARD_URLS` is set (same SSRF policy as guards; the compose
+and Helm defaults allow them for in-network targets like Ollama).
 
 To stop all services:
 

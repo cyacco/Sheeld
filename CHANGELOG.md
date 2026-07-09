@@ -16,9 +16,13 @@ validates output.
 
 ### Added
 
-- **Proxy pipeline**: input transformers → input guards → LLM (LiteLLM,
-  OpenAI-compatible) → output transformers → output guards. Buffered streaming
+- **Proxy pipeline**: input transformers → input guards → LLM
+  (OpenAI-compatible) → output transformers → output guards. Buffered streaming
   (`"stream": true`) runs the full pipeline before replaying approved SSE.
+- **Per-source LLM endpoints**: each source can set `llm_base_url` to send its
+  traffic directly to any OpenAI-compatible provider (OpenAI, Anthropic,
+  Gemini, Groq, Ollama, vLLM, OpenRouter, or a gateway like LiteLLM); sources
+  without one use the data plane's default gateway URL.
 - **Guards**: fan-out engine with `all` / `any` / `n_of_m` pass criteria,
   per-guard `on_error` fail-open/closed, and `scope: all_messages`. Built-in
   types include regex, OpenAI moderation, LLM classifier, Presidio PII

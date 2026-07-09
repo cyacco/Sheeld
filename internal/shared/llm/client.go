@@ -14,7 +14,8 @@ import (
 	"github.com/sheeld/sheeld/internal/shared/metrics"
 )
 
-// Client is an OpenAI-compatible HTTP client that talks to LiteLLM.
+// Client is an HTTP client for OpenAI-compatible chat-completions endpoints
+// (a provider directly, or a gateway such as LiteLLM).
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
@@ -53,10 +54,17 @@ func (c *Client) WithRetry(maxRetries int, baseBackoff time.Duration) *Client {
 	return c
 }
 
-// ChatCompletion sends a chat completion request through the LLM gateway,
-// retrying transient failures with exponential backoff. The apiKey is the
-// provider API key which LiteLLM forwards to the appropriate provider.
-func (c *Client) ChatCompletion(ctx context.Context, apiKey string, req *ChatRequest) (resp *ChatResponse, err error) {
+// ChatCompletion sends a chat completion request to the client's default
+// base URL. See ChatCompletionAt.
+func (c *Client) ChatCompletion(ctx context.Context, apiKey string, req *ChatRequest) (*ChatResponse, error) {
+	return c.ChatCompletionAt(ctx, "", apiKey, req)
+}
+
+// ChatCompletionAt sends a chat completion request to an OpenAI-compatible
+// endpoint, retrying transient failures with exponential backoff. baseURL
+// overrides the client's default endpoint (a provider directly, or a gateway);
+// empty means use the default. The apiKey is sent as the bearer token.
+func (c *Client) ChatCompletionAt(ctx context.Context, baseURL, apiKey string, req *ChatRequest) (resp *ChatResponse, err error) {
 	defer func() {
 		if err != nil {
 			metrics.LLMRequests.WithLabelValues("error").Inc()
@@ -64,6 +72,10 @@ func (c *Client) ChatCompletion(ctx context.Context, apiKey string, req *ChatReq
 			metrics.LLMRequests.WithLabelValues("success").Inc()
 		}
 	}()
+
+	if baseURL == "" {
+		baseURL = c.baseURL
+	}
 
 	body, err := json.Marshal(req)
 	if err != nil {
@@ -86,7 +98,7 @@ func (c *Client) ChatCompletion(ctx context.Context, apiKey string, req *ChatReq
 				"attempt", attempt+1, "max_attempts", c.maxRetries+1, "error", lastErr)
 		}
 
-		resp, retryable, err := c.doOnce(ctx, apiKey, body)
+		resp, retryable, err := c.doOnce(ctx, baseURL, apiKey, body)
 		if err == nil {
 			return resp, nil
 		}
@@ -102,8 +114,8 @@ func (c *Client) ChatCompletion(ctx context.Context, apiKey string, req *ChatReq
 
 // doOnce performs a single attempt. The bool reports whether the error (if
 // any) is transient and worth retrying.
-func (c *Client) doOnce(ctx context.Context, apiKey string, body []byte) (*ChatResponse, bool, error) {
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/chat/completions", bytes.NewReader(body))
+func (c *Client) doOnce(ctx context.Context, baseURL, apiKey string, body []byte) (*ChatResponse, bool, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return nil, false, fmt.Errorf("creating request: %w", err)
 	}
