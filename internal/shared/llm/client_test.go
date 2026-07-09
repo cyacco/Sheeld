@@ -298,3 +298,39 @@ func TestClient_RespectsContextDuringBackoff(t *testing.T) {
 		t.Errorf("should abort on context, took %s", elapsed)
 	}
 }
+
+func TestClient_ChatCompletionAt_OverridesBaseURL(t *testing.T) {
+	defaultHit, overrideHit := false, false
+	defaultServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defaultHit = true
+		w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"from default"}}]}`))
+	}))
+	defer defaultServer.Close()
+	overrideServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		overrideHit = true
+		w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"from override"}}]}`))
+	}))
+	defer overrideServer.Close()
+
+	client := NewClient(defaultServer.URL, 5*time.Second)
+
+	// Override sends the request to the per-source endpoint, not the default.
+	resp, err := client.ChatCompletionAt(context.Background(), overrideServer.URL, "key", &ChatRequest{Model: "m"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !overrideHit || defaultHit {
+		t.Fatalf("expected only the override server to be hit (override=%v default=%v)", overrideHit, defaultHit)
+	}
+	if got := resp.Choices[0].Message.Content; got != "from override" {
+		t.Fatalf("unexpected content: %q", got)
+	}
+
+	// Empty override falls back to the default endpoint.
+	if _, err := client.ChatCompletionAt(context.Background(), "", "key", &ChatRequest{Model: "m"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !defaultHit {
+		t.Fatal("expected fallback to hit the default server")
+	}
+}

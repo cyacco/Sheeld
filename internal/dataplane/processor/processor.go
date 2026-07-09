@@ -174,7 +174,9 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 	llmStart := time.Now()
 	log.Info("calling LLM gateway", "model", chatReq.Model)
 
-	chatResp, err := p.llmClient.ChatCompletion(ctx, source.LLMAPIKey, chatReq)
+	// A per-source base URL sends this source's traffic directly to its own
+	// OpenAI-compatible endpoint; empty falls back to the configured gateway.
+	chatResp, err := p.llmClient.ChatCompletionAt(ctx, source.LLMBaseURL, source.LLMAPIKey, chatReq)
 	if err != nil {
 		return nil, fmt.Errorf("LLM call failed: %w", err)
 	}

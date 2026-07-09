@@ -26,6 +26,7 @@ export interface SourceDraft {
   llmProvider: string;
   llmModel: string;
   llmApiKey: string;
+  llmBaseUrl: string;
   inputPassCriteria: string;
   inputPassThreshold: string;
   outputPassCriteria: string;
@@ -41,6 +42,7 @@ export function emptySourceDraft(): SourceDraft {
     llmProvider: "openai",
     llmModel: "gpt-4o",
     llmApiKey: "",
+    llmBaseUrl: "",
     inputPassCriteria: "all",
     inputPassThreshold: "",
     outputPassCriteria: "all",
@@ -57,6 +59,7 @@ export function sourceDraftFrom(source: Source): SourceDraft {
     llmProvider: source.llm_provider,
     llmModel: source.llm_model,
     llmApiKey: "",
+    llmBaseUrl: source.llm_base_url ?? "",
     inputPassCriteria: source.input_pass_criteria,
     inputPassThreshold:
       source.input_pass_threshold != null ? String(source.input_pass_threshold) : "",
@@ -75,6 +78,7 @@ export function sourceDraftToParams(draft: SourceDraft): CreateSourceParams {
     llm_provider: draft.llmProvider,
     llm_model: draft.llmModel,
     llm_api_key: draft.llmApiKey,
+    llm_base_url: draft.llmBaseUrl || undefined,
     input_pass_criteria: draft.inputPassCriteria,
     input_pass_threshold: draft.inputPassThreshold
       ? Number(draft.inputPassThreshold)
@@ -229,6 +233,21 @@ export function SourceLLMFields({
           placeholder={isUpdate ? "(unchanged)" : ""}
           required={!isUpdate}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="llm_base_url">LLM Base URL (optional)</Label>
+        <Input
+          id="llm_base_url"
+          type="url"
+          value={draft.llmBaseUrl}
+          onChange={(e) => set({ llmBaseUrl: e.target.value })}
+          placeholder="https://api.openai.com/v1"
+        />
+        <p className="text-xs text-muted-foreground">
+          Any OpenAI-compatible endpoint. Leave empty to use the data
+          plane&apos;s configured gateway.
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

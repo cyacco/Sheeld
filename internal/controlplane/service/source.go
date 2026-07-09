@@ -9,6 +9,7 @@ import (
 
 	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
 	"github.com/sheeld/sheeld/internal/shared/crypto"
+	"github.com/sheeld/sheeld/internal/shared/urlpolicy"
 )
 
 // CreateSourceParams holds the input for creating a source. Enabled is a
@@ -20,6 +21,7 @@ type CreateSourceParams struct {
 	LLMProvider         string  `json:"llm_provider"`
 	LLMModel            string  `json:"llm_model"`
 	LLMAPIKey           string  `json:"llm_api_key"`
+	LLMBaseURL          string  `json:"llm_base_url,omitempty"`
 	InputPassCriteria   string  `json:"input_pass_criteria"`
 	InputPassThreshold  *int32  `json:"input_pass_threshold,omitempty"`
 	OutputPassCriteria  string  `json:"output_pass_criteria"`
@@ -35,6 +37,7 @@ type UpdateSourceParams struct {
 	LLMProvider         string  `json:"llm_provider"`
 	LLMModel            string  `json:"llm_model"`
 	LLMAPIKey           string  `json:"llm_api_key"`
+	LLMBaseURL          string  `json:"llm_base_url,omitempty"`
 	InputPassCriteria   string  `json:"input_pass_criteria"`
 	InputPassThreshold  *int32  `json:"input_pass_threshold,omitempty"`
 	OutputPassCriteria  string  `json:"output_pass_criteria"`
@@ -83,6 +86,9 @@ func NewSourceService(queries *generated.Queries, encryptionKey string) *SourceS
 
 // Create creates a new source.
 func (s *SourceService) Create(ctx context.Context, orgID uuid.UUID, params CreateSourceParams) (generated.Source, error) {
+	if err := validateLLMBaseURL(params.LLMBaseURL); err != nil {
+		return generated.Source{}, err
+	}
 	encryptedKey, err := crypto.Encrypt(params.LLMAPIKey, s.encryptionKey)
 	if err != nil {
 		return generated.Source{}, fmt.Errorf("encrypting API key: %w", err)
@@ -115,12 +121,23 @@ func (s *SourceService) Create(ctx context.Context, orgID uuid.UUID, params Crea
 		LlmProvider:         params.LLMProvider,
 		LlmModel:            params.LLMModel,
 		LlmApiKeyEnc:        encryptedKey,
+		LlmBaseUrl:          params.LLMBaseURL,
 		InputPassCriteria:   inputCriteria,
 		InputPassThreshold:  toInt4(params.InputPassThreshold),
 		OutputPassCriteria:  outputCriteria,
 		OutputPassThreshold: toInt4(params.OutputPassThreshold),
 		Enabled:             enabled,
 	})
+}
+
+// validateLLMBaseURL checks an optional per-source LLM endpoint. Empty means
+// "use the data plane's configured gateway". Non-empty URLs go through the
+// shared SSRF policy: the data plane dials this URL directly.
+func validateLLMBaseURL(raw string) error {
+	if raw == "" {
+		return nil
+	}
+	return urlpolicy.ValidatePublicHTTPURL(raw, "llm_base_url")
 }
 
 // Get retrieves a source by ID.
@@ -147,6 +164,9 @@ func (s *SourceService) List(ctx context.Context, orgID uuid.UUID) ([]generated.
 // Update updates a source. An empty LLMAPIKey keeps the stored key rather
 // than overwriting it.
 func (s *SourceService) Update(ctx context.Context, orgID, sourceID uuid.UUID, params UpdateSourceParams) (generated.Source, error) {
+	if err := validateLLMBaseURL(params.LLMBaseURL); err != nil {
+		return generated.Source{}, err
+	}
 	var encryptedKey string
 	if params.LLMAPIKey == "" {
 		existing, err := s.Get(ctx, orgID, sourceID)
@@ -190,6 +210,7 @@ func (s *SourceService) Update(ctx context.Context, orgID, sourceID uuid.UUID, p
 		LlmProvider:         params.LLMProvider,
 		LlmModel:            params.LLMModel,
 		LlmApiKeyEnc:        encryptedKey,
+		LlmBaseUrl:          params.LLMBaseURL,
 		InputPassCriteria:   inputCriteria,
 		InputPassThreshold:  toInt4(params.InputPassThreshold),
 		OutputPassCriteria:  outputCriteria,
@@ -214,6 +235,7 @@ type SourceResponse struct {
 	Description         *string   `json:"description,omitempty"`
 	LLMProvider         string    `json:"llm_provider"`
 	LLMModel            string    `json:"llm_model"`
+	LLMBaseURL          string    `json:"llm_base_url,omitempty"`
 	InputPassCriteria   string    `json:"input_pass_criteria"`
 	InputPassThreshold  *int32    `json:"input_pass_threshold,omitempty"`
 	OutputPassCriteria  string    `json:"output_pass_criteria"`
@@ -231,6 +253,7 @@ func ToSourceResponse(src generated.Source) SourceResponse {
 		Route:              src.Route,
 		LLMProvider:        src.LlmProvider,
 		LLMModel:           src.LlmModel,
+		LLMBaseURL:         src.LlmBaseUrl,
 		InputPassCriteria:  src.InputPassCriteria,
 		OutputPassCriteria: src.OutputPassCriteria,
 		Enabled:            src.Enabled,

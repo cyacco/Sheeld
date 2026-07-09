@@ -1953,3 +1953,74 @@ func TestAuditLogRetention(t *testing.T) {
 		t.Errorf("recent row should survive; got %d rows", count())
 	}
 }
+
+// TestPerSourceLLMBaseURL verifies a source with llm_base_url set sends its
+// traffic to that endpoint instead of the default gateway.
+func TestPerSourceLLMBaseURL(t *testing.T) {
+	token := registerUser(t, "BaseURL Org", "baseurl@example.com", "strongpassword123")
+	apiKey := createAPIKey(t, token, "baseurl-key")
+
+	// A second OpenAI-compatible endpoint, distinct from the default mock
+	// gateway, returning recognizable content.
+	override := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := llm.ChatResponse{
+			ID:      "chatcmpl-override",
+			Object:  "chat.completion",
+			Created: time.Now().Unix(),
+			Model:   "gpt-4o",
+			Choices: []llm.Choice{{
+				Message:      llm.Message{Role: "assistant", Content: "routed to override endpoint"},
+				FinishReason: "stop",
+			}},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer override.Close()
+
+	resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
+		"name":         "BaseURL Source",
+		"route":        "baseurl-source",
+		"llm_provider": "openai",
+		"llm_model":    "gpt-4o",
+		"llm_api_key":  "sk-test",
+		"llm_base_url": override.URL,
+		"enabled":      true,
+	}, token)
+	expectStatus(t, resp, http.StatusCreated)
+	var created map[string]interface{}
+	decodeBody(t, resp, &created)
+	if created["llm_base_url"] != override.URL {
+		t.Fatalf("expected llm_base_url %q in response, got %v", override.URL, created["llm_base_url"])
+	}
+
+	t.Run("proxy routes to the per-source endpoint", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/proxy/baseurl-source", map[string]interface{}{
+			"model":    "gpt-4o",
+			"messages": []map[string]string{{"role": "user", "content": "hi"}},
+		}, apiKey)
+		expectStatus(t, resp, http.StatusOK)
+		var result map[string]interface{}
+		decodeBody(t, resp, &result)
+		content := result["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})["content"]
+		if content != "routed to override endpoint" {
+			t.Fatalf("expected override content, got %v", content)
+		}
+	})
+
+	t.Run("invalid base URL rejected at create", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
+			"name":         "Bad BaseURL",
+			"route":        "bad-baseurl",
+			"llm_provider": "openai",
+			"llm_model":    "gpt-4o",
+			"llm_api_key":  "sk-test",
+			"llm_base_url": "ftp://example.com",
+			"enabled":      true,
+		}, token)
+		if resp.StatusCode == http.StatusCreated {
+			t.Fatal("expected non-http(s) llm_base_url to be rejected")
+		}
+		resp.Body.Close()
+	})
+}

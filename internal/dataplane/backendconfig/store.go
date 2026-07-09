@@ -23,6 +23,7 @@ type ResolvedSource struct {
 	Enabled             bool
 	LLMModel            string
 	LLMAPIKey           string
+	LLMBaseURL          string
 	InputPassCriteria   domain.PassCriteria
 	InputPassThreshold  *int
 	OutputPassCriteria  domain.PassCriteria
@@ -127,6 +128,7 @@ func (s *Store) Apply(cfg *domain.WorkspaceConfig, registry *guard.Registry, tra
 				Enabled:             src.Enabled,
 				LLMModel:            src.LLMModel,
 				LLMAPIKey:           src.LLMAPIKey,
+				LLMBaseURL:          src.LLMBaseURL,
 				InputPassCriteria:   src.InputPassCriteria,
 				InputPassThreshold:  src.InputPassThreshold,
 				OutputPassCriteria:  src.OutputPassCriteria,
