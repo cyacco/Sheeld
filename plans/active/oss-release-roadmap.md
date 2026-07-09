@@ -29,8 +29,12 @@ that work. Assessment done via codebase review on 2026-07-07.
   transient failures (connection errors, HTTP 429/5xx), never on deterministic
   4xx; context-aware backoff; tunable via SHEELD_DP_LLM_MAX_RETRIES /
   SHEELD_DP_LLM_RETRY_BACKOFF.
-- Release workflow: tag → build & push images to GHCR → GitHub Release; add a
-  CHANGELOG; cut `v0.1.0`. CI currently builds images but never publishes them.
+- Release workflow — **SHIPPED**: `.github/workflows/release.yml` triggers on a
+  `vX.Y.Z` tag, builds & pushes the three images (`sheeld-api`, `sheeld-server`,
+  `sheeld-web`) to GHCR via docker/metadata + build-push actions, and publishes a
+  GitHub Release with auto-generated notes (prereleases auto-detected from a `-`
+  in the tag). CHANGELOG.md added (Keep a Changelog); Helm image repos point at
+  `ghcr.io/cyacco/*`. Cutting `v0.1.0` is now just pushing the tag.
 
 ## M3 — "Attracts users" (polish)
 - README rework: value-prop lede, badges (CI/license/release), a 60-second

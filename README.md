@@ -137,6 +137,29 @@ workspace-config payload carries decrypted LLM keys. In-cluster guard targets re
 private IPs, so `allowPrivateGuardURLs` defaults to `true` in the chart (see the SSRF note
 below).
 
+The chart's image repositories default to the published GHCR images
+(`ghcr.io/cyacco/sheeld-api`, `sheeld-server`, `sheeld-web`); override
+`*.image.tag` to pin a release.
+
+## Releases
+
+Container images are published to GHCR:
+
+- `ghcr.io/cyacco/sheeld-api` — control plane
+- `ghcr.io/cyacco/sheeld-server` — data plane (proxy)
+- `ghcr.io/cyacco/sheeld-web` — dashboard
+
+A release is cut by pushing a semver tag; the [`Release`](.github/workflows/release.yml)
+workflow builds and pushes all three images (tags `X.Y.Z`, `X.Y`, and `latest`)
+and publishes a GitHub Release with auto-generated notes:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+Tags containing a hyphen (e.g. `v0.2.0-rc.1`) are published as prereleases and
+do not move `latest`. See [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Project Structure
 
 ```

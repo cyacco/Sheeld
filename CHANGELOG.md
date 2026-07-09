@@ -1,0 +1,44 @@
+# Changelog
+
+All notable changes to this project are documented here. The format is based
+on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
+aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+Releases are cut by pushing a `vX.Y.Z` tag; the `Release` workflow builds and
+pushes the container images to GHCR and publishes a GitHub Release. Move items
+from `[Unreleased]` into a dated version section as part of cutting a release.
+
+## [Unreleased]
+
+Initial public release candidate. Sheeld is a "Segment for LLM guardrails": a
+control/data-plane LLM proxy that validates input, proxies the LLM call, and
+validates output.
+
+### Added
+
+- **Proxy pipeline**: input transformers → input guards → LLM (LiteLLM,
+  OpenAI-compatible) → output transformers → output guards. Buffered streaming
+  (`"stream": true`) runs the full pipeline before replaying approved SSE.
+- **Guards**: fan-out engine with `all` / `any` / `n_of_m` pass criteria,
+  per-guard `on_error` fail-open/closed, and `scope: all_messages`. Built-in
+  types include regex, OpenAI moderation, LLM classifier, Presidio PII
+  detection, and generic webhook.
+- **Transformers**: sequential input/output rewriters — `regex_replace`,
+  `webhook`, and `presidio` (with reversible anonymization via a `deanonymize`
+  output transformer).
+- **Control/data-plane split**: control plane owns config + auth + dashboard;
+  data plane polls workspace config (ETag/304) and serves the proxy with no DB
+  on the request path. Optional encrypted on-disk config snapshot as a startup
+  fallback.
+- **Dashboard**: Next.js app for sources, guardrails, transformers,
+  connections wiring, and audit logs.
+- **Security hardening**: org-scoped access control, secret redaction in API
+  responses, SSRF protection on user-supplied guard/transformer URLs, trimmed
+  API-key listings, and control-plane rate limiting.
+- **Production hardening**: LLM client retries with exponential backoff on
+  transient failures; opt-in audit-log retention/pruning; Prometheus metrics
+  on both planes at `/metrics`.
+- **Deployment**: Docker Compose stack and a Helm chart (both planes + two
+  Postgres instances + web, with Prometheus scrape annotations).
+- **Release automation**: tag-triggered workflow publishing images to GHCR and
+  creating a GitHub Release.
