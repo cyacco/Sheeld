@@ -47,6 +47,26 @@ that work. Assessment done via codebase review on 2026-07-07.
   bring-your-own gateway (any OpenAI-compatible base URL works).
 - Fill test gaps: HTTP handler layer, `auditstore`, dashboard have no unit tests.
 
+## Pre-v0.1.0 must-fix (found 2026-07-08 review)
+- **OpenAI API-surface passthrough** — **SHIPPED**: `llm.ChatRequest`/`Message`/
+  `ChatResponse`/`Choice` now capture unmodeled fields as raw JSON and re-emit
+  them, so `tools`/`tool_calls`, `response_format`, `top_p`/`seed`/`logprobs`/
+  `stop`/`stream_options`, and message `tool_calls`/`name`/`refusal` round-trip
+  to and from the provider. Multimodal content arrays decode (text extracted for
+  guards, raw preserved for the provider); `content: null` is preserved. Unit +
+  integration tests prove tools reach the provider and tool_calls return.
+  Known limitation: a transformer that rewrites a multimodal message collapses
+  it to text (drops non-text parts) — acceptable for v0.1.0.
+- **Triage the external contributor PR queue** (#17–#29 from @kaeawc). Several are
+  superseded by later work (close with reason: #20 async audit, #24 revoked keys,
+  #25 org-scoping, #27 const-time compare); several look still-valid and worth
+  adapting (#21 word-boundary blocklist, #22 rate-limiter eviction, #23 startup
+  key validation, #17 per-guard duration, #18 error-detail leaks, #19 guard
+  cancellation). #28 SSE client / #29 tool passthrough overlap with the
+  API-surface + streaming items. An ignored queue is a bad launch signal.
+- Module-path rename `github.com/sheeld/sheeld` → repo path (see M1) — do before
+  tagging so the release has a fetchable module path.
+
 ## Post-launch (feature milestones)
 - Multi-user-per-org + roles + invitations (today one registration = one user).
 - Analytics dashboard (needs token/cost capture in audit logs first).
@@ -54,3 +74,12 @@ that work. Assessment done via codebase review on 2026-07-07.
   button.
 - Pagination on sources/guardrails/transformers list endpoints; richer audit-log
   filtering.
+- True incremental streaming: chunk-level output guarding so TTFT isn't full
+  pipeline latency (today streaming is buffered — the honest gap in our story).
+- Guard shadow/monitor mode: log-only enforcement to trial a guard on production
+  traffic before it rejects anything.
+- Per-API-key rate limits/quotas (limiter is currently global per replica).
+- Rejection alerting (webhook/Slack on guard failures); audit-log export
+  (CSV/JSON, SIEM forwarding).
+- Non-bearer provider auth (e.g. Azure `api-key` header) for direct connections.
+- Published latency benchmark ("Sheeld adds ~X ms p50") for the README.

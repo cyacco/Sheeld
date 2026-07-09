@@ -109,7 +109,9 @@ func messagesEqual(a, b []llm.Message) bool {
 		return false
 	}
 	for i := range a {
-		if a[i] != b[i] {
+		// Transformers only rewrite role/text content; other fields
+		// (tool_calls, multimodal parts) pass through untouched.
+		if a[i].Role != b[i].Role || a[i].Content != b[i].Content {
 			return false
 		}
 	}

@@ -2024,3 +2024,64 @@ func TestPerSourceLLMBaseURL(t *testing.T) {
 		resp.Body.Close()
 	})
 }
+
+// TestOpenAIFieldPassthrough proves the proxy forwards unmodeled request
+// fields (tools) to the provider and returns unmodeled response fields
+// (tool_calls) to the client — i.e. function calling isn't silently dropped.
+func TestOpenAIFieldPassthrough(t *testing.T) {
+	token := registerUser(t, "Passthrough Org", "passthrough@example.com", "strongpassword123")
+	apiKey := createAPIKey(t, token, "passthrough-key")
+
+	var gotBody map[string]any
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		// Respond with an assistant tool call (content null + tool_calls).
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"id":"chatcmpl-tp","object":"chat.completion","created":1,"model":"gpt-4o",
+			"choices":[{"index":0,"finish_reason":"tool_calls","message":{
+				"role":"assistant","content":null,
+				"tool_calls":[{"id":"call_1","type":"function","function":{"name":"get_weather","arguments":"{}"}}]}}],
+			"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}
+		}`))
+	}))
+	defer provider.Close()
+
+	resp := doRequest(t, "POST", "/v1/sources", map[string]interface{}{
+		"name": "Tools Source", "route": "tools-source",
+		"llm_provider": "openai", "llm_model": "gpt-4o", "llm_api_key": "sk-x",
+		"llm_base_url": provider.URL, "enabled": true,
+	}, token)
+	expectStatus(t, resp, http.StatusCreated)
+	resp.Body.Close()
+
+	resp = doRequest(t, "POST", "/v1/proxy/tools-source", map[string]interface{}{
+		"model":    "gpt-4o",
+		"messages": []map[string]string{{"role": "user", "content": "weather?"}},
+		"tools": []map[string]interface{}{{
+			"type":     "function",
+			"function": map[string]string{"name": "get_weather"},
+		}},
+		"tool_choice": "auto",
+	}, apiKey)
+	expectStatus(t, resp, http.StatusOK)
+	var result map[string]interface{}
+	decodeBody(t, resp, &result)
+
+	// Request side: tools reached the provider.
+	if _, ok := gotBody["tools"]; !ok {
+		t.Errorf("tools field was not forwarded to the provider: %v", gotBody)
+	}
+	if gotBody["tool_choice"] != "auto" {
+		t.Errorf("tool_choice not forwarded: %v", gotBody["tool_choice"])
+	}
+	// Response side: tool_calls returned to the client.
+	choice := result["choices"].([]interface{})[0].(map[string]interface{})
+	if choice["finish_reason"] != "tool_calls" {
+		t.Errorf("finish_reason lost: %v", choice["finish_reason"])
+	}
+	msg := choice["message"].(map[string]interface{})
+	if _, ok := msg["tool_calls"]; !ok {
+		t.Errorf("tool_calls dropped from response: %v", msg)
+	}
+}
