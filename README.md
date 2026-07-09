@@ -1,6 +1,22 @@
 # Sheeld
 
-Segment for LLM guardrails — a full LLM proxy that validates input, proxies LLM calls, and validates output.
+[![CI](https://github.com/cyacco/Sheeld/actions/workflows/ci.yml/badge.svg)](https://github.com/cyacco/Sheeld/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/cyacco/Sheeld?include_prereleases)](https://github.com/cyacco/Sheeld/releases)
+[![License](https://img.shields.io/github/license/cyacco/Sheeld)](LICENSE)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/cyacco/Sheeld)](go.mod)
+
+**Segment for LLM guardrails.** Sheeld is an open-source proxy that sits
+between your app and any OpenAI-compatible LLM: it validates the input,
+rewrites it if needed (PII anonymization, redaction), forwards the call,
+validates the output, and audits everything — without your app code knowing
+guardrails exist.
+
+- **Drop-in**: point your OpenAI SDK's `base_url` at Sheeld; nothing else changes.
+- **Any provider**: OpenAI, Anthropic, Gemini, Groq, Ollama, vLLM, or your own gateway — per source ([table](#llm-providers)).
+- **Guardrails as config, not code**: wire sources to guards in a dashboard; the data plane picks changes up in seconds.
+- **Built to operate**: control/data-plane split, in-memory config on the request path, Prometheus metrics, audit logs, Helm chart.
+
+![Sheeld dashboard — wiring sources to guardrails](docs/images/dashboard-connections.png)
 
 **Architecture** (rudder-server style control/data plane split):
 
@@ -25,8 +41,6 @@ The proxy pipeline is: request → input transformers (sequential rewrites — "
 **Built-in transformer types**: `regex_replace` (pattern rules), `webhook` (your own rewrite endpoint), `presidio` (PII anonymization — `mode: redact` replaces entities irreversibly; `mode: reversible` substitutes placeholders the LLM sees), and `deanonymize` (output phase; restores the original values in the response so PII round-trips without ever reaching the LLM provider).
 
 The data plane holds its full config in memory and keeps serving proxy traffic even if the control plane goes down. No control-plane DB access happens on the request path.
-
-Licensed under Apache 2.0.
 
 ## Prerequisites
 
@@ -113,7 +127,11 @@ curl -s -X POST $DP/v1/proxy/chat -H "Authorization: Bearer $APIKEY" \
 
 The first call returns a chat completion; the second returns a
 `guardrail_rejection` error. Open the dashboard at http://localhost:3000 to see
-both in the audit log. To send real traffic, set `llm_base_url` on the source
+both in the audit log, with per-guard results:
+
+![Audit logs with per-guard results](docs/images/audit-logs.png)
+
+To send real traffic, set `llm_base_url` on the source
 (see [LLM providers](#llm-providers)).
 
 ## LLM providers

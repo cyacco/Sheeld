@@ -6,7 +6,7 @@ Sheeld is a "Segment for LLM guardrails" — a full LLM proxy that validates inp
 
 **Architecture** (rudder-server style control/data plane split):
 - **Control plane** (`cmd/control-plane`, :8080): user auth, source/guardrail CRUD, dashboard backend, workspace-config endpoint. Owns cp-db (users, orgs, config).
-- **Data plane** (`cmd/sheeld-server`, :8081): the proxy. Polls the control plane for workspace config (~5s, ETag), holds it in memory, runs input guards → LLM (via LiteLLM) → output guards. Owns dp-db (audit logs). No control-plane or DB access on the request path.
+- **Data plane** (`cmd/sheeld-server`, :8081): the proxy. Polls the control plane for workspace config (~5s, ETag), holds it in memory, runs input guards → LLM (any OpenAI-compatible endpoint; per-source llm_base_url or the default gateway) → output guards. Owns dp-db (audit logs). No control-plane or DB access on the request path.
 - The config payload carries plaintext LLM keys (control plane decrypts before serving) — never log it; TLS between planes outside compose.
 
 ## Development Setup
@@ -65,7 +65,7 @@ sheeld/
 │   └── shared/
 │       ├── guard/           # Guard engine + implementations (fan-out)
 │       ├── transform/       # Transformer pipeline (sequential input rewriters)
-│       ├── llm/             # LiteLLM OpenAI-compatible client
+│       ├── llm/             # OpenAI-compatible chat-completions client
 │       ├── domain/          # Core domain + workspace-config types
 │       ├── middleware/      # request ID, logging, rate limit, body size
 │       └── response/        # JSON response helpers
@@ -89,7 +89,7 @@ sheeld/
 | `gofmt -w .` | Format all code |
 | `~/go/bin/sqlc generate` | Regenerate sqlc code after query changes (both planes) |
 | `go test -tags integration ./internal/integration/` | Integration tests (requires Docker) |
-| `docker compose up` | Start full stack (both planes + DBs + LiteLLM + web) |
+| `docker compose up` | Start full stack (both planes + DBs + mock-llm + web) |
 | `docker compose up cp-db dp-db -d` | Start only the databases |
 
 ## Key Tooling
