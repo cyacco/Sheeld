@@ -69,6 +69,53 @@ curl http://localhost:8080/healthz   # control plane
 curl http://localhost:8081/healthz   # data plane (includes config version)
 ```
 
+### Make your first guarded call
+
+The compose stack ships a LiteLLM `sheeld-demo` model that returns a canned
+response, so the full pipeline works with **no provider API key**. Register an
+account, wire up a source with one guard, and call the proxy:
+
+```bash
+CP=http://localhost:8080; DP=http://localhost:8081
+
+# 1. Register and grab a JWT
+TOKEN=$(curl -s -X POST $CP/v1/auth/register \
+  -d '{"org_name":"Demo","email":"you@example.com","password":"changeme123"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+
+# 2. Mint a proxy API key
+APIKEY=$(curl -s -X POST $CP/v1/auth/api-keys -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"quickstart"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["raw_key"])')
+
+# 3. Create a source (route "chat") pointed at the demo model
+SRC=$(curl -s -X POST $CP/v1/sources -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"Chat","route":"chat","llm_provider":"openai","llm_model":"sheeld-demo","llm_api_key":"sk-dummy","input_pass_criteria":"all","enabled":true}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
+
+# 4. Add a blocklist guard and attach it to the source
+GRD=$(curl -s -X POST $CP/v1/guardrails -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"Block secrets","guard_type":"blocklist","phase":"input","config":{"words":["password"]},"enabled":true}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
+curl -s -X POST $CP/v1/guardrails/$GRD/sources -H "Authorization: Bearer $TOKEN" \
+  -d "{\"source_id\":\"$SRC\"}" > /dev/null
+
+sleep 6   # the data plane polls new config every ~5s
+
+# 5a. A clean request passes through to the LLM (HTTP 200)
+curl -s -X POST $DP/v1/proxy/chat -H "Authorization: Bearer $APIKEY" \
+  -d '{"model":"x","messages":[{"role":"user","content":"hello there"}]}'
+
+# 5b. A request tripping the guard is rejected (HTTP 422)
+curl -s -X POST $DP/v1/proxy/chat -H "Authorization: Bearer $APIKEY" \
+  -d '{"model":"x","messages":[{"role":"user","content":"my password is hunter2"}]}'
+```
+
+The first call returns a chat completion; the second returns a
+`guardrail_rejection` error. Open the dashboard at http://localhost:3000 to see
+both in the audit log. To point at a real provider, add a model to
+[`litellm.config.yaml`](litellm.config.yaml) and set the source's LLM model to it.
+
 To stop all services:
 
 ```bash
