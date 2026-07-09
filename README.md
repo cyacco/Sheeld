@@ -12,7 +12,7 @@ Segment for LLM guardrails — a full LLM proxy that validates input, proxies LL
                                     │ polls workspace config (~5s)
                        ┌────────────┴─────────────┐
   User's App ─────────▶│ Data Plane (:8081)       │──▶ dp-db (audit logs)
-   (API key)           │ transforms → input guards │──▶ LiteLLM → LLM provider
+   (API key)           │ transforms → input guards │──▶ LLM provider (OpenAI-compatible)
                        │ → LLM → output transforms │
                        │ → output guards           │
                        └──────────────────────────┘
@@ -57,7 +57,7 @@ This starts six services:
 | **control-plane** | http://localhost:8080 | Config API, auth, dashboard backend |
 | **sheeld-server** | http://localhost:8081 | Data plane: proxy + guard engine |
 | **Dashboard** | http://localhost:3000 | Next.js management UI |
-| **LiteLLM** | http://localhost:4000 | LLM gateway proxy |
+| **mock-llm** | http://localhost:4000 | OpenAI-compatible mock provider (demo only) |
 | **cp-db** | localhost:5432 | Control-plane PostgreSQL (users, orgs, config) |
 | **dp-db** | localhost:5433 | Data-plane PostgreSQL (audit logs) |
 
@@ -68,6 +68,54 @@ docker compose ps
 curl http://localhost:8080/healthz   # control plane
 curl http://localhost:8081/healthz   # data plane (includes config version)
 ```
+
+### Make your first guarded call
+
+The compose stack ships a tiny OpenAI-compatible mock provider that returns a
+canned response, so the full pipeline works with **no provider API key**.
+Register an account, wire up a source with one guard, and call the proxy:
+
+```bash
+CP=http://localhost:8080; DP=http://localhost:8081
+
+# 1. Register and grab a JWT
+TOKEN=$(curl -s -X POST $CP/v1/auth/register \
+  -d '{"org_name":"Demo","email":"you@example.com","password":"changeme123"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+
+# 2. Mint a proxy API key
+APIKEY=$(curl -s -X POST $CP/v1/auth/api-keys -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"quickstart"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["raw_key"])')
+
+# 3. Create a source (route "chat") pointed at the demo model
+SRC=$(curl -s -X POST $CP/v1/sources -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"Chat","route":"chat","llm_provider":"openai","llm_model":"sheeld-demo","llm_api_key":"sk-dummy","input_pass_criteria":"all","enabled":true}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
+
+# 4. Add a blocklist guard and attach it to the source
+GRD=$(curl -s -X POST $CP/v1/guardrails -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"Block secrets","guard_type":"blocklist","phase":"input","config":{"words":["password"]},"enabled":true}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["id"])')
+curl -s -X POST $CP/v1/guardrails/$GRD/sources -H "Authorization: Bearer $TOKEN" \
+  -d "{\"source_id\":\"$SRC\"}" > /dev/null
+
+sleep 6   # the data plane polls new config every ~5s
+
+# 5a. A clean request passes through to the LLM (HTTP 200)
+curl -s -X POST $DP/v1/proxy/chat -H "Authorization: Bearer $APIKEY" \
+  -d '{"model":"x","messages":[{"role":"user","content":"hello there"}]}'
+
+# 5b. A request tripping the guard is rejected (HTTP 422)
+curl -s -X POST $DP/v1/proxy/chat -H "Authorization: Bearer $APIKEY" \
+  -d '{"model":"x","messages":[{"role":"user","content":"my password is hunter2"}]}'
+```
+
+The first call returns a chat completion; the second returns a
+`guardrail_rejection` error. Open the dashboard at http://localhost:3000 to see
+both in the audit log. To send real traffic, point `SHEELD_DP_LLM_GATEWAY_URL`
+at any OpenAI-compatible endpoint (a provider directly, or your own gateway such
+as LiteLLM) and set the source's model accordingly.
 
 To stop all services:
 
@@ -278,7 +326,7 @@ gofmt -w .
 | `SHEELD_DP_CONFIG_SNAPSHOT_PATH` | Path for an encrypted disk snapshot of the applied config (startup fallback) | — (disabled) |
 | `SHEELD_DP_CONFIG_SNAPSHOT_KEY` | 64-char hex AES-256 key for the snapshot (required with the path) | — |
 | `SHEELD_DP_STARTUP_TIMEOUT` | Max wait for initial config at startup | `60s` |
-| `SHEELD_DP_LLM_GATEWAY_URL` | LiteLLM gateway URL | `http://localhost:4000` |
+| `SHEELD_DP_LLM_GATEWAY_URL` | Base URL of any OpenAI-compatible LLM endpoint (provider or gateway) | `http://localhost:4000` |
 | `SHEELD_DP_LLM_REQUEST_TIMEOUT` | Timeout for LLM requests | `30s` |
 | `SHEELD_DP_LLM_MAX_RETRIES` | Retries on transient LLM gateway failures (429/5xx/connection) | `2` |
 | `SHEELD_DP_LLM_RETRY_BACKOFF` | Initial retry backoff (doubles per retry) | `200ms` |
