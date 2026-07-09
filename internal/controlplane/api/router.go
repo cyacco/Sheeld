@@ -10,15 +10,15 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/sheeld/sheeld/internal/controlplane/api/handler"
-	cpmw "github.com/sheeld/sheeld/internal/controlplane/api/middleware"
-	"github.com/sheeld/sheeld/internal/controlplane/config"
-	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
-	"github.com/sheeld/sheeld/internal/controlplane/service"
-	"github.com/sheeld/sheeld/internal/controlplane/workspaceconfig"
-	"github.com/sheeld/sheeld/internal/shared/metrics"
-	"github.com/sheeld/sheeld/internal/shared/middleware"
-	"github.com/sheeld/sheeld/internal/shared/response"
+	"github.com/cyacco/Sheeld/internal/controlplane/api/handler"
+	cpmw "github.com/cyacco/Sheeld/internal/controlplane/api/middleware"
+	"github.com/cyacco/Sheeld/internal/controlplane/config"
+	"github.com/cyacco/Sheeld/internal/controlplane/db/generated"
+	"github.com/cyacco/Sheeld/internal/controlplane/service"
+	"github.com/cyacco/Sheeld/internal/controlplane/workspaceconfig"
+	"github.com/cyacco/Sheeld/internal/shared/metrics"
+	"github.com/cyacco/Sheeld/internal/shared/middleware"
+	"github.com/cyacco/Sheeld/internal/shared/response"
 )
 
 // NewRouter creates and configures the chi router with all routes and middleware.

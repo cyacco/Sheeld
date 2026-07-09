@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
-	"github.com/sheeld/sheeld/internal/shared/guard"
+	"github.com/cyacco/Sheeld/internal/controlplane/db/generated"
+	"github.com/cyacco/Sheeld/internal/shared/guard"
 )
 
 // CreateGuardrailParams holds the input for creating a guardrail. Enabled is

@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/sheeld/sheeld/internal/shared/domain"
-	"github.com/sheeld/sheeld/internal/shared/guard"
-	"github.com/sheeld/sheeld/internal/shared/transform"
+	"github.com/cyacco/Sheeld/internal/shared/domain"
+	"github.com/cyacco/Sheeld/internal/shared/guard"
+	"github.com/cyacco/Sheeld/internal/shared/transform"
 )
 
 func TestApplyFailOpenWiring(t *testing.T) {

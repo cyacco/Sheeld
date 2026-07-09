@@ -7,10 +7,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
-	"github.com/sheeld/sheeld/internal/controlplane/service"
-	"github.com/sheeld/sheeld/internal/shared/middleware"
-	"github.com/sheeld/sheeld/internal/shared/response"
+	"github.com/cyacco/Sheeld/internal/controlplane/db/generated"
+	"github.com/cyacco/Sheeld/internal/controlplane/service"
+	"github.com/cyacco/Sheeld/internal/shared/middleware"
+	"github.com/cyacco/Sheeld/internal/shared/response"
 )
 
 // AuthHandler handles auth-related HTTP requests.

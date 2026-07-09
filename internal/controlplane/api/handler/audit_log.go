@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/sheeld/sheeld/internal/shared/middleware"
-	"github.com/sheeld/sheeld/internal/shared/response"
+	"github.com/cyacco/Sheeld/internal/shared/middleware"
+	"github.com/cyacco/Sheeld/internal/shared/response"
 )
 
 // AuditLogHandler proxies audit-log queries to the data plane, which owns

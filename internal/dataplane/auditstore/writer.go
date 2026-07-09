@@ -12,10 +12,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/sheeld/sheeld/internal/dataplane/db/generated"
-	"github.com/sheeld/sheeld/internal/shared/guard"
-	"github.com/sheeld/sheeld/internal/shared/metrics"
-	"github.com/sheeld/sheeld/internal/shared/transform"
+	"github.com/cyacco/Sheeld/internal/dataplane/db/generated"
+	"github.com/cyacco/Sheeld/internal/shared/guard"
+	"github.com/cyacco/Sheeld/internal/shared/metrics"
+	"github.com/cyacco/Sheeld/internal/shared/transform"
 )
 
 const (

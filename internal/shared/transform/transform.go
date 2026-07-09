@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sheeld/sheeld/internal/shared/llm"
+	"github.com/cyacco/Sheeld/internal/shared/llm"
 )
 
 // Transformer rewrites the messages of a chat request.

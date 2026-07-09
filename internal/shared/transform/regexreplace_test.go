@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/sheeld/sheeld/internal/shared/llm"
+	"github.com/cyacco/Sheeld/internal/shared/llm"
 )
 
 func TestRegexReplaceTransform(t *testing.T) {

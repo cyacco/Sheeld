@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/sheeld/sheeld/internal/shared/domain"
+	"github.com/cyacco/Sheeld/internal/shared/domain"
 )
 
 func TestComputeVersion(t *testing.T) {

@@ -3,7 +3,7 @@ package handler
 import (
 	"net/http"
 
-	"github.com/sheeld/sheeld/internal/shared/response"
+	"github.com/cyacco/Sheeld/internal/shared/response"
 )
 
 // ModelInfo represents a supported LLM model.

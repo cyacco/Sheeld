@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sheeld/sheeld/internal/shared/llm"
+	"github.com/cyacco/Sheeld/internal/shared/llm"
 )
 
 // fakePresidio serves /analyze and /anonymize: it flags every occurrence of

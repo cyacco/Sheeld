@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/sheeld/sheeld/internal/shared/crypto"
-	"github.com/sheeld/sheeld/internal/shared/domain"
+	"github.com/cyacco/Sheeld/internal/shared/crypto"
+	"github.com/cyacco/Sheeld/internal/shared/domain"
 )
 
 // Snapshotter persists the last-applied workspace config to disk, encrypted

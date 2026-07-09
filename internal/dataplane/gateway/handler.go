@@ -8,10 +8,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/sheeld/sheeld/internal/dataplane/processor"
-	"github.com/sheeld/sheeld/internal/shared/llm"
-	"github.com/sheeld/sheeld/internal/shared/middleware"
-	"github.com/sheeld/sheeld/internal/shared/response"
+	"github.com/cyacco/Sheeld/internal/dataplane/processor"
+	"github.com/cyacco/Sheeld/internal/shared/llm"
+	"github.com/cyacco/Sheeld/internal/shared/middleware"
+	"github.com/cyacco/Sheeld/internal/shared/response"
 )
 
 // openAIError is the OpenAI-compatible error envelope, so SDK clients get

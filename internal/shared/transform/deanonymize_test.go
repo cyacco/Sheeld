@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sheeld/sheeld/internal/shared/llm"
+	"github.com/cyacco/Sheeld/internal/shared/llm"
 )
 
 // fakeAnalyzer flags every occurrence of the given needles with the given

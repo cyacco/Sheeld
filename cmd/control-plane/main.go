@@ -11,14 +11,14 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/sheeld/sheeld/internal/controlplane/api"
-	"github.com/sheeld/sheeld/internal/controlplane/config"
-	"github.com/sheeld/sheeld/internal/controlplane/db"
-	"github.com/sheeld/sheeld/internal/controlplane/db/generated"
-	"github.com/sheeld/sheeld/internal/controlplane/service"
-	"github.com/sheeld/sheeld/internal/shared/guard"
-	"github.com/sheeld/sheeld/internal/shared/transform"
-	"github.com/sheeld/sheeld/internal/shared/urlpolicy"
+	"github.com/cyacco/Sheeld/internal/controlplane/api"
+	"github.com/cyacco/Sheeld/internal/controlplane/config"
+	"github.com/cyacco/Sheeld/internal/controlplane/db"
+	"github.com/cyacco/Sheeld/internal/controlplane/db/generated"
+	"github.com/cyacco/Sheeld/internal/controlplane/service"
+	"github.com/cyacco/Sheeld/internal/shared/guard"
+	"github.com/cyacco/Sheeld/internal/shared/transform"
+	"github.com/cyacco/Sheeld/internal/shared/urlpolicy"
 )
 
 func main() {
