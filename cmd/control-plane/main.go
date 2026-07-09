@@ -16,6 +16,7 @@ import (
 	"github.com/cyacco/Sheeld/internal/controlplane/db"
 	"github.com/cyacco/Sheeld/internal/controlplane/db/generated"
 	"github.com/cyacco/Sheeld/internal/controlplane/service"
+	"github.com/cyacco/Sheeld/internal/shared/crypto"
 	"github.com/cyacco/Sheeld/internal/shared/guard"
 	"github.com/cyacco/Sheeld/internal/shared/transform"
 	"github.com/cyacco/Sheeld/internal/shared/urlpolicy"
@@ -36,6 +37,12 @@ func run() error {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
+	}
+
+	// Fail fast on a misconfigured encryption key rather than on the first
+	// source write.
+	if err := crypto.ValidateKey(cfg.EncryptionKey); err != nil {
+		return fmt.Errorf("invalid SHEELD_ENCRYPTION_KEY: %w", err)
 	}
 
 	// Set up structured logging

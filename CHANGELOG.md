@@ -51,3 +51,17 @@ validates output.
   Postgres instances + web, with Prometheus scrape annotations).
 - **Release automation**: tag-triggered workflow publishing images to GHCR and
   creating a GitHub Release.
+
+### Fixed
+
+- Blocklist guard now matches on word boundaries, so multi-word phrases (e.g.
+  "ignore previous instructions") are enforced and regex metacharacters in a
+  term are treated literally.
+- Proxy 500 responses no longer echo internal error detail to clients; the real
+  error is logged server-side and correlated via `X-Request-ID`.
+- Per-key rate limiters are evicted after an idle period, bounding memory under
+  many distinct orgs/IPs.
+- The control plane validates `SHEELD_ENCRYPTION_KEY` at startup (hex, 32 bytes)
+  instead of failing on the first source write.
+
+Thanks to @kaeawc, whose contributions surfaced these fixes.

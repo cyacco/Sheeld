@@ -83,3 +83,20 @@ func TestKeyWrongLength(t *testing.T) {
 		t.Fatal("expected error for short key")
 	}
 }
+
+func TestValidateKey(t *testing.T) {
+	valid := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" // 64 hex chars
+	if err := ValidateKey(valid); err != nil {
+		t.Errorf("valid 32-byte key rejected: %v", err)
+	}
+	for _, bad := range []string{
+		"",                 // empty
+		"tooshort",         // not 32 bytes
+		"zz23456789abcdef", // non-hex
+		valid + "00",       // 33 bytes
+	} {
+		if err := ValidateKey(bad); err == nil {
+			t.Errorf("expected error for invalid key %q", bad)
+		}
+	}
+}

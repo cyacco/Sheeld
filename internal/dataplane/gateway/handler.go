@@ -3,6 +3,7 @@ package gateway
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -83,7 +84,13 @@ func (h *ProxyHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.processor.Execute(r.Context(), orgID, sourceRoute, &chatReq)
 	if err != nil {
-		writeOpenAIError(w, http.StatusInternalServerError, "api_error", "proxy_error", err.Error())
+		// Log the real error server-side; return a generic message so internal
+		// details (upstream addresses, config, stack context) don't leak to
+		// clients. Correlate via the X-Request-ID response header.
+		reqID, _ := r.Context().Value(middleware.RequestIDKey).(string)
+		slog.Error("proxy execution failed", "error", err, "source", sourceRoute, "request_id", reqID)
+		writeOpenAIError(w, http.StatusInternalServerError, "api_error", "proxy_error",
+			"internal error processing the request")
 		return
 	}
 
