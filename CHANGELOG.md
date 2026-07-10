@@ -10,7 +10,9 @@ from `[Unreleased]` into a dated version section as part of cutting a release.
 
 ## [Unreleased]
 
-Initial public release candidate. Sheeld is a "Segment for LLM guardrails": a
+## [0.1.0] - 2026-07-10
+
+Initial public release. Sheeld is a "Segment for LLM guardrails": a
 control/data-plane LLM proxy that validates input, proxies the LLM call, and
 validates output.
 
@@ -65,3 +67,6 @@ validates output.
   instead of failing on the first source write.
 
 Thanks to @kaeawc, whose contributions surfaced these fixes.
+
+[Unreleased]: https://github.com/cyacco/Sheeld/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/cyacco/Sheeld/releases/tag/v0.1.0
