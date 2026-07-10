@@ -47,7 +47,12 @@ that work. Assessment done via codebase review on 2026-07-07.
   quickstart now ends in a copy-paste guarded call (pass → 200, blocked → 422).
   Verified live against the built stack. LiteLLM remains supported as a
   bring-your-own gateway (any OpenAI-compatible base URL works).
-- Fill test gaps: HTTP handler layer, `auditstore`, dashboard have no unit tests.
+- Fill test gaps — **PARTIAL**: `auditstore` now unit-tested (writer batching/
+  drop/retry/drain + pruner batched-delete/disabled/error paths; 0→65%) via
+  small query interfaces for fakes; CP handler validation/error paths covered
+  with a nil-service pattern (happy paths stay in integration). Remaining: the
+  Next.js dashboard has no test runner — setting up vitest + Testing Library is
+  a separate follow-up PR.
 
 ## Pre-v0.1.0 must-fix (found 2026-07-08 review)
 - **OpenAI API-surface passthrough** — **SHIPPED**: `llm.ChatRequest`/`Message`/

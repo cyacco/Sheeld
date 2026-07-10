@@ -12,18 +12,24 @@ import (
 // the table in one long-running statement.
 const pruneBatchSize = 1000
 
+// prunerQueries is the subset of generated queries the pruner needs, so tests
+// can inject a fake. *generated.Queries satisfies it.
+type prunerQueries interface {
+	DeleteAuditLogsBefore(ctx context.Context, arg generated.DeleteAuditLogsBeforeParams) (int64, error)
+}
+
 // Pruner periodically deletes audit rows older than the retention window.
 // Retention is opt-in: with retention <= 0 the pruner does nothing, so audit
 // history is never silently discarded.
 type Pruner struct {
-	queries   *generated.Queries
+	queries   prunerQueries
 	retention time.Duration
 	interval  time.Duration
 }
 
 // NewPruner creates an audit-log pruner. retention is how long rows are kept;
 // interval is how often the sweep runs.
-func NewPruner(queries *generated.Queries, retention, interval time.Duration) *Pruner {
+func NewPruner(queries prunerQueries, retention, interval time.Duration) *Pruner {
 	return &Pruner{queries: queries, retention: retention, interval: interval}
 }
 

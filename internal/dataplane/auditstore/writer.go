@@ -33,19 +33,25 @@ type entry struct {
 	latencyMs     int64
 }
 
+// writerQueries is the subset of generated queries the writer needs, so tests
+// can inject a fake. *generated.Queries satisfies it.
+type writerQueries interface {
+	CreateAuditLog(ctx context.Context, arg generated.CreateAuditLogParams) (generated.AuditLog, error)
+}
+
 // Writer records audit entries asynchronously: a buffered channel feeds a
 // single consumer goroutine doing batched inserts. If the buffer is full
 // entries are dropped with an error log — audit logging never blocks or
 // fails the request path.
 type Writer struct {
-	queries *generated.Queries
+	queries writerQueries
 	ch      chan entry
 	done    chan struct{}
 	once    sync.Once
 }
 
 // NewWriter creates and starts an audit writer.
-func NewWriter(queries *generated.Queries) *Writer {
+func NewWriter(queries writerQueries) *Writer {
 	w := &Writer{
 		queries: queries,
 		ch:      make(chan entry, bufferSize),
