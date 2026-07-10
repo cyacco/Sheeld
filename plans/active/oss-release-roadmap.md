@@ -59,13 +59,16 @@ that work. Assessment done via codebase review on 2026-07-07.
   integration tests prove tools reach the provider and tool_calls return.
   Known limitation: a transformer that rewrites a multimodal message collapses
   it to text (drops non-text parts) — acceptable for v0.1.0.
-- **Triage the external contributor PR queue** (#17–#29 from @kaeawc). Several are
-  superseded by later work (close with reason: #20 async audit, #24 revoked keys,
-  #25 org-scoping, #27 const-time compare); several look still-valid and worth
-  adapting (#21 word-boundary blocklist, #22 rate-limiter eviction, #23 startup
-  key validation, #17 per-guard duration, #18 error-detail leaks, #19 guard
-  cancellation). #28 SSE client / #29 tool passthrough overlap with the
-  API-surface + streaming items. An ignored queue is a bad launch signal.
+- **Triage the external contributor PR queue** (#17–#29 from @kaeawc) — **DONE**:
+  verified each against current main. Adapted four still-valid fixes (crediting
+  the contributor): #18 proxy error-detail leak, #21 word-boundary/phrase
+  blocklist, #22 rate-limiter idle eviction, #23 startup encryption-key
+  validation. Closed as superseded: #20 (async audit), #24 (revoked keys), #25
+  (org-scoping), #27 (const-time/hashed lookup), #29 (→ #55 passthrough). Closed
+  as already-handled: #17 (engine sets duration on error), #26 (per-request
+  struct, not shared). Deferred to post-launch: #28 (streaming client → conflicts
+  with buffered-guard model), #19 (guard cancellation → breaks full audit
+  results).
 - Module-path rename `github.com/sheeld/sheeld` → repo path — **SHIPPED** (see M1).
 
 ## Post-launch (feature milestones)

@@ -8,6 +8,20 @@ import (
 	"fmt"
 )
 
+// ValidateKey checks that hexKey is a hex-encoded 32-byte AES-256 key, so a
+// misconfigured SHEELD_ENCRYPTION_KEY fails fast at startup rather than on the
+// first encrypt/decrypt.
+func ValidateKey(hexKey string) error {
+	key, err := hex.DecodeString(hexKey)
+	if err != nil {
+		return fmt.Errorf("encryption key must be hex-encoded: %w", err)
+	}
+	if len(key) != 32 {
+		return fmt.Errorf("encryption key must be 32 bytes (64 hex chars), got %d", len(key))
+	}
+	return nil
+}
+
 // Encrypt encrypts plaintext using AES-256-GCM with the given hex-encoded key.
 // Returns hex-encoded nonce+ciphertext.
 func Encrypt(plaintext string, hexKey string) (string, error) {

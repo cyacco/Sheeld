@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -100,4 +101,38 @@ func TestRateLimiter(t *testing.T) {
 			t.Errorf("org B should not be rate limited, got status %d", rec.Code)
 		}
 	})
+}
+
+func TestRateLimiter_EvictsIdleLimiters(t *testing.T) {
+	rl := NewRateLimiter(100, 200)
+
+	// Create limiters for three distinct keys.
+	rl.getLimiter("org-a")
+	rl.getLimiter("org-b")
+	rl.getLimiter("org-c")
+	if got := rl.size(); got != 3 {
+		t.Fatalf("expected 3 limiters, got %d", got)
+	}
+
+	// Nothing is idle yet: a sweep at "now" evicts nothing.
+	if n := rl.evictIdle(time.Now()); n != 0 {
+		t.Fatalf("expected 0 evictions, got %d", n)
+	}
+
+	// Simulate one key staying active by touching it, then run a sweep far
+	// enough in the future that the untouched keys are past the idle TTL.
+	rl.getLimiter("org-a")
+	future := time.Now().Add(limiterIdleTTL + time.Minute)
+	// org-a was just touched (lastSeen ~= now), so it survives a sweep whose
+	// cutoff is future-TTL ~= now+1m... adjust: touch org-a to the future.
+	rl.mu.Lock()
+	rl.limiters["org-a"].lastSeen = future
+	rl.mu.Unlock()
+
+	if n := rl.evictIdle(future); n != 2 {
+		t.Fatalf("expected 2 idle limiters evicted, got %d", n)
+	}
+	if got := rl.size(); got != 1 {
+		t.Fatalf("expected 1 limiter remaining, got %d", got)
+	}
 }
