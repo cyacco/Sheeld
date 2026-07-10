@@ -83,6 +83,12 @@ If you change SQL queries, regenerate the typed code (never edit
 Small, focused PRs are reviewed fastest. If you're planning something large, open
 an issue first so we can align on the approach.
 
+## Releasing
+
+Maintainers cut releases by pushing a `vX.Y.Z` tag; a workflow builds and
+publishes the container images and the GitHub Release. See
+[`docs/RELEASING.md`](docs/RELEASING.md) for the full runbook.
+
 ## Reporting bugs and requesting features
 
 Use the [issue templates](https://github.com/cyacco/Sheeld/issues/new/choose). For
