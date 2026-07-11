@@ -1,9 +1,10 @@
 -- name: CreateAuditLog :one
 INSERT INTO audit_logs (
     organization_id, source_id, input_hash,
-    guard_results, overall_result, latency_ms
+    guard_results, overall_result, latency_ms,
+    prompt_tokens, completion_tokens, total_tokens, model
 )
-VALUES ($1, $2, $3, $4, $5, $6)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
 -- name: ListAuditLogsByOrganization :many

@@ -70,6 +70,10 @@ func (c *Client) ChatCompletionAt(ctx context.Context, baseURL, apiKey string, r
 			metrics.LLMRequests.WithLabelValues("error").Inc()
 		} else {
 			metrics.LLMRequests.WithLabelValues("success").Inc()
+			if resp != nil {
+				metrics.LLMTokens.WithLabelValues("prompt").Add(float64(resp.Usage.PromptTokens))
+				metrics.LLMTokens.WithLabelValues("completion").Add(float64(resp.Usage.CompletionTokens))
+			}
 		}
 	}()
 

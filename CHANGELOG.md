@@ -12,6 +12,11 @@ from `[Unreleased]` into a dated version section as part of cutting a release.
 
 ### Added
 
+- **Token/cost capture**: each proxied request records the LLM's reported
+  `prompt_tokens` / `completion_tokens` / `total_tokens` and `model` in the
+  audit log (NULL when a request is rejected before the LLM call), plus a
+  `sheeld_llm_tokens_total{kind}` Prometheus counter. The audit-log table shows
+  a Tokens column. Groundwork for the analytics dashboard and cost-based limits.
 - **Guard dry-run**: `POST /v1/guardrails/{id}/test` and a dashboard "Test" tab
   run a guard against sample text without touching live traffic.
 - **Guard shadow mode**: a guard with `mode: shadow` runs and is audited

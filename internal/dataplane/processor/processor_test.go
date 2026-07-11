@@ -22,13 +22,17 @@ type captureAudit struct {
 	transforms       *transform.ChainResult
 	outputTransforms *transform.ChainResult
 	overall          string
+	usage            *llm.Usage
+	model            string
 }
 
-func (c *captureAudit) Record(_, _ uuid.UUID, inputText string, _ map[string]*guard.EngineResult, transforms, outputTransforms *transform.ChainResult, overallResult string, _ int64) {
+func (c *captureAudit) Record(_, _ uuid.UUID, inputText string, _ map[string]*guard.EngineResult, transforms, outputTransforms *transform.ChainResult, overallResult string, _ int64, usage *llm.Usage, model string) {
 	c.inputText = inputText
 	c.transforms = transforms
 	c.outputTransforms = outputTransforms
 	c.overall = overallResult
+	c.usage = usage
+	c.model = model
 }
 
 // buildStore applies a single-source config with a test_replace transformer
@@ -110,6 +114,82 @@ func TestProcessor_TransformsRunBeforeGuardsAndLLM(t *testing.T) {
 	}
 	if audit.transforms == nil || audit.inputText != "tell me the [REDACTED]" {
 		t.Errorf("audit got inputText %q, transforms %+v", audit.inputText, audit.transforms)
+	}
+}
+
+func TestProcessor_CapturesTokenUsage(t *testing.T) {
+	orgID := uuid.New()
+	store := buildStore(t, orgID)
+
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"x","object":"chat.completion","model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":11,"completion_tokens":7,"total_tokens":18}}`))
+	}))
+	defer gateway.Close()
+
+	audit := &captureAudit{}
+	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), audit)
+
+	req := &llm.ChatRequest{Messages: []llm.Message{{Role: "user", Content: "hello there"}}}
+	result, err := proc.Execute(context.Background(), orgID, "r", req)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result.Status != "pass" {
+		t.Fatalf("expected pass, got %s", result.Status)
+	}
+	if audit.usage == nil {
+		t.Fatal("expected token usage to be captured for audit")
+	}
+	if audit.usage.PromptTokens != 11 || audit.usage.CompletionTokens != 7 || audit.usage.TotalTokens != 18 {
+		t.Errorf("unexpected usage: %+v", audit.usage)
+	}
+	if audit.model != "gpt-4o-mini" {
+		t.Errorf("expected model gpt-4o-mini, got %q", audit.model)
+	}
+}
+
+func TestProcessor_InputRejectHasNoTokenUsage(t *testing.T) {
+	orgID := uuid.New()
+	gid := uuid.New()
+	cfg := &domain.WorkspaceConfig{
+		Version: "v1",
+		Organizations: []domain.OrgConfig{{
+			ID: orgID,
+			Guardrails: []domain.GuardrailConfig{{
+				ID: gid, Name: "g", GuardType: domain.GuardTypeBlocklist,
+				Phase: domain.GuardPhaseInput, Config: json.RawMessage(`{"words":["attack"]}`),
+			}},
+			Sources: []domain.SourceConfig{{
+				ID: uuid.New(), Route: "r", Enabled: true, LLMModel: "m", LLMAPIKey: "k",
+				InputPassCriteria: domain.PassCriteriaAll, OutputPassCriteria: domain.PassCriteriaAll,
+				GuardrailIDs: []uuid.UUID{gid}, TransformerIDs: []uuid.UUID{},
+			}},
+		}},
+	}
+	store := backendconfig.NewStore()
+	if err := store.Apply(cfg, guard.NewRegistry(), transform.NewRegistry()); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("LLM must not be called when input guards reject")
+	}))
+	defer gateway.Close()
+
+	audit := &captureAudit{}
+	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), audit)
+
+	req := &llm.ChatRequest{Messages: []llm.Message{{Role: "user", Content: "launch an attack"}}}
+	result, err := proc.Execute(context.Background(), orgID, "r", req)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result.Status != "rejected" {
+		t.Fatalf("expected rejected, got %s", result.Status)
+	}
+	if audit.usage != nil {
+		t.Errorf("expected no token usage on input reject, got %+v", audit.usage)
 	}
 }
 

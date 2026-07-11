@@ -141,6 +141,11 @@ export interface AuditLog {
   overall_result: string;
   latency_ms: number;
   created_at: string;
+  // Token usage + model, null when no LLM call was made (e.g. input-rejected).
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  total_tokens?: number | null;
+  model?: string | null;
 }
 
 export interface AuditGuardResults {

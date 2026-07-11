@@ -44,8 +44,10 @@ type Result struct {
 }
 
 // AuditSink receives completed proxy results for asynchronous recording.
+// usage/model are nil/"" when no LLM call was made (e.g. an input-guard
+// rejection short-circuits before the provider is called).
 type AuditSink interface {
-	Record(orgID, sourceID uuid.UUID, inputText string, guardResults map[string]*guard.EngineResult, transforms, outputTransforms *transform.ChainResult, overallResult string, latencyMs int64)
+	Record(orgID, sourceID uuid.UUID, inputText string, guardResults map[string]*guard.EngineResult, transforms, outputTransforms *transform.ChainResult, overallResult string, latencyMs int64, usage *llm.Usage, model string)
 }
 
 // Processor runs the proxy stages: input guards → LLM call → output guards.
@@ -163,7 +165,7 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 				LatencyMs:    time.Since(start).Milliseconds(),
 			}
 			log.Info("request rejected at input phase", "total_latency_ms", result.LatencyMs)
-			p.record(source, orgID, inputText, guardResults, transforms, nil, "fail", result.LatencyMs)
+			p.record(source, orgID, inputText, guardResults, transforms, nil, "fail", result.LatencyMs, nil, "")
 			return result, nil
 		}
 	}
@@ -238,7 +240,7 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 				LatencyMs:        time.Since(start).Milliseconds(),
 			}
 			log.Info("request rejected at output phase", "total_latency_ms", result.LatencyMs)
-			p.record(source, orgID, inputText, guardResults, transforms, outputTransforms, "fail", result.LatencyMs)
+			p.record(source, orgID, inputText, guardResults, transforms, outputTransforms, "fail", result.LatencyMs, &chatResp.Usage, chatResp.Model)
 			return result, nil
 		}
 	}
@@ -252,12 +254,12 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 		LatencyMs:        time.Since(start).Milliseconds(),
 	}
 	log.Info("proxy request completed", "status", "pass", "total_latency_ms", result.LatencyMs)
-	p.record(source, orgID, inputText, guardResults, transforms, outputTransforms, "pass", result.LatencyMs)
+	p.record(source, orgID, inputText, guardResults, transforms, outputTransforms, "pass", result.LatencyMs, &chatResp.Usage, chatResp.Model)
 	return result, nil
 }
 
-func (p *Processor) record(source *backendconfig.ResolvedSource, orgID uuid.UUID, inputText string, guardResults map[string]*guard.EngineResult, transforms, outputTransforms *transform.ChainResult, overallResult string, latencyMs int64) {
+func (p *Processor) record(source *backendconfig.ResolvedSource, orgID uuid.UUID, inputText string, guardResults map[string]*guard.EngineResult, transforms, outputTransforms *transform.ChainResult, overallResult string, latencyMs int64, usage *llm.Usage, model string) {
 	if p.audit != nil {
-		p.audit.Record(orgID, source.ID, inputText, guardResults, transforms, outputTransforms, overallResult, latencyMs)
+		p.audit.Record(orgID, source.ID, inputText, guardResults, transforms, outputTransforms, overallResult, latencyMs, usage, model)
 	}
 }

@@ -94,6 +94,7 @@ export function AuditLogTable({ sourceId, sources }: AuditLogTableProps) {
             <TableHead>Time</TableHead>
             {showSourceColumn && <TableHead>Source</TableHead>}
             <TableHead>Result</TableHead>
+            <TableHead>Tokens</TableHead>
             <TableHead>Latency</TableHead>
           </TableRow>
         </TableHeader>
@@ -122,12 +123,22 @@ export function AuditLogTable({ sourceId, sources }: AuditLogTableProps) {
                     {log.overall_result}
                   </Badge>
                 </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {log.total_tokens != null ? (
+                    <span title={`${log.prompt_tokens ?? 0} prompt + ${log.completion_tokens ?? 0} completion`}>
+                      {log.total_tokens}
+                      {log.model ? ` · ${log.model}` : ""}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
                 <TableCell>{log.latency_ms}ms</TableCell>
               </TableRow>
               {expandedId === log.id && (
                 <TableRow>
                   <TableCell
-                    colSpan={showSourceColumn ? 5 : 4}
+                    colSpan={showSourceColumn ? 6 : 5}
                     className="bg-muted/50"
                   >
                     <div className="space-y-3 p-2">

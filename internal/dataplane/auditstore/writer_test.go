@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/cyacco/Sheeld/internal/dataplane/db/generated"
+	"github.com/cyacco/Sheeld/internal/shared/llm"
 )
 
 // fakeWriterQueries records CreateAuditLog calls and can be told to fail.
@@ -57,7 +58,8 @@ func TestWriter_RecordHashesInputAndFlushes(t *testing.T) {
 	defer w.Close()
 
 	orgID, srcID := uuid.New(), uuid.New()
-	w.Record(orgID, srcID, "secret prompt text", nil, nil, nil, "pass", 42)
+	w.Record(orgID, srcID, "secret prompt text", nil, nil, nil, "pass", 42,
+		&llm.Usage{PromptTokens: 11, CompletionTokens: 7, TotalTokens: 18}, "gpt-4o-mini")
 
 	waitFor(t, func() bool { return len(fake.recorded()) == 1 })
 
@@ -67,6 +69,12 @@ func TestWriter_RecordHashesInputAndFlushes(t *testing.T) {
 	}
 	if got.OverallResult != "pass" || got.LatencyMs != 42 {
 		t.Errorf("result/latency mismatch: %+v", got)
+	}
+	if got.PromptTokens.Int32 != 11 || got.CompletionTokens.Int32 != 7 || got.TotalTokens.Int32 != 18 {
+		t.Errorf("token usage mismatch: %+v", got)
+	}
+	if got.Model.String != "gpt-4o-mini" {
+		t.Errorf("model mismatch: got %q", got.Model.String)
 	}
 	// Raw input must never be stored — only its SHA-256 hash.
 	sum := sha256.Sum256([]byte("secret prompt text"))
@@ -84,7 +92,7 @@ func TestWriter_FlushRetriesThenSucceeds(t *testing.T) {
 	w := NewWriter(fake)
 	defer w.Close()
 
-	w.Record(uuid.New(), uuid.New(), "x", nil, nil, nil, "pass", 1)
+	w.Record(uuid.New(), uuid.New(), "x", nil, nil, nil, "pass", 1, nil, "")
 	waitFor(t, func() bool { return len(fake.recorded()) == 1 })
 }
 
@@ -93,7 +101,7 @@ func TestWriter_CloseDrainsBufferedEntries(t *testing.T) {
 	w := NewWriter(fake)
 
 	for i := range 5 {
-		w.Record(uuid.New(), uuid.New(), "x", nil, nil, nil, "pass", int64(i))
+		w.Record(uuid.New(), uuid.New(), "x", nil, nil, nil, "pass", int64(i), nil, "")
 	}
 	// Close flushes remaining buffered entries before returning.
 	w.Close()
@@ -113,7 +121,7 @@ func TestWriter_RecordNeverBlocksWhenBufferFull(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		for range bufferSize + batchSize + 100 {
-			w.Record(uuid.New(), uuid.New(), "x", nil, nil, nil, "pass", 1)
+			w.Record(uuid.New(), uuid.New(), "x", nil, nil, nil, "pass", 1, nil, "")
 		}
 		close(done)
 	}()

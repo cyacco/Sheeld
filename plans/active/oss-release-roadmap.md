@@ -79,7 +79,11 @@ that work. Assessment done via codebase review on 2026-07-07.
 
 ## Post-launch (feature milestones)
 - Multi-user-per-org + roles + invitations (today one registration = one user).
-- Analytics dashboard (needs token/cost capture in audit logs first).
+- Token/cost capture — **SHIPPED**: each proxied request records prompt/
+  completion/total tokens + model in the audit log (NULL on pre-LLM rejects) and
+  a `sheeld_llm_tokens_total{kind}` counter; audit table has a Tokens column.
+- Analytics dashboard (charts over the now-captured token/cost data). Unblocked
+  by token capture above.
 - Guard dry-run — **SHIPPED**: POST /v1/guardrails/{id}/test runs a guard against
   sample text (org-scoped, bounded timeout for network guards) and a "Test" tab on
   the guardrail detail page shows pass/reject + details, without touching live

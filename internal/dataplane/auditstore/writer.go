@@ -14,6 +14,7 @@ import (
 
 	"github.com/cyacco/Sheeld/internal/dataplane/db/generated"
 	"github.com/cyacco/Sheeld/internal/shared/guard"
+	"github.com/cyacco/Sheeld/internal/shared/llm"
 	"github.com/cyacco/Sheeld/internal/shared/metrics"
 	"github.com/cyacco/Sheeld/internal/shared/transform"
 )
@@ -31,6 +32,8 @@ type entry struct {
 	guardResults  json.RawMessage
 	overallResult string
 	latencyMs     int64
+	usage         *llm.Usage
+	model         string
 }
 
 // writerQueries is the subset of generated queries the writer needs, so tests
@@ -70,7 +73,7 @@ func NewWriter(queries writerQueries) *Writer {
 // text was never sent anywhere. The transformer chain outcomes are stored in
 // the guard_results JSONB under the reserved keys "transforms" (input chain)
 // and "output_transforms" (output chain).
-func (w *Writer) Record(orgID, sourceID uuid.UUID, inputText string, guardResults map[string]*guard.EngineResult, transforms, outputTransforms *transform.ChainResult, overallResult string, latencyMs int64) {
+func (w *Writer) Record(orgID, sourceID uuid.UUID, inputText string, guardResults map[string]*guard.EngineResult, transforms, outputTransforms *transform.ChainResult, overallResult string, latencyMs int64, usage *llm.Usage, model string) {
 	hash := sha256.Sum256([]byte(inputText))
 
 	blob := make(map[string]interface{}, len(guardResults)+2)
@@ -96,6 +99,8 @@ func (w *Writer) Record(orgID, sourceID uuid.UUID, inputText string, guardResult
 		guardResults:  resultsJSON,
 		overallResult: overallResult,
 		latencyMs:     latencyMs,
+		usage:         usage,
+		model:         model,
 	}
 
 	select {
@@ -161,14 +166,23 @@ func (w *Writer) flush(batch []entry) {
 		}
 		var err error
 		for _, e := range batch {
-			_, err = w.queries.CreateAuditLog(ctx, generated.CreateAuditLogParams{
+			params := generated.CreateAuditLogParams{
 				OrganizationID: e.orgID,
 				SourceID:       e.sourceID,
 				InputHash:      pgtype.Text{String: e.inputHash, Valid: true},
 				GuardResults:   e.guardResults,
 				OverallResult:  e.overallResult,
 				LatencyMs:      int32(e.latencyMs),
-			})
+			}
+			if e.usage != nil {
+				params.PromptTokens = pgtype.Int4{Int32: int32(e.usage.PromptTokens), Valid: true}
+				params.CompletionTokens = pgtype.Int4{Int32: int32(e.usage.CompletionTokens), Valid: true}
+				params.TotalTokens = pgtype.Int4{Int32: int32(e.usage.TotalTokens), Valid: true}
+			}
+			if e.model != "" {
+				params.Model = pgtype.Text{String: e.model, Valid: true}
+			}
+			_, err = w.queries.CreateAuditLog(ctx, params)
 			if err != nil {
 				break
 			}
