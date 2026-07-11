@@ -1,6 +1,13 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
 import type { User } from "./types";
 import * as api from "./api";
 
@@ -18,29 +25,87 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    token: null,
-    loading: true,
-  });
+// Auth is persisted in localStorage and read via useSyncExternalStore so the
+// initial value comes from the store during render (with an SSR-safe "loading"
+// server snapshot) instead of a setState-in-effect on mount. getSnapshot must
+// return a stable reference between changes, so the snapshot is cached and only
+// recomputed when the stored credentials actually change.
+const LOADING: AuthState = { user: null, token: null, loading: true };
+const LOGGED_OUT: AuthState = { user: null, token: null, loading: false };
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    const userStr = localStorage.getItem("user");
-    if (token && userStr) {
-      try {
-        const user = JSON.parse(userStr) as User;
-        setState({ user, token, loading: false });
-      } catch {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        setState({ user: null, token: null, loading: false });
-      }
-    } else {
-      setState({ user: null, token: null, loading: false });
+let snapshot: AuthState = LOADING;
+let hydrated = false;
+const listeners = new Set<() => void>();
+
+function readPersistedAuth(): AuthState {
+  const token = localStorage.getItem("token");
+  const userStr = localStorage.getItem("user");
+  if (token && userStr) {
+    try {
+      return { user: JSON.parse(userStr) as User, token, loading: false };
+    } catch {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
     }
-  }, []);
+  }
+  return LOGGED_OUT;
+}
+
+function emit() {
+  listeners.forEach((l) => l());
+}
+
+// setPersistedAuth writes the credentials to localStorage and the in-memory
+// snapshot, then notifies subscribers. Passing null clears them (logout).
+function setPersistedAuth(next: { user: User; token: string } | null) {
+  if (next) {
+    localStorage.setItem("token", next.token);
+    localStorage.setItem("user", JSON.stringify(next.user));
+    snapshot = { user: next.user, token: next.token, loading: false };
+  } else {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    snapshot = LOGGED_OUT;
+  }
+  emit();
+}
+
+// setToken refreshes just the token (proactive refresh keeps the user/session).
+function setToken(token: string) {
+  localStorage.setItem("token", token);
+  snapshot = { ...snapshot, token };
+  emit();
+}
+
+function subscribe(cb: () => void): () => void {
+  if (!hydrated) {
+    hydrated = true;
+    snapshot = readPersistedAuth();
+  }
+  listeners.add(cb);
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === "token" || e.key === "user") {
+      snapshot = readPersistedAuth();
+      emit();
+    }
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    listeners.delete(cb);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+function getSnapshot(): AuthState {
+  return snapshot;
+}
+
+function getServerSnapshot(): AuthState {
+  return LOADING;
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   // Proactive token refresh every 30 minutes
   useEffect(() => {
@@ -49,8 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const interval = setInterval(async () => {
       try {
         const result = await api.refreshToken();
-        localStorage.setItem("token", result.token);
-        setState((prev) => ({ ...prev, token: result.token }));
+        setToken(result.token);
       } catch {
         // 401 will be handled by the interceptor in api.ts
       }
@@ -61,34 +125,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginFn = useCallback(async (email: string, password: string) => {
     const result = await api.login(email, password);
-    localStorage.setItem("token", result.token);
-    localStorage.setItem("user", JSON.stringify(result.user));
-    setState({ user: result.user, token: result.token, loading: false });
+    setPersistedAuth({ user: result.user, token: result.token });
   }, []);
 
   const registerFn = useCallback(
     async (orgName: string, email: string, password: string) => {
       const result = await api.register(orgName, email, password);
-      localStorage.setItem("token", result.token);
-      localStorage.setItem("user", JSON.stringify(result.user));
-      setState({ user: result.user, token: result.token, loading: false });
+      setPersistedAuth({ user: result.user, token: result.token });
     },
     [],
   );
 
   const logout = useCallback(() => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setState({ user: null, token: null, loading: false });
+    setPersistedAuth(null);
   }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{ ...state, login: loginFn, register: registerFn, logout }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const value = useMemo<AuthContextValue>(
+    () => ({ ...state, login: loginFn, register: registerFn, logout }),
+    [state, loginFn, registerFn, logout],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
