@@ -50,9 +50,10 @@ that work. Assessment done via codebase review on 2026-07-07.
 - Fill test gaps — **PARTIAL**: `auditstore` now unit-tested (writer batching/
   drop/retry/drain + pruner batched-delete/disabled/error paths; 0→65%) via
   small query interfaces for fakes; CP handler validation/error paths covered
-  with a nil-service pattern (happy paths stay in integration). Remaining: the
-  Next.js dashboard has no test runner — setting up vitest + Testing Library is
-  a separate follow-up PR.
+  with a nil-service pattern (happy paths stay in integration). Dashboard test
+  harness — **SHIPPED**: vitest + Testing Library wired up in `web/`
+  (`npm test` / `npm run test:run`) with initial coverage of the guard-type
+  catalog, guardrail-form draft mapping, and a Badge render test.
 
 ## Pre-v0.1.0 must-fix (found 2026-07-08 review)
 - **OpenAI API-surface passthrough** — **SHIPPED**: `llm.ChatRequest`/`Message`/

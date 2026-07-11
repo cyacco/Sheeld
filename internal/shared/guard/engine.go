@@ -63,12 +63,12 @@ func (e *Engine) Run(ctx context.Context, guards []Guard, input string, cfg Eval
 					passed = true
 				}
 				result = &Result{
-					GuardName: guard.Name(),
-					GuardType: guard.Type(),
-					Passed:    passed,
-					Message:   fmt.Sprintf("guard error: %v", err),
-					Details:   map[string]interface{}{"errored": true},
-					Duration:  time.Since(guardStart),
+					GuardName:  guard.Name(),
+					GuardType:  guard.Type(),
+					Passed:     passed,
+					Message:    fmt.Sprintf("guard error: %v", err),
+					Details:    map[string]interface{}{"errored": true},
+					DurationMs: time.Since(guardStart).Milliseconds(),
 				}
 			}
 			// Shadow guards run and are recorded, but never affect the decision.
@@ -106,18 +106,18 @@ func (e *Engine) Run(ctx context.Context, guards []Guard, input string, cfg Eval
 		}
 	}
 
-	totalDuration := time.Since(start)
+	totalDurationMs := time.Since(start).Milliseconds()
 
 	// With no enforcing guards (all shadow), nothing can block: pass.
 	passed := enforcing == 0 || evaluate(cfg, passCount, enforcing)
 
 	engineResult := &EngineResult{
-		Passed:        passed,
-		Criteria:      cfg.Criteria,
-		Results:       results,
-		TotalDuration: totalDuration,
-		PassCount:     passCount,
-		FailCount:     failCount,
+		Passed:          passed,
+		Criteria:        cfg.Criteria,
+		Results:         results,
+		TotalDurationMs: totalDurationMs,
+		PassCount:       passCount,
+		FailCount:       failCount,
 	}
 
 	if cfg.Criteria == CriteriaNofM {

@@ -62,46 +62,46 @@ func (g *RegexGuard) Validate(_ context.Context, input string) (*Result, error) 
 		}
 	}
 
-	duration := time.Since(start)
+	durationMs := time.Since(start).Milliseconds()
 
 	if g.mode == "block" {
 		// Block mode: fail if any pattern matches
 		if len(matchedPatterns) > 0 {
 			return &Result{
-				GuardName: g.name,
-				GuardType: g.Type(),
-				Passed:    false,
-				Message:   "input matches blocked patterns",
-				Details:   map[string]interface{}{"matched_patterns": matchedPatterns},
-				Duration:  duration,
+				GuardName:  g.name,
+				GuardType:  g.Type(),
+				Passed:     false,
+				Message:    "input matches blocked patterns",
+				Details:    map[string]interface{}{"matched_patterns": matchedPatterns},
+				DurationMs: durationMs,
 			}, nil
 		}
 		return &Result{
-			GuardName: g.name,
-			GuardType: g.Type(),
-			Passed:    true,
-			Message:   "no blocked patterns matched",
-			Duration:  duration,
+			GuardName:  g.name,
+			GuardType:  g.Type(),
+			Passed:     true,
+			Message:    "no blocked patterns matched",
+			DurationMs: durationMs,
 		}, nil
 	}
 
 	// Require mode: fail if any pattern doesn't match
 	if len(unmatchedPatterns) > 0 {
 		return &Result{
-			GuardName: g.name,
-			GuardType: g.Type(),
-			Passed:    false,
-			Message:   "input does not match all required patterns",
-			Details:   map[string]interface{}{"unmatched_patterns": unmatchedPatterns},
-			Duration:  duration,
+			GuardName:  g.name,
+			GuardType:  g.Type(),
+			Passed:     false,
+			Message:    "input does not match all required patterns",
+			Details:    map[string]interface{}{"unmatched_patterns": unmatchedPatterns},
+			DurationMs: durationMs,
 		}, nil
 	}
 
 	return &Result{
-		GuardName: g.name,
-		GuardType: g.Type(),
-		Passed:    true,
-		Message:   "all required patterns matched",
-		Duration:  duration,
+		GuardName:  g.name,
+		GuardType:  g.Type(),
+		Passed:     true,
+		Message:    "all required patterns matched",
+		DurationMs: durationMs,
 	}, nil
 }

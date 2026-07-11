@@ -17,6 +17,15 @@ from `[Unreleased]` into a dated version section as part of cutting a release.
 - **Guard shadow mode**: a guard with `mode: shadow` runs and is audited
   (`shadow: true`) but never blocks, so it can be trialed on live traffic before
   enforcing. Configurable from the guard form; shown as a badge in the audit log.
+- **Dashboard test harness**: vitest + Testing Library set up in `web/` with
+  `npm test` / `npm run test:run`; initial coverage of the guard-type catalog,
+  guardrail-form draft mapping, and a Badge render test.
+
+### Fixed
+
+- **Guard `duration_ms` unit**: per-guard and per-phase durations in audit logs
+  were emitted as raw nanoseconds under `duration_ms`/`total_duration_ms`; they
+  are now real milliseconds, matching the transformer chain results.
 
 ## [0.1.0] - 2026-07-10
 
