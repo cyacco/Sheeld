@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/cyacco/Sheeld/internal/controlplane/db/generated"
@@ -116,8 +117,10 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*Login
 	}, nil
 }
 
-// CreateAPIKey generates a new API key for the organization.
-func (s *AuthService) CreateAPIKey(ctx context.Context, orgID uuid.UUID, name string) (*CreateAPIKeyResult, error) {
+// CreateAPIKey generates a new API key for the organization. rateLimitRPS and
+// rateLimitBurst are optional per-key rate-limit overrides; nil leaves them
+// unset so the data plane applies its default limit.
+func (s *AuthService) CreateAPIKey(ctx context.Context, orgID uuid.UUID, name string, rateLimitRPS *float64, rateLimitBurst *int) (*CreateAPIKeyResult, error) {
 	// Generate random key (32 bytes = 64 hex chars)
 	rawBytes := make([]byte, 32)
 	if _, err := rand.Read(rawBytes); err != nil {
@@ -132,12 +135,19 @@ func (s *AuthService) CreateAPIKey(ctx context.Context, orgID uuid.UUID, name st
 	// Store first 8 chars as prefix for identification
 	keyPrefix := rawKey[:13] // "shld_" + 8 hex chars
 
-	apiKey, err := s.queries.CreateAPIKey(ctx, generated.CreateAPIKeyParams{
+	params := generated.CreateAPIKeyParams{
 		OrganizationID: orgID,
 		Name:           name,
 		KeyHash:        keyHash,
 		KeyPrefix:      keyPrefix,
-	})
+	}
+	if rateLimitRPS != nil {
+		params.RateLimitRps = pgtype.Float8{Float64: *rateLimitRPS, Valid: true}
+	}
+	if rateLimitBurst != nil {
+		params.RateLimitBurst = pgtype.Int4{Int32: int32(*rateLimitBurst), Valid: true}
+	}
+	apiKey, err := s.queries.CreateAPIKey(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("creating API key: %w", err)
 	}

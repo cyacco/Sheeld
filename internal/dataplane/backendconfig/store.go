@@ -43,10 +43,20 @@ type sourceKey struct {
 	route string
 }
 
+// AuthInfo is the result of authenticating a proxy request against an API
+// key: the owning org plus the key's optional per-key rate limits. A limit
+// of 0 means "use the data plane's default".
+type AuthInfo struct {
+	OrgID          uuid.UUID
+	KeyHash        string
+	RateLimitRPS   float64
+	RateLimitBurst int
+}
+
 // Snapshot is one immutable, fully-resolved view of the workspace config.
 type Snapshot struct {
 	Version string
-	apiKeys map[string]uuid.UUID // sha256 hex of raw key → org ID
+	apiKeys map[string]AuthInfo // sha256 hex of raw key → auth info
 	sources map[sourceKey]*ResolvedSource
 }
 
@@ -73,16 +83,16 @@ func (s *Store) Version() string {
 	return ""
 }
 
-// LookupOrgByAPIKey hashes the presented raw API key and returns the owning
-// org ID.
-func (s *Store) LookupOrgByAPIKey(rawKey string) (uuid.UUID, bool) {
+// LookupAPIKey hashes the presented raw API key and returns the auth info
+// (owning org + per-key rate limits) for it.
+func (s *Store) LookupAPIKey(rawKey string) (AuthInfo, bool) {
 	snap := s.current.Load()
 	if snap == nil {
-		return uuid.Nil, false
+		return AuthInfo{}, false
 	}
 	sum := sha256.Sum256([]byte(rawKey))
-	orgID, ok := snap.apiKeys[hex.EncodeToString(sum[:])]
-	return orgID, ok
+	info, ok := snap.apiKeys[hex.EncodeToString(sum[:])]
+	return info, ok
 }
 
 // LookupSource returns the resolved source for an org + route.
@@ -101,13 +111,20 @@ func (s *Store) LookupSource(orgID uuid.UUID, route string) (*ResolvedSource, bo
 func (s *Store) Apply(cfg *domain.WorkspaceConfig, registry *guard.Registry, transformRegistry *transform.Registry) error {
 	snap := &Snapshot{
 		Version: cfg.Version,
-		apiKeys: make(map[string]uuid.UUID),
+		apiKeys: make(map[string]AuthInfo),
 		sources: make(map[sourceKey]*ResolvedSource),
 	}
 
 	for _, org := range cfg.Organizations {
 		for _, k := range org.APIKeys {
-			snap.apiKeys[k.KeyHash] = org.ID
+			info := AuthInfo{OrgID: org.ID, KeyHash: k.KeyHash}
+			if k.RateLimitRPS != nil {
+				info.RateLimitRPS = *k.RateLimitRPS
+			}
+			if k.RateLimitBurst != nil {
+				info.RateLimitBurst = *k.RateLimitBurst
+			}
+			snap.apiKeys[k.KeyHash] = info
 		}
 
 		guardrailsByID := make(map[uuid.UUID]domain.GuardrailConfig, len(org.Guardrails))

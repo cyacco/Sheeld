@@ -17,6 +17,11 @@ from `[Unreleased]` into a dated version section as part of cutting a release.
 - **Guard shadow mode**: a guard with `mode: shadow` runs and is audited
   (`shadow: true`) but never blocks, so it can be trialed on live traffic before
   enforcing. Configurable from the guard form; shown as a badge in the audit log.
+- **Per-API-key rate limits**: the data-plane proxy now rate-limits per API key
+  (each key gets its own token bucket) instead of per org, and each key can
+  carry an optional `rate_limit_rps` / `rate_limit_burst` override set at key
+  creation; keys without an override fall back to the data plane default.
+  Editable in the dashboard's Create API Key dialog and shown in the key list.
 - **Dashboard test harness**: vitest + Testing Library set up in `web/` with
   `npm test` / `npm run test:run`; initial coverage of the guard-type catalog,
   guardrail-form draft mapping, and a Badge render test.

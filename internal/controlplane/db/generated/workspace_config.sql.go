@@ -14,12 +14,14 @@ import (
 )
 
 const listAllActiveAPIKeys = `-- name: ListAllActiveAPIKeys :many
-SELECT organization_id, key_hash FROM api_keys WHERE revoked_at IS NULL ORDER BY organization_id
+SELECT organization_id, key_hash, rate_limit_rps, rate_limit_burst FROM api_keys WHERE revoked_at IS NULL ORDER BY organization_id
 `
 
 type ListAllActiveAPIKeysRow struct {
-	OrganizationID uuid.UUID `json:"organization_id"`
-	KeyHash        string    `json:"key_hash"`
+	OrganizationID uuid.UUID     `json:"organization_id"`
+	KeyHash        string        `json:"key_hash"`
+	RateLimitRps   pgtype.Float8 `json:"rate_limit_rps"`
+	RateLimitBurst pgtype.Int4   `json:"rate_limit_burst"`
 }
 
 func (q *Queries) ListAllActiveAPIKeys(ctx context.Context) ([]ListAllActiveAPIKeysRow, error) {
@@ -31,7 +33,12 @@ func (q *Queries) ListAllActiveAPIKeys(ctx context.Context) ([]ListAllActiveAPIK
 	items := []ListAllActiveAPIKeysRow{}
 	for rows.Next() {
 		var i ListAllActiveAPIKeysRow
-		if err := rows.Scan(&i.OrganizationID, &i.KeyHash); err != nil {
+		if err := rows.Scan(
+			&i.OrganizationID,
+			&i.KeyHash,
+			&i.RateLimitRps,
+			&i.RateLimitBurst,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

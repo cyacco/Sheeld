@@ -29,6 +29,8 @@ export default function APIKeysPage() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
+  const [rps, setRps] = useState("");
+  const [burst, setBurst] = useState("");
   const [creating, setCreating] = useState(false);
   const [rawKey, setRawKey] = useState<string | null>(null);
 
@@ -51,9 +53,14 @@ export default function APIKeysPage() {
     e.preventDefault();
     setCreating(true);
     try {
-      const result = await api.createAPIKey(name);
+      const result = await api.createAPIKey(name, {
+        rps: rps ? Number(rps) : undefined,
+        burst: burst ? Number(burst) : undefined,
+      });
       setRawKey(result.raw_key);
       setName("");
+      setRps("");
+      setBurst("");
       loadKeys();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create API key");
@@ -84,6 +91,8 @@ export default function APIKeysPage() {
     setCreateOpen(false);
     setRawKey(null);
     setName("");
+    setRps("");
+    setBurst("");
   }
 
   if (loading) return <p className="text-muted-foreground">Loading API keys...</p>;
@@ -129,6 +138,35 @@ export default function APIKeysPage() {
                     required
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="keyRps">Rate limit (req/s)</Label>
+                    <Input
+                      id="keyRps"
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={rps}
+                      onChange={(e) => setRps(e.target.value)}
+                      placeholder="Default"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="keyBurst">Burst</Label>
+                    <Input
+                      id="keyBurst"
+                      type="number"
+                      min={0}
+                      value={burst}
+                      onChange={(e) => setBurst(e.target.value)}
+                      placeholder="Default"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to use the data plane&apos;s default rate limit.
+                  Applies per key.
+                </p>
                 <Button type="submit" disabled={creating} className="w-full">
                   {creating ? "Creating..." : "Create"}
                 </Button>
@@ -146,6 +184,7 @@ export default function APIKeysPage() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Prefix</TableHead>
+              <TableHead>Rate limit</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Status</TableHead>
               <TableHead />
@@ -156,6 +195,11 @@ export default function APIKeysPage() {
               <TableRow key={key.id}>
                 <TableCell className="font-medium">{key.name}</TableCell>
                 <TableCell className="font-mono text-sm">{key.key_prefix}...</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {key.rate_limit_rps
+                    ? `${key.rate_limit_rps}/s${key.rate_limit_burst ? ` · burst ${key.rate_limit_burst}` : ""}`
+                    : "Default"}
+                </TableCell>
                 <TableCell>{new Date(key.created_at).toLocaleDateString()}</TableCell>
                 <TableCell>
                   {key.revoked_at ? (

@@ -2,7 +2,7 @@
 SELECT id FROM organizations ORDER BY id;
 
 -- name: ListAllActiveAPIKeys :many
-SELECT organization_id, key_hash FROM api_keys WHERE revoked_at IS NULL ORDER BY organization_id;
+SELECT organization_id, key_hash, rate_limit_rps, rate_limit_burst FROM api_keys WHERE revoked_at IS NULL ORDER BY organization_id;
 
 -- name: ListAllSources :many
 SELECT id, organization_id, route, llm_model, llm_api_key_enc, llm_base_url, input_pass_criteria, input_pass_threshold, output_pass_criteria, output_pass_threshold, enabled

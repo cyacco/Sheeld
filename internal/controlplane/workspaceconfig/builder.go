@@ -87,7 +87,16 @@ func (b *Builder) Build(ctx context.Context) (*domain.WorkspaceConfig, error) {
 
 	for _, k := range apiKeys {
 		if org, ok := orgs[k.OrganizationID]; ok {
-			org.APIKeys = append(org.APIKeys, domain.APIKeyConfig{KeyHash: k.KeyHash})
+			cfg := domain.APIKeyConfig{KeyHash: k.KeyHash}
+			if k.RateLimitRps.Valid {
+				rps := k.RateLimitRps.Float64
+				cfg.RateLimitRPS = &rps
+			}
+			if k.RateLimitBurst.Valid {
+				burst := int(k.RateLimitBurst.Int32)
+				cfg.RateLimitBurst = &burst
+			}
+			org.APIKeys = append(org.APIKeys, cfg)
 		}
 	}
 

@@ -114,12 +114,15 @@ export type UpdateTransformerParams = CreateTransformerParams;
 
 export interface APIKey {
   id: string;
-  organization_id: string;
+  organization_id?: string;
   name: string;
-  key_hash: string;
-  key_prefix: string;
+  key_hash?: string;
+  key_prefix?: string;
   created_at: string;
   revoked_at: string | null;
+  // Optional per-key rate limits; null = use the data plane default.
+  rate_limit_rps?: number | null;
+  rate_limit_burst?: number | null;
 }
 
 export interface CreateAPIKeyResult {

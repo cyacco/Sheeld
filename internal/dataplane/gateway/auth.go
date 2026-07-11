@@ -10,6 +10,16 @@ import (
 	"github.com/cyacco/Sheeld/internal/shared/response"
 )
 
+// authInfoCtxKey is the context key under which APIKeyAuth stores the
+// authenticated key's AuthInfo (org + per-key rate limits).
+type authInfoCtxKey struct{}
+
+// AuthInfoFromContext returns the authenticated API key's AuthInfo, if any.
+func AuthInfoFromContext(ctx context.Context) (backendconfig.AuthInfo, bool) {
+	info, ok := ctx.Value(authInfoCtxKey{}).(backendconfig.AuthInfo)
+	return info, ok
+}
+
 // APIKeyAuth validates API keys against the in-memory config store — no
 // database access on the request path. Returns 503 until a config snapshot
 // has been loaded.
@@ -28,13 +38,14 @@ func APIKeyAuth(store *backendconfig.Store) func(http.Handler) http.Handler {
 				return
 			}
 
-			orgID, ok := store.LookupOrgByAPIKey(parts[1])
+			info, ok := store.LookupAPIKey(parts[1])
 			if !ok {
 				response.Error(w, http.StatusUnauthorized, "invalid API key")
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), middleware.OrgIDKey, orgID)
+			ctx := context.WithValue(r.Context(), middleware.OrgIDKey, info.OrgID)
+			ctx = context.WithValue(ctx, authInfoCtxKey{}, info)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

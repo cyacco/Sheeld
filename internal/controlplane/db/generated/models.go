@@ -20,6 +20,8 @@ type ApiKey struct {
 	KeyPrefix      string             `json:"key_prefix"`
 	CreatedAt      time.Time          `json:"created_at"`
 	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	RateLimitRps   pgtype.Float8      `json:"rate_limit_rps"`
+	RateLimitBurst pgtype.Int4        `json:"rate_limit_burst"`
 }
 
 type Guardrail struct {

@@ -9,19 +9,22 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createAPIKey = `-- name: CreateAPIKey :one
-INSERT INTO api_keys (organization_id, name, key_hash, key_prefix)
-VALUES ($1, $2, $3, $4)
-RETURNING id, organization_id, name, key_hash, key_prefix, created_at, revoked_at
+INSERT INTO api_keys (organization_id, name, key_hash, key_prefix, rate_limit_rps, rate_limit_burst)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, organization_id, name, key_hash, key_prefix, created_at, revoked_at, rate_limit_rps, rate_limit_burst
 `
 
 type CreateAPIKeyParams struct {
-	OrganizationID uuid.UUID `json:"organization_id"`
-	Name           string    `json:"name"`
-	KeyHash        string    `json:"key_hash"`
-	KeyPrefix      string    `json:"key_prefix"`
+	OrganizationID uuid.UUID     `json:"organization_id"`
+	Name           string        `json:"name"`
+	KeyHash        string        `json:"key_hash"`
+	KeyPrefix      string        `json:"key_prefix"`
+	RateLimitRps   pgtype.Float8 `json:"rate_limit_rps"`
+	RateLimitBurst pgtype.Int4   `json:"rate_limit_burst"`
 }
 
 func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error) {
@@ -30,6 +33,8 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		arg.Name,
 		arg.KeyHash,
 		arg.KeyPrefix,
+		arg.RateLimitRps,
+		arg.RateLimitBurst,
 	)
 	var i ApiKey
 	err := row.Scan(
@@ -40,12 +45,14 @@ func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (Api
 		&i.KeyPrefix,
 		&i.CreatedAt,
 		&i.RevokedAt,
+		&i.RateLimitRps,
+		&i.RateLimitBurst,
 	)
 	return i, err
 }
 
 const getAPIKeyByHash = `-- name: GetAPIKeyByHash :one
-SELECT id, organization_id, name, key_hash, key_prefix, created_at, revoked_at FROM api_keys
+SELECT id, organization_id, name, key_hash, key_prefix, created_at, revoked_at, rate_limit_rps, rate_limit_burst FROM api_keys
 WHERE key_hash = $1 AND revoked_at IS NULL
 `
 
@@ -60,12 +67,14 @@ func (q *Queries) GetAPIKeyByHash(ctx context.Context, keyHash string) (ApiKey, 
 		&i.KeyPrefix,
 		&i.CreatedAt,
 		&i.RevokedAt,
+		&i.RateLimitRps,
+		&i.RateLimitBurst,
 	)
 	return i, err
 }
 
 const listAPIKeysByOrganization = `-- name: ListAPIKeysByOrganization :many
-SELECT id, organization_id, name, key_hash, key_prefix, created_at, revoked_at FROM api_keys
+SELECT id, organization_id, name, key_hash, key_prefix, created_at, revoked_at, rate_limit_rps, rate_limit_burst FROM api_keys
 WHERE organization_id = $1
 ORDER BY created_at DESC
 `
@@ -87,6 +96,8 @@ func (q *Queries) ListAPIKeysByOrganization(ctx context.Context, organizationID 
 			&i.KeyPrefix,
 			&i.CreatedAt,
 			&i.RevokedAt,
+			&i.RateLimitRps,
+			&i.RateLimitBurst,
 		); err != nil {
 			return nil, err
 		}

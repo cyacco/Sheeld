@@ -95,7 +95,15 @@ that work. Assessment done via codebase review on 2026-07-07.
   dashboard has a Mode control on the guard form and a "shadow" badge in the
   audit log. Verified live (request tripping a shadow guard → pass, would-be
   fail visible in audit).
-- Per-API-key rate limits/quotas (limiter is currently global per replica).
+- Per-API-key rate limits — **SHIPPED**: the DP proxy limiter now keys on the
+  API key (own token bucket per key) rather than the org, with optional per-key
+  `rate_limit_rps` / `rate_limit_burst` overrides carried through the
+  workspace-config payload; unset keys use the DP default. Dashboard exposes the
+  fields on key creation and shows them in the list. Durable quotas (rolling
+  request caps) deferred — they need a shared counter store (Redis) to be
+  meaningful in the stateless multi-replica DP; tracked below.
+- Per-API-key quotas: durable rolling request caps (e.g. N/day) backed by a
+  shared counter store (the DP request path holds no DB/shared state today).
 - Rejection alerting (webhook/Slack on guard failures); audit-log export
   (CSV/JSON, SIEM forwarding).
 - Non-bearer provider auth (e.g. Azure `api-key` header) for direct connections.
