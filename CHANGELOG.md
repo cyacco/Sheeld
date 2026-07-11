@@ -10,6 +10,8 @@ from `[Unreleased]` into a dated version section as part of cutting a release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-11
+
 ### Added
 
 - **Analytics dashboard**: a new dashboard page (and `GET /v1/analytics?days=`)
@@ -100,5 +102,6 @@ validates output.
 
 Thanks to @kaeawc, whose contributions surfaced these fixes.
 
-[Unreleased]: https://github.com/cyacco/Sheeld/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/cyacco/Sheeld/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/cyacco/Sheeld/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/cyacco/Sheeld/releases/tag/v0.1.0
