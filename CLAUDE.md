@@ -136,6 +136,7 @@ Two PostgreSQL databases, each with its own goose migrations:
 - `CRUD /v1/guardrails` — Guardrail management + attachment (JWT auth)
 - `CRUD /v1/transformers` — Transformer management; PUT /v1/sources/:id/transformers replaces the ordered chain (JWT auth)
 - `GET /v1/audit-logs` — Audit logs, proxied from the data plane (JWT auth)
+- `GET /v1/analytics` — Aggregated usage (requests, tokens, by model/source), proxied from the data plane (JWT auth)
 - `GET /v1/internal/workspace-config` — Config payload for data planes (DP token)
 - `GET /healthz` — Health check
 
@@ -144,6 +145,7 @@ Proxy pipeline: input transformers (sequential, whole messages array, never reje
 **Data plane (:8081)**
 - `POST /v1/proxy/:source_route` — Main proxy endpoint (API key auth; `"stream": true` = buffered streaming — full pipeline first, then SSE replay)
 - `GET /v1/internal/audit-logs` — Audit queries for the control plane (DP token)
+- `GET /v1/internal/analytics` — Aggregated usage queries for the control plane (DP token)
 - `GET /healthz` — Health + config version
 
 ## Git Workflow
