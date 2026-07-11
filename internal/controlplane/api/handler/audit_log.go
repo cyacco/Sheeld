@@ -53,18 +53,45 @@ func (h *AuditLogHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	h.proxy(w, r, "/v1/internal/audit-logs", q)
+}
+
+// Analytics handles GET /v1/analytics — aggregated usage for the dashboard,
+// proxied from the data plane with the caller's org injected server-side.
+func (h *AuditLogHandler) Analytics(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.OrgIDFromContext(r.Context())
+	if orgID == uuid.Nil {
+		response.Error(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	if h.dataPlaneURL == "" {
+		response.Error(w, http.StatusServiceUnavailable, "data plane not configured")
+		return
+	}
+
+	q := url.Values{}
+	q.Set("org_id", orgID.String())
+	if v := r.URL.Query().Get("days"); v != "" {
+		q.Set("days", v)
+	}
+	h.proxy(w, r, "/v1/internal/analytics", q)
+}
+
+// proxy forwards a GET to the data plane's internal API and streams the
+// response back unchanged.
+func (h *AuditLogHandler) proxy(w http.ResponseWriter, r *http.Request, path string, q url.Values) {
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet,
-		h.dataPlaneURL+"/v1/internal/audit-logs?"+q.Encode(), nil)
+		h.dataPlaneURL+path+"?"+q.Encode(), nil)
 	if err != nil {
-		response.Error(w, http.StatusInternalServerError, "failed to build audit query")
+		response.Error(w, http.StatusInternalServerError, "failed to build data-plane query")
 		return
 	}
 	req.Header.Set("Authorization", "Bearer "+h.token)
 
 	resp, err := h.client.Do(req)
 	if err != nil {
-		slog.Error("audit-log query to data plane failed", "error", err)
-		response.Error(w, http.StatusBadGateway, "audit log query failed")
+		slog.Error("data-plane query failed", "path", path, "error", err)
+		response.Error(w, http.StatusBadGateway, "data-plane query failed")
 		return
 	}
 	defer resp.Body.Close()

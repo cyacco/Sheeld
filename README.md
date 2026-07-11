@@ -14,7 +14,7 @@ guardrails exist.
 - **Drop-in**: point your OpenAI SDK's `base_url` at Sheeld; nothing else changes.
 - **Any provider**: OpenAI, Anthropic, Gemini, Groq, Ollama, vLLM, or your own gateway — per source ([table](#llm-providers)).
 - **Guardrails as config, not code**: wire sources to guards in a dashboard; the data plane picks changes up in seconds.
-- **Built to operate**: control/data-plane split, in-memory config on the request path, Prometheus metrics, audit logs, Helm chart.
+- **Built to operate**: control/data-plane split, in-memory config on the request path, Prometheus metrics, audit logs, usage analytics (tokens by model/source), per-API-key rate limits, Helm chart.
 
 ![Sheeld dashboard — wiring sources to guardrails](docs/images/dashboard-connections.png)
 
@@ -294,6 +294,7 @@ sheeld/
 | `CRUD` | `/v1/guardrails` | JWT | Guardrail management + source attachment |
 | `CRUD` | `/v1/transformers` | JWT | Transformer management; `PUT /v1/sources/:id/transformers` reorders a source's chain |
 | `GET` | `/v1/audit-logs` | JWT | Audit logs (proxied from the data plane) |
+| `GET` | `/v1/analytics` | JWT | Aggregated usage — requests, tokens, by model/source (proxied from the data plane) |
 | `GET` | `/v1/internal/workspace-config` | DP token | Config payload for data planes |
 
 ### Data plane (:8081)
@@ -305,6 +306,7 @@ sheeld/
 | `POST` | `/v1/proxy/:source_route` | API Key | Main proxy endpoint (OpenAI-compatible) |
 | `POST` | `/v1/proxy/:source_route/chat/completions` | API Key | Alias for OpenAI SDK base_url compatibility |
 | `GET` | `/v1/internal/audit-logs` | DP token | Audit-log queries for the control plane |
+| `GET` | `/v1/internal/analytics` | DP token | Aggregated usage queries for the control plane |
 
 The proxy is a drop-in OpenAI replacement: point your SDK's `base_url` at `http://<data-plane>/v1/proxy/<route>` with your Sheeld API key and the response is a raw chat completion. Request and response fields Sheeld doesn't itself act on — `tools`/`tool_calls` (function calling), `response_format`, multimodal content arrays, `top_p`, `seed`, `logprobs`, and so on — pass through to and from the provider unchanged, so function calling and structured outputs work as usual. Guardrail rejections return HTTP 422 with an OpenAI-style error (`"type": "guardrail_rejection"`); full guard results are in the audit logs, correlated by the `X-Request-ID` response header.
 

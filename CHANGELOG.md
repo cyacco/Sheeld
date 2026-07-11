@@ -12,6 +12,11 @@ from `[Unreleased]` into a dated version section as part of cutting a release.
 
 ### Added
 
+- **Analytics dashboard**: a new dashboard page (and `GET /v1/analytics?days=`)
+  aggregates the captured usage — total/passed/rejected requests, prompt/
+  completion/total tokens, a per-day usage chart, and breakdowns by model and
+  by source over a selectable window (7/30/90 days). Aggregation runs in the
+  data plane (which owns the audit DB) and is proxied by the control plane.
 - **Token/cost capture**: each proxied request records the LLM's reported
   `prompt_tokens` / `completion_tokens` / `total_tokens` and `model` in the
   audit log (NULL when a request is rejected before the LLM call), plus a

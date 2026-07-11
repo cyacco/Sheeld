@@ -82,8 +82,11 @@ that work. Assessment done via codebase review on 2026-07-07.
 - Token/cost capture — **SHIPPED**: each proxied request records prompt/
   completion/total tokens + model in the audit log (NULL on pre-LLM rejects) and
   a `sheeld_llm_tokens_total{kind}` counter; audit table has a Tokens column.
-- Analytics dashboard (charts over the now-captured token/cost data). Unblocked
-  by token capture above.
+- Analytics dashboard — **SHIPPED**: `GET /v1/analytics?days=` aggregates audit
+  usage in the data plane (summary, per-day token chart, by-model, by-source)
+  and a dashboard Analytics page renders it over a 7/30/90-day window. Verified
+  live. Follow-up: cost estimation needs per-model pricing (tokens captured, $
+  not yet).
 - Guard dry-run — **SHIPPED**: POST /v1/guardrails/{id}/test runs a guard against
   sample text (org-scoped, bounded timeout for network guards) and a "Test" tab on
   the guardrail detail page shows pass/reject + details, without touching live

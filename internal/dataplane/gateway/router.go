@@ -49,6 +49,7 @@ func NewRouter(cfg *config.Config, store *backendconfig.Store, proc *processor.P
 	r.Route("/v1/internal", func(r chi.Router) {
 		r.Use(staticTokenAuth(cfg.Token))
 		r.Get("/audit-logs", auditHandler.List)
+		r.Get("/analytics", auditHandler.Analytics)
 	})
 
 	// Proxy route (API key auth against the in-memory config store)

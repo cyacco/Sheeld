@@ -1,4 +1,5 @@
 import type {
+  Analytics,
   RegisterResult,
   LoginResult,
   Source,
@@ -317,6 +318,11 @@ export async function listAuditLogs(params: {
   if (params.source_id) searchParams.set("source_id", params.source_id);
   const qs = searchParams.toString();
   return request<AuditLog[]>(`/v1/audit-logs${qs ? `?${qs}` : ""}`);
+}
+
+// Analytics
+export async function getAnalytics(days: number): Promise<Analytics> {
+  return request<Analytics>(`/v1/analytics?days=${days}`);
 }
 
 // Token refresh
