@@ -27,10 +27,16 @@ type OrgConfig struct {
 	Transformers []TransformerConfig `json:"transformers"`
 }
 
-// APIKeyConfig carries only the hash of an active API key; the data plane
-// authenticates proxy calls by hashing the presented key and matching.
+// APIKeyConfig carries the hash of an active API key and its optional
+// per-key rate limits; the data plane authenticates proxy calls by hashing
+// the presented key and matching. A nil limit means "use the data plane's
+// default rate limit".
 type APIKeyConfig struct {
 	KeyHash string `json:"key_hash"`
+	// RateLimitRPS / RateLimitBurst override the data plane's default rate
+	// limit for requests authenticated with this key; nil = use the default.
+	RateLimitRPS   *float64 `json:"rate_limit_rps,omitempty"`
+	RateLimitBurst *int     `json:"rate_limit_burst,omitempty"`
 }
 
 // SourceConfig is a source as seen by the data plane.

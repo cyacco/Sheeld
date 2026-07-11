@@ -36,6 +36,9 @@ type loginRequest struct {
 
 type createAPIKeyRequest struct {
 	Name string `json:"name"`
+	// Optional per-key rate-limit overrides; omit to use the data plane default.
+	RateLimitRPS   *float64 `json:"rate_limit_rps,omitempty"`
+	RateLimitBurst *int     `json:"rate_limit_burst,omitempty"`
 }
 
 // Register handles POST /v1/auth/register.
@@ -109,7 +112,16 @@ func (h *AuthHandler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.authService.CreateAPIKey(r.Context(), orgID, req.Name)
+	if req.RateLimitRPS != nil && *req.RateLimitRPS <= 0 {
+		response.ValidationError(w, "rate_limit_rps", "rate_limit_rps must be greater than 0")
+		return
+	}
+	if req.RateLimitBurst != nil && *req.RateLimitBurst <= 0 {
+		response.ValidationError(w, "rate_limit_burst", "rate_limit_burst must be greater than 0")
+		return
+	}
+
+	result, err := h.authService.CreateAPIKey(r.Context(), orgID, req.Name, req.RateLimitRPS, req.RateLimitBurst)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "failed to create API key")
 		return
@@ -138,10 +150,12 @@ func (h *AuthHandler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 // apiKeySummary is the safe API-key representation: never exposes the hash
 // or raw prefix.
 type apiKeySummary struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	CreatedAt string    `json:"created_at"`
-	RevokedAt *string   `json:"revoked_at"`
+	ID             uuid.UUID `json:"id"`
+	Name           string    `json:"name"`
+	CreatedAt      string    `json:"created_at"`
+	RevokedAt      *string   `json:"revoked_at"`
+	RateLimitRPS   *float64  `json:"rate_limit_rps"`
+	RateLimitBurst *int      `json:"rate_limit_burst"`
 }
 
 func toAPIKeySummaries(keys []generated.ApiKey) []apiKeySummary {
@@ -155,6 +169,14 @@ func toAPIKeySummaries(keys []generated.ApiKey) []apiKeySummary {
 		if k.RevokedAt.Valid {
 			r := k.RevokedAt.Time.Format("2006-01-02T15:04:05Z")
 			s.RevokedAt = &r
+		}
+		if k.RateLimitRps.Valid {
+			rps := k.RateLimitRps.Float64
+			s.RateLimitRPS = &rps
+		}
+		if k.RateLimitBurst.Valid {
+			burst := int(k.RateLimitBurst.Int32)
+			s.RateLimitBurst = &burst
 		}
 		out[i] = s
 	}

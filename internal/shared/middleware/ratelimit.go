@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/time/rate"
 
 	"github.com/cyacco/Sheeld/internal/shared/response"
@@ -49,14 +50,23 @@ func NewRateLimiter(rps float64, burst int) *RateLimiter {
 }
 
 // getLimiter returns the rate limiter for the given key, creating one if
-// needed, and records the access time.
-func (rl *RateLimiter) getLimiter(key string) *rate.Limiter {
+// needed with the given rps/burst, and records the access time. If the key's
+// limits changed since the limiter was created (e.g. a per-key override was
+// edited), the existing limiter is updated in place.
+func (rl *RateLimiter) getLimiter(key string, rps rate.Limit, burst int) *rate.Limiter {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 	e, ok := rl.limiters[key]
 	if !ok {
-		e = &limiterEntry{limiter: rate.NewLimiter(rl.rps, rl.burst)}
+		e = &limiterEntry{limiter: rate.NewLimiter(rps, burst)}
 		rl.limiters[key] = e
+	} else {
+		if e.limiter.Limit() != rps {
+			e.limiter.SetLimit(rps)
+		}
+		if e.limiter.Burst() != burst {
+			e.limiter.SetBurst(burst)
+		}
 	}
 	e.lastSeen = time.Now()
 	return e.limiter
@@ -94,23 +104,44 @@ func (rl *RateLimiter) size() int {
 	return len(rl.limiters)
 }
 
-// Middleware returns HTTP middleware that rate-limits based on the authenticated
-// organization ID from the request context (set by APIKeyAuth).
+// KeyFunc derives the rate-limit key and per-key limits for a request. A
+// returned rps or burst <= 0 means "use the limiter's configured default".
+type KeyFunc func(r *http.Request) (key string, rps float64, burst int)
+
+// MiddlewareWith returns rate-limiting middleware that derives the bucket key
+// and (optionally overridden) limits per request via keyFn.
+func (rl *RateLimiter) MiddlewareWith(keyFn KeyFunc) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			key, rps, burst := keyFn(r)
+			limit := rl.rps
+			if rps > 0 {
+				limit = rate.Limit(rps)
+			}
+			if burst <= 0 {
+				burst = rl.burst
+			}
+
+			limiter := rl.getLimiter(key, limit, burst)
+			if !limiter.Allow() {
+				w.Header().Set("Retry-After", "1")
+				response.Error(w, http.StatusTooManyRequests, "rate limit exceeded")
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// Middleware rate-limits by the authenticated organization ID from the request
+// context (set by JWT/API-key auth), using the limiter's default limits.
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Use org ID from context as the rate limit key
+	return rl.MiddlewareWith(func(r *http.Request) (string, float64, int) {
 		key := "anonymous"
-		if orgID := OrgIDFromContext(r.Context()); orgID.String() != "00000000-0000-0000-0000-000000000000" {
+		if orgID := OrgIDFromContext(r.Context()); orgID != uuid.Nil {
 			key = orgID.String()
 		}
-
-		limiter := rl.getLimiter(key)
-		if !limiter.Allow() {
-			w.Header().Set("Retry-After", "1")
-			response.Error(w, http.StatusTooManyRequests, "rate limit exceeded")
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
+		return key, 0, 0
+	})(next)
 }

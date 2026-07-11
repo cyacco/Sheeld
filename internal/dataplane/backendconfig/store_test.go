@@ -2,6 +2,8 @@ package backendconfig
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"testing"
 
@@ -64,6 +66,54 @@ func TestApplyFailOpenWiring(t *testing.T) {
 	}
 	if _, ok := src.InputGuards[1].(guard.FailOpenGuard); ok {
 		t.Error("guard without on_error must not be fail-open")
+	}
+}
+
+func TestApplyCarriesPerKeyRateLimits(t *testing.T) {
+	orgID := uuid.New()
+	rps := 42.0
+	burst := 7
+	rawWithLimits := "shld_withlimits"
+	rawDefault := "shld_default"
+	hash := func(raw string) string {
+		sum := sha256.Sum256([]byte(raw))
+		return hex.EncodeToString(sum[:])
+	}
+
+	cfg := &domain.WorkspaceConfig{
+		Version: "v1",
+		Organizations: []domain.OrgConfig{{
+			ID: orgID,
+			APIKeys: []domain.APIKeyConfig{
+				{KeyHash: hash(rawWithLimits), RateLimitRPS: &rps, RateLimitBurst: &burst},
+				{KeyHash: hash(rawDefault)},
+			},
+		}},
+	}
+
+	store := NewStore()
+	if err := store.Apply(cfg, guard.NewRegistry(), transform.NewRegistry()); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	info, ok := store.LookupAPIKey(rawWithLimits)
+	if !ok {
+		t.Fatal("key with limits not found")
+	}
+	if info.OrgID != orgID || info.RateLimitRPS != rps || info.RateLimitBurst != burst {
+		t.Fatalf("unexpected auth info: %+v", info)
+	}
+
+	def, ok := store.LookupAPIKey(rawDefault)
+	if !ok {
+		t.Fatal("default key not found")
+	}
+	if def.RateLimitRPS != 0 || def.RateLimitBurst != 0 {
+		t.Fatalf("expected zero (default) limits, got rps=%v burst=%d", def.RateLimitRPS, def.RateLimitBurst)
+	}
+
+	if _, ok := store.LookupAPIKey("shld_nope"); ok {
+		t.Fatal("unknown key should not resolve")
 	}
 }
 

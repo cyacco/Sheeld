@@ -283,10 +283,15 @@ export async function listAPIKeys(): Promise<APIKey[]> {
 
 export async function createAPIKey(
   name: string,
+  rateLimit?: { rps?: number; burst?: number },
 ): Promise<CreateAPIKeyResult> {
   return request<CreateAPIKeyResult>("/v1/auth/api-keys", {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({
+      name,
+      rate_limit_rps: rateLimit?.rps,
+      rate_limit_burst: rateLimit?.burst,
+    }),
   });
 }
 

@@ -56,7 +56,14 @@ func NewRouter(cfg *config.Config, store *backendconfig.Store, proc *processor.P
 	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitRPS, cfg.RateLimitBurst)
 	r.Route("/v1/proxy", func(r chi.Router) {
 		r.Use(APIKeyAuth(store))
-		r.Use(rateLimiter.Middleware)
+		// Rate-limit per API key, honoring any per-key limit overrides;
+		// keys without overrides fall back to the data plane default.
+		r.Use(rateLimiter.MiddlewareWith(func(req *http.Request) (string, float64, int) {
+			if info, ok := AuthInfoFromContext(req.Context()); ok {
+				return "key:" + info.KeyHash, info.RateLimitRPS, info.RateLimitBurst
+			}
+			return "anonymous", 0, 0
+		}))
 		r.Use(chimiddleware.Timeout(cfg.ProxyTimeout))
 		r.Post("/{sourceRoute}", proxyHandler.Handle)
 		// Drop-in for OpenAI SDKs: set base_url to .../v1/proxy/{route}
