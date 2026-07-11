@@ -63,23 +63,23 @@ func (g *BlocklistGuard) Validate(_ context.Context, input string) (*Result, err
 		}
 	}
 
-	duration := time.Since(start)
+	durationMs := time.Since(start).Milliseconds()
 
 	if len(matchedWords) > 0 {
 		return &Result{
-			GuardName: g.name,
-			GuardType: g.Type(),
-			Passed:    false,
-			Message:   "input contains blocked words",
-			Details:   map[string]interface{}{"matched_words": matchedWords},
-			Duration:  duration,
+			GuardName:  g.name,
+			GuardType:  g.Type(),
+			Passed:     false,
+			Message:    "input contains blocked words",
+			Details:    map[string]interface{}{"matched_words": matchedWords},
+			DurationMs: durationMs,
 		}, nil
 	}
 	return &Result{
-		GuardName: g.name,
-		GuardType: g.Type(),
-		Passed:    true,
-		Message:   "no blocked words found",
-		Duration:  duration,
+		GuardName:  g.name,
+		GuardType:  g.Type(),
+		Passed:     true,
+		Message:    "no blocked words found",
+		DurationMs: durationMs,
 	}, nil
 }

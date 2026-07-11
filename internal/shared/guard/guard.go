@@ -2,7 +2,6 @@ package guard
 
 import (
 	"context"
-	"time"
 )
 
 // Guard is the interface that all guardrail implementations must satisfy.
@@ -38,8 +37,8 @@ type Result struct {
 	// For regex: {"matched_patterns": ["\\bfoo\\b"]}
 	Details map[string]interface{} `json:"details,omitempty"`
 
-	// Duration is how long this guard took to execute.
-	Duration time.Duration `json:"duration_ms"`
+	// DurationMs is how long this guard took to execute, in milliseconds.
+	DurationMs int64 `json:"duration_ms"`
 
 	// Shadow is true when this result came from a shadow (monitor-only) guard:
 	// it ran and its Passed value is real, but it did not affect the request's
@@ -146,8 +145,8 @@ type EngineResult struct {
 	// Results contains the individual result from each guard.
 	Results []*Result `json:"results"`
 
-	// TotalDuration is the wall-clock time for the entire evaluation.
-	TotalDuration time.Duration `json:"total_duration_ms"`
+	// TotalDurationMs is the wall-clock time for the entire evaluation, in milliseconds.
+	TotalDurationMs int64 `json:"total_duration_ms"`
 
 	// PassCount is how many guards passed.
 	PassCount int `json:"pass_count"`

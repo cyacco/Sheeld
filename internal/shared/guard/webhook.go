@@ -125,11 +125,11 @@ func (g *WebhookGuard) Validate(ctx context.Context, input string) (*Result, err
 	}
 
 	return &Result{
-		GuardName: g.name,
-		GuardType: g.Type(),
-		Passed:    *wr.Passed,
-		Message:   message,
-		Details:   wr.Details,
-		Duration:  time.Since(start),
+		GuardName:  g.name,
+		GuardType:  g.Type(),
+		Passed:     *wr.Passed,
+		Message:    message,
+		Details:    wr.Details,
+		DurationMs: time.Since(start).Milliseconds(),
 	}, nil
 }

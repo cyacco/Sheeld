@@ -115,7 +115,7 @@ func (g *PresidioGuard) Validate(ctx context.Context, input string) (*Result, er
 		return nil, fmt.Errorf("presidio: decode response: %w", err)
 	}
 
-	duration := time.Since(start)
+	durationMs := time.Since(start).Milliseconds()
 
 	if len(detections) > 0 {
 		types := make([]string, 0, len(detections))
@@ -127,20 +127,20 @@ func (g *PresidioGuard) Validate(ctx context.Context, input string) (*Result, er
 			}
 		}
 		return &Result{
-			GuardName: g.name,
-			GuardType: g.Type(),
-			Passed:    false,
-			Message:   "detected PII: " + strings.Join(types, ", "),
-			Details:   map[string]interface{}{"detections": detections, "threshold": g.cfg.ScoreThreshold},
-			Duration:  duration,
+			GuardName:  g.name,
+			GuardType:  g.Type(),
+			Passed:     false,
+			Message:    "detected PII: " + strings.Join(types, ", "),
+			Details:    map[string]interface{}{"detections": detections, "threshold": g.cfg.ScoreThreshold},
+			DurationMs: durationMs,
 		}, nil
 	}
 
 	return &Result{
-		GuardName: g.name,
-		GuardType: g.Type(),
-		Passed:    true,
-		Message:   "no PII detected",
-		Duration:  duration,
+		GuardName:  g.name,
+		GuardType:  g.Type(),
+		Passed:     true,
+		Message:    "no PII detected",
+		DurationMs: durationMs,
 	}, nil
 }

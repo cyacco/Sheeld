@@ -92,7 +92,7 @@ func (g *GuardrailsAIGuard) Validate(ctx context.Context, input string) (*Result
 		return nil, fmt.Errorf("guardrails_ai: decode response: %w", err)
 	}
 
-	duration := time.Since(start)
+	durationMs := time.Since(start).Milliseconds()
 
 	if !grResp.ValidationPassed {
 		msg := grResp.Message
@@ -104,20 +104,20 @@ func (g *GuardrailsAIGuard) Validate(ctx context.Context, input string) (*Result
 			details["error"] = grResp.Error
 		}
 		return &Result{
-			GuardName: g.name,
-			GuardType: g.Type(),
-			Passed:    false,
-			Message:   msg,
-			Details:   details,
-			Duration:  duration,
+			GuardName:  g.name,
+			GuardType:  g.Type(),
+			Passed:     false,
+			Message:    msg,
+			Details:    details,
+			DurationMs: durationMs,
 		}, nil
 	}
 
 	return &Result{
-		GuardName: g.name,
-		GuardType: g.Type(),
-		Passed:    true,
-		Message:   "input passed guardrails.ai validation",
-		Duration:  duration,
+		GuardName:  g.name,
+		GuardType:  g.Type(),
+		Passed:     true,
+		Message:    "input passed guardrails.ai validation",
+		DurationMs: durationMs,
 	}, nil
 }

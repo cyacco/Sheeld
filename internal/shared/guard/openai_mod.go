@@ -139,24 +139,24 @@ func (g *OpenAIModerationGuard) Validate(ctx context.Context, input string) (*Re
 		}
 	}
 
-	duration := time.Since(start)
+	durationMs := time.Since(start).Milliseconds()
 
 	if len(exceedances) > 0 {
 		return &Result{
-			GuardName: g.name,
-			GuardType: g.Type(),
-			Passed:    false,
-			Message:   "input exceeded moderation threshold",
-			Details:   map[string]interface{}{"exceeded_categories": exceedances, "threshold": g.cfg.Threshold},
-			Duration:  duration,
+			GuardName:  g.name,
+			GuardType:  g.Type(),
+			Passed:     false,
+			Message:    "input exceeded moderation threshold",
+			Details:    map[string]interface{}{"exceeded_categories": exceedances, "threshold": g.cfg.Threshold},
+			DurationMs: durationMs,
 		}, nil
 	}
 
 	return &Result{
-		GuardName: g.name,
-		GuardType: g.Type(),
-		Passed:    true,
-		Message:   "input passed moderation",
-		Duration:  duration,
+		GuardName:  g.name,
+		GuardType:  g.Type(),
+		Passed:     true,
+		Message:    "input passed moderation",
+		DurationMs: durationMs,
 	}, nil
 }

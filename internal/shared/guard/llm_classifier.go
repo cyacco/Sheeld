@@ -149,7 +149,7 @@ func (g *LLMClassifierGuard) Validate(ctx context.Context, input string) (*Resul
 		return nil, fmt.Errorf("llm_classifier: %w", err)
 	}
 
-	duration := time.Since(start)
+	durationMs := time.Since(start).Milliseconds()
 
 	if *verdict.Flagged {
 		msg := verdict.Reason
@@ -157,22 +157,22 @@ func (g *LLMClassifierGuard) Validate(ctx context.Context, input string) (*Resul
 			msg = "content flagged by classifier"
 		}
 		return &Result{
-			GuardName: g.name,
-			GuardType: g.Type(),
-			Passed:    false,
-			Message:   msg,
-			Details:   map[string]interface{}{"model": g.cfg.Model},
-			Duration:  duration,
+			GuardName:  g.name,
+			GuardType:  g.Type(),
+			Passed:     false,
+			Message:    msg,
+			Details:    map[string]interface{}{"model": g.cfg.Model},
+			DurationMs: durationMs,
 		}, nil
 	}
 
 	return &Result{
-		GuardName: g.name,
-		GuardType: g.Type(),
-		Passed:    true,
-		Message:   "content passed classifier",
-		Details:   map[string]interface{}{"model": g.cfg.Model},
-		Duration:  duration,
+		GuardName:  g.name,
+		GuardType:  g.Type(),
+		Passed:     true,
+		Message:    "content passed classifier",
+		Details:    map[string]interface{}{"model": g.cfg.Model},
+		DurationMs: durationMs,
 	}, nil
 }
 

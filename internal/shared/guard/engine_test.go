@@ -34,11 +34,11 @@ func (g *mockGuard) Validate(ctx context.Context, input string) (*Result, error)
 		msg = "failed"
 	}
 	return &Result{
-		GuardName: g.name,
-		GuardType: g.guardType,
-		Passed:    g.passed,
-		Message:   msg,
-		Duration:  g.delay,
+		GuardName:  g.name,
+		GuardType:  g.guardType,
+		Passed:     g.passed,
+		Message:    msg,
+		DurationMs: g.delay.Milliseconds(),
 	}, nil
 }
 
