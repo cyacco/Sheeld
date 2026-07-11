@@ -118,29 +118,30 @@ Two PostgreSQL databases, each with its own goose migrations:
 **Control plane** (`internal/controlplane/db/migrations/`):
 - `organizations` — multi-tenant orgs
 - `users` — org members
-- `api_keys` — machine-to-machine auth (SHA-256 hashed)
+- `api_keys` — machine-to-machine auth (SHA-256 hashed); optional per-key `rate_limit_rps` / `rate_limit_burst` overrides (NULL = data-plane default)
 - `sources` — named entry points (e.g., "feedback", "chat")
 - `guardrails` — org-level guardrail instances (JSONB config)
 - `source_guardrails` — many-to-many attachment
-- `transformers` — org-level input rewriters ("Transformations" in UI copy; `transformers` in API/DB)
+- `transformers` — org-level message rewriters, input and output phases ("Transformations" in UI copy; `transformers` in API/DB)
 - `source_transformers` — ordered attachment (position column = chain order)
 
 **Data plane** (`internal/dataplane/db/migrations/`, separate goose version table):
-- `audit_logs` — request history with per-guard results (no FKs; org/source ids are opaque)
+- `audit_logs` — request history with per-guard results and LLM token usage (`prompt_tokens`/`completion_tokens`/`total_tokens`/`model`, NULL when no LLM call was made); no FKs, org/source ids are opaque
 
 ## API Endpoints
 
 **Control plane (:8080)**
 - `POST /v1/auth/register` | `POST /v1/auth/login` — Auth
+- `POST/GET/DELETE /v1/auth/api-keys` — API-key management; create accepts optional per-key rate limits (JWT auth)
 - `CRUD /v1/sources` — Source management (JWT auth)
-- `CRUD /v1/guardrails` — Guardrail management + attachment (JWT auth)
+- `CRUD /v1/guardrails` — Guardrail management + attachment; `POST /v1/guardrails/:id/test` dry-runs a guard against sample text (JWT auth)
 - `CRUD /v1/transformers` — Transformer management; PUT /v1/sources/:id/transformers replaces the ordered chain (JWT auth)
 - `GET /v1/audit-logs` — Audit logs, proxied from the data plane (JWT auth)
 - `GET /v1/analytics` — Aggregated usage (requests, tokens, by model/source), proxied from the data plane (JWT auth)
 - `GET /v1/internal/workspace-config` — Config payload for data planes (DP token)
 - `GET /healthz` — Health check
 
-Proxy pipeline: input transformers (sequential, whole messages array, never reject; on_error fail_closed aborts) → input guards → LLM → output transformers (rewrite the response) → output guards. Built-in transformer types: `regex_replace`, `webhook`, `presidio` (self-hosted PII redaction; `mode: reversible` + a `deanonymize` output transformer restore originals in the response via per-request `transform.State`). Guards accept `scope: all_messages` to validate full history. Audit `guard_results` JSONB reserves the keys `transforms` (input chain) and `output_transforms` (output chain); `input_hash` is post-transform.
+Proxy pipeline: input transformers (sequential, whole messages array, never reject; on_error fail_closed aborts) → input guards → LLM → output transformers (rewrite the response) → output guards. Built-in transformer types: `regex_replace`, `webhook`, `presidio` (self-hosted PII redaction; `mode: reversible` + a `deanonymize` output transformer restore originals in the response via per-request `transform.State`). Guards accept `scope: all_messages` to validate full history and `mode: shadow` to run monitor-only (recorded in audit as `shadow: true`, never blocks). Audit `guard_results` JSONB reserves the keys `transforms` (input chain) and `output_transforms` (output chain); `input_hash` is post-transform. The proxy rate-limits per API key (in-memory, per-replica), honoring per-key overrides from the config.
 
 **Data plane (:8081)**
 - `POST /v1/proxy/:source_route` — Main proxy endpoint (API key auth; `"stream": true` = buffered streaming — full pipeline first, then SSE replay)
