@@ -199,6 +199,43 @@ export interface ModelInfo {
   provider: string;
 }
 
+// Analytics (aggregated usage), from GET /v1/analytics?days=.
+export interface Analytics {
+  days: number;
+  summary: AnalyticsSummary;
+  daily: DailyPoint[];
+  by_model: ModelUsage[];
+  by_source: SourceUsage[];
+}
+
+export interface AnalyticsSummary {
+  total_requests: number;
+  passed: number;
+  rejected: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+export interface DailyPoint {
+  day: string; // YYYY-MM-DD
+  requests: number;
+  total_tokens: number;
+}
+
+export interface ModelUsage {
+  model: string;
+  requests: number;
+  total_tokens: number;
+}
+
+export interface SourceUsage {
+  source_id: string;
+  requests: number;
+  rejected: number;
+  total_tokens: number;
+}
+
 export interface SourceSummary {
   id: string;
   name: string;

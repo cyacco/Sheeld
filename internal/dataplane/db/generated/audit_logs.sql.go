@@ -14,6 +14,180 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const auditByModel = `-- name: AuditByModel :many
+SELECT
+    model,
+    COUNT(*)::bigint AS requests,
+    COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens
+FROM audit_logs
+WHERE organization_id = $1 AND created_at >= $2 AND model IS NOT NULL
+GROUP BY model
+ORDER BY total_tokens DESC
+`
+
+type AuditByModelParams struct {
+	OrganizationID uuid.UUID `json:"organization_id"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type AuditByModelRow struct {
+	Model       pgtype.Text `json:"model"`
+	Requests    int64       `json:"requests"`
+	TotalTokens int64       `json:"total_tokens"`
+}
+
+// Request and token totals grouped by model (rows with a recorded model).
+func (q *Queries) AuditByModel(ctx context.Context, arg AuditByModelParams) ([]AuditByModelRow, error) {
+	rows, err := q.db.Query(ctx, auditByModel, arg.OrganizationID, arg.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditByModelRow{}
+	for rows.Next() {
+		var i AuditByModelRow
+		if err := rows.Scan(&i.Model, &i.Requests, &i.TotalTokens); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const auditBySource = `-- name: AuditBySource :many
+SELECT
+    source_id,
+    COUNT(*)::bigint AS requests,
+    COUNT(*) FILTER (WHERE overall_result <> 'pass')::bigint AS rejected,
+    COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens
+FROM audit_logs
+WHERE organization_id = $1 AND created_at >= $2
+GROUP BY source_id
+ORDER BY requests DESC
+`
+
+type AuditBySourceParams struct {
+	OrganizationID uuid.UUID `json:"organization_id"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type AuditBySourceRow struct {
+	SourceID    uuid.UUID `json:"source_id"`
+	Requests    int64     `json:"requests"`
+	Rejected    int64     `json:"rejected"`
+	TotalTokens int64     `json:"total_tokens"`
+}
+
+// Request, rejection, and token totals grouped by source.
+func (q *Queries) AuditBySource(ctx context.Context, arg AuditBySourceParams) ([]AuditBySourceRow, error) {
+	rows, err := q.db.Query(ctx, auditBySource, arg.OrganizationID, arg.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditBySourceRow{}
+	for rows.Next() {
+		var i AuditBySourceRow
+		if err := rows.Scan(
+			&i.SourceID,
+			&i.Requests,
+			&i.Rejected,
+			&i.TotalTokens,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const auditDailySeries = `-- name: AuditDailySeries :many
+SELECT
+    date_trunc('day', created_at)::timestamptz AS day,
+    COUNT(*)::bigint AS requests,
+    COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens
+FROM audit_logs
+WHERE organization_id = $1 AND created_at >= $2
+GROUP BY day
+ORDER BY day
+`
+
+type AuditDailySeriesParams struct {
+	OrganizationID uuid.UUID `json:"organization_id"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type AuditDailySeriesRow struct {
+	Day         time.Time `json:"day"`
+	Requests    int64     `json:"requests"`
+	TotalTokens int64     `json:"total_tokens"`
+}
+
+// Per-day request and token totals for the usage chart.
+func (q *Queries) AuditDailySeries(ctx context.Context, arg AuditDailySeriesParams) ([]AuditDailySeriesRow, error) {
+	rows, err := q.db.Query(ctx, auditDailySeries, arg.OrganizationID, arg.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditDailySeriesRow{}
+	for rows.Next() {
+		var i AuditDailySeriesRow
+		if err := rows.Scan(&i.Day, &i.Requests, &i.TotalTokens); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const auditSummary = `-- name: AuditSummary :one
+SELECT
+    COUNT(*)::bigint AS total_requests,
+    COUNT(*) FILTER (WHERE overall_result = 'pass')::bigint AS passed,
+    COALESCE(SUM(prompt_tokens), 0)::bigint AS prompt_tokens,
+    COALESCE(SUM(completion_tokens), 0)::bigint AS completion_tokens,
+    COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens
+FROM audit_logs
+WHERE organization_id = $1 AND created_at >= $2
+`
+
+type AuditSummaryParams struct {
+	OrganizationID uuid.UUID `json:"organization_id"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
+type AuditSummaryRow struct {
+	TotalRequests    int64 `json:"total_requests"`
+	Passed           int64 `json:"passed"`
+	PromptTokens     int64 `json:"prompt_tokens"`
+	CompletionTokens int64 `json:"completion_tokens"`
+	TotalTokens      int64 `json:"total_tokens"`
+}
+
+// Totals over a window for one org.
+func (q *Queries) AuditSummary(ctx context.Context, arg AuditSummaryParams) (AuditSummaryRow, error) {
+	row := q.db.QueryRow(ctx, auditSummary, arg.OrganizationID, arg.CreatedAt)
+	var i AuditSummaryRow
+	err := row.Scan(
+		&i.TotalRequests,
+		&i.Passed,
+		&i.PromptTokens,
+		&i.CompletionTokens,
+		&i.TotalTokens,
+	)
+	return i, err
+}
+
 const createAuditLog = `-- name: CreateAuditLog :one
 INSERT INTO audit_logs (
     organization_id, source_id, input_hash,

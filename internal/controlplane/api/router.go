@@ -182,6 +182,13 @@ func NewRouter(
 			r.Get("/", auditLogHandler.List)
 		})
 
+		// Analytics (aggregated usage) routes (JWT for dashboard)
+		r.Route("/analytics", func(r chi.Router) {
+			r.Use(cpmw.JWTAuth(authService))
+			r.Use(cpRateLimiter.Middleware)
+			r.Get("/", auditLogHandler.Analytics)
+		})
+
 		// Internal routes for data planes (static shared token)
 		r.Route("/internal", func(r chi.Router) {
 			r.Use(cpmw.DataPlaneAuth(cfg.DataPlaneToken))
