@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -94,6 +96,42 @@ func (h *GuardrailHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.JSON(w, http.StatusOK, service.ToGuardrailResponse(g))
+}
+
+// testGuardrailRequest is the body for POST /v1/guardrails/:id/test.
+type testGuardrailRequest struct {
+	Input string `json:"input"`
+}
+
+// Test handles POST /v1/guardrails/:id/test — runs the guard against sample
+// text and returns the would-be result, without touching the proxy pipeline.
+func (h *GuardrailHandler) Test(w http.ResponseWriter, r *http.Request) {
+	orgID := middleware.OrgIDFromContext(r.Context())
+
+	guardrailID, err := parseGuardrailID(r)
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid guardrail ID")
+		return
+	}
+
+	var req testGuardrailRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.Error(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	// Bound network-backed guards so a slow/unreachable dependency can't hang
+	// the request.
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	result, err := h.guardrailService.Test(ctx, orgID, guardrailID, req.Input)
+	if err != nil {
+		response.Error(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	response.JSON(w, http.StatusOK, result)
 }
 
 // Update handles PUT /v1/guardrails/:id.

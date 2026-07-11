@@ -9,6 +9,7 @@ import type { CreateGuardrailParams, Guardrail, SourceSummary } from "@/lib/type
 import * as api from "@/lib/api";
 import { guardTypeMeta } from "@/components/guard-type-meta";
 import { GuardrailForm, guardrailDraftFrom, guardrailDraftToParams } from "@/components/guardrail-form";
+import { GuardTestPanel } from "@/components/guard-test-panel";
 import { ResourceHeader } from "@/components/resource-header";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -109,6 +110,7 @@ export default function GuardrailDetailPage() {
       <Tabs defaultValue="configuration">
         <TabsList>
           <TabsTrigger value="configuration">Configuration</TabsTrigger>
+          <TabsTrigger value="test">Test</TabsTrigger>
           <TabsTrigger value="sources">Connected sources ({sources.length})</TabsTrigger>
         </TabsList>
 
@@ -118,6 +120,10 @@ export default function GuardrailDetailPage() {
             onSubmit={handleUpdate}
             submitLabel="Save changes"
           />
+        </TabsContent>
+
+        <TabsContent value="test" className="pt-4">
+          <GuardTestPanel guardrailId={guardrail.id} />
         </TabsContent>
 
         <TabsContent value="sources" className="space-y-2 pt-4">

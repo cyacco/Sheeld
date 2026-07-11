@@ -2085,3 +2085,50 @@ func TestOpenAIFieldPassthrough(t *testing.T) {
 		t.Errorf("tool_calls dropped from response: %v", msg)
 	}
 }
+
+// TestGuardrailDryRun exercises POST /v1/guardrails/{id}/test.
+func TestGuardrailDryRun(t *testing.T) {
+	token := registerUser(t, "DryRun Org", "dryrun@example.com", "strongpassword123")
+	gID := createGuardrail(t, token, map[string]interface{}{
+		"name":       "Block Secrets",
+		"guard_type": "blocklist",
+		"phase":      "input",
+		"config":     map[string]interface{}{"words": []string{"password"}},
+		"enabled":    true,
+	})
+
+	t.Run("blocked input fails the guard", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/guardrails/"+gID+"/test",
+			map[string]interface{}{"input": "my password is hunter2"}, token)
+		expectStatus(t, resp, http.StatusOK)
+		var result map[string]interface{}
+		decodeBody(t, resp, &result)
+		if result["passed"] != false {
+			t.Errorf("expected passed=false, got %v", result["passed"])
+		}
+		if result["guard_type"] != "blocklist" {
+			t.Errorf("expected guard_type blocklist, got %v", result["guard_type"])
+		}
+	})
+
+	t.Run("clean input passes the guard", func(t *testing.T) {
+		resp := doRequest(t, "POST", "/v1/guardrails/"+gID+"/test",
+			map[string]interface{}{"input": "hello there"}, token)
+		expectStatus(t, resp, http.StatusOK)
+		var result map[string]interface{}
+		decodeBody(t, resp, &result)
+		if result["passed"] != true {
+			t.Errorf("expected passed=true, got %v", result["passed"])
+		}
+	})
+
+	t.Run("another org cannot test this guardrail", func(t *testing.T) {
+		other := registerUser(t, "Other DryRun Org", "dryrun2@example.com", "strongpassword123")
+		resp := doRequest(t, "POST", "/v1/guardrails/"+gID+"/test",
+			map[string]interface{}{"input": "x"}, other)
+		if resp.StatusCode == http.StatusOK {
+			t.Error("expected cross-org test to be rejected")
+		}
+		resp.Body.Close()
+	})
+}
