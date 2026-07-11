@@ -2132,3 +2132,31 @@ func TestGuardrailDryRun(t *testing.T) {
 		resp.Body.Close()
 	})
 }
+
+// TestShadowGuardDoesNotBlock proves a shadow-mode guard runs but never blocks
+// proxy traffic — a request that trips it still passes.
+func TestShadowGuardDoesNotBlock(t *testing.T) {
+	token := registerUser(t, "Shadow Org", "shadow@example.com", "strongpassword123")
+	setMockLLMResponse("ok from llm")
+
+	sourceID := createSource(t, token, "Shadow Source", "shadow-source")
+	// Same blocklist that would normally reject, but in shadow mode.
+	gID := createGuardrail(t, token, map[string]interface{}{
+		"name":       "Shadow Blocklist",
+		"guard_type": "blocklist",
+		"phase":      "input",
+		"config":     map[string]interface{}{"words": []string{"forbidden"}, "mode": "shadow"},
+		"enabled":    true,
+	})
+	attachGuardrail(t, token, gID, sourceID)
+	refreshConfig(t)
+
+	apiKey := createAPIKey(t, token, "shadow-key")
+	resp := doRequest(t, "POST", "/v1/proxy/shadow-source", map[string]interface{}{
+		"model":    "gpt-4o",
+		"messages": []map[string]string{{"role": "user", "content": "this is forbidden content"}},
+	}, apiKey)
+	// Would be 422 if enforcing; shadow mode lets it through.
+	expectStatus(t, resp, http.StatusOK)
+	resp.Body.Close()
+}

@@ -183,6 +183,7 @@ export interface GuardResultEntry {
   message: string;
   details?: Record<string, unknown>;
   duration_ms: number;
+  shadow?: boolean;
 }
 
 export interface ModelInfo {

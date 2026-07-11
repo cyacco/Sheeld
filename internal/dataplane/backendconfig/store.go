@@ -147,10 +147,14 @@ func (s *Store) Apply(cfg *domain.WorkspaceConfig, registry *guard.Registry, tra
 				if readScope(gc.Config) == "all_messages" {
 					g = guard.WithScopeAllMessages(g)
 				}
-				// WithFailOpen must be outermost: the engine type-asserts
-				// FailOpenGuard on the top-level guard.
 				if isFailOpen(gc.Config) {
 					g = guard.WithFailOpen(g)
+				}
+				// Shadow (monitor-only): the guard runs and is audited but
+				// never blocks. Wrap order is not significant — the engine
+				// detects markers through the wrapper chain.
+				if isShadow(gc.Config) {
+					g = guard.WithShadow(g)
 				}
 				if gc.Phase == domain.GuardPhaseInput || gc.Phase == domain.GuardPhaseBoth {
 					resolved.InputGuards = append(resolved.InputGuards, g)
@@ -213,4 +217,16 @@ func isFailOpen(config json.RawMessage) bool {
 		return false
 	}
 	return c.OnError == "fail_open"
+}
+
+// isShadow reads the optional mode field: "shadow" runs the guard monitor-only
+// (recorded but never blocking); anything else (default "enforce") enforces.
+func isShadow(config json.RawMessage) bool {
+	var c struct {
+		Mode string `json:"mode"`
+	}
+	if err := json.Unmarshal(config, &c); err != nil {
+		return false
+	}
+	return c.Mode == "shadow"
 }

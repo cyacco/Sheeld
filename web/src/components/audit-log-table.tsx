@@ -210,6 +210,11 @@ function GuardPhaseSection({
           >
             {gr.passed ? "pass" : "fail"}
           </Badge>
+          {gr.shadow && (
+            <Badge variant="outline" className="justify-center">
+              shadow
+            </Badge>
+          )}
           <span className="font-mono">{gr.guard_name}</span>
           <span className="text-muted-foreground">({gr.guard_type})</span>
           <span className="text-muted-foreground">{gr.message}</span>

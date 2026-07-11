@@ -40,6 +40,33 @@ type Result struct {
 
 	// Duration is how long this guard took to execute.
 	Duration time.Duration `json:"duration_ms"`
+
+	// Shadow is true when this result came from a shadow (monitor-only) guard:
+	// it ran and its Passed value is real, but it did not affect the request's
+	// accept/reject decision. Recorded so a would-be rejection is visible in
+	// audit before the guard is switched to enforcing.
+	Shadow bool `json:"shadow,omitempty"`
+}
+
+// unwrapper is implemented by guard decorators so that marker interfaces
+// (FailOpenGuard, ShadowGuard) can be detected regardless of wrap order.
+type unwrapper interface {
+	Unwrap() Guard
+}
+
+// guardAs reports whether g — or any guard it wraps — satisfies T.
+func guardAs[T any](g Guard) (T, bool) {
+	for {
+		if v, ok := g.(T); ok {
+			return v, true
+		}
+		u, ok := g.(unwrapper)
+		if !ok {
+			var zero T
+			return zero, false
+		}
+		g = u.Unwrap()
+	}
 }
 
 // FailOpenGuard is implemented by guards that should be treated as passed
@@ -58,10 +85,37 @@ type failOpen struct {
 // FailOpen reports that errors from this guard should count as passed.
 func (failOpen) FailOpen() bool { return true }
 
+// Unwrap returns the wrapped guard.
+func (f failOpen) Unwrap() Guard { return f.Guard }
+
 // WithFailOpen wraps a guard so that execution errors count as passed
 // (marked as errored in the result) rather than failing the request.
 func WithFailOpen(g Guard) Guard {
 	return failOpen{g}
+}
+
+// ShadowGuard is implemented by guards running in shadow (monitor-only) mode:
+// they execute and their result is recorded, but they do not count toward the
+// request's accept/reject decision.
+type ShadowGuard interface {
+	Guard
+	Shadow() bool
+}
+
+// shadow wraps a guard to mark it monitor-only.
+type shadow struct {
+	Guard
+}
+
+// Shadow reports that this guard does not affect the accept/reject decision.
+func (shadow) Shadow() bool { return true }
+
+// Unwrap returns the wrapped guard.
+func (s shadow) Unwrap() Guard { return s.Guard }
+
+// WithShadow wraps a guard so it runs and is recorded but never blocks traffic.
+func WithShadow(g Guard) Guard {
+	return shadow{g}
 }
 
 // PassCriteria defines how multiple guard results are evaluated.

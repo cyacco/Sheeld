@@ -59,10 +59,10 @@ func (e *Engine) Run(ctx context.Context, guards []Guard, input string, cfg Eval
 				// in which case an outage of the guard's dependency doesn't
 				// block traffic.
 				passed := false
-				if fo, ok := guard.(FailOpenGuard); ok && fo.FailOpen() {
+				if fo, ok := guardAs[FailOpenGuard](guard); ok && fo.FailOpen() {
 					passed = true
 				}
-				results[idx] = &Result{
+				result = &Result{
 					GuardName: guard.Name(),
 					GuardType: guard.Type(),
 					Passed:    passed,
@@ -70,7 +70,10 @@ func (e *Engine) Run(ctx context.Context, guards []Guard, input string, cfg Eval
 					Details:   map[string]interface{}{"errored": true},
 					Duration:  time.Since(guardStart),
 				}
-				return
+			}
+			// Shadow guards run and are recorded, but never affect the decision.
+			if sg, ok := guardAs[ShadowGuard](guard); ok && sg.Shadow() {
+				result.Shadow = true
 			}
 			results[idx] = result
 		}(i, g)
@@ -86,10 +89,16 @@ func (e *Engine) Run(ctx context.Context, guards []Guard, input string, cfg Eval
 		}
 	}
 
-	// Count pass/fail
+	// Count pass/fail among enforcing (non-shadow) guards only; shadow guards
+	// are recorded but excluded from the accept/reject decision.
 	passCount := 0
 	failCount := 0
+	enforcing := 0
 	for _, r := range results {
+		if r.Shadow {
+			continue
+		}
+		enforcing++
 		if r.Passed {
 			passCount++
 		} else {
@@ -99,8 +108,8 @@ func (e *Engine) Run(ctx context.Context, guards []Guard, input string, cfg Eval
 
 	totalDuration := time.Since(start)
 
-	// Evaluate based on criteria
-	passed := evaluate(cfg, passCount, len(guards))
+	// With no enforcing guards (all shadow), nothing can block: pass.
+	passed := enforcing == 0 || evaluate(cfg, passCount, enforcing)
 
 	engineResult := &EngineResult{
 		Passed:        passed,
