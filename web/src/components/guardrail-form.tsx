@@ -186,6 +186,26 @@ export function GuardConfigFields({ draft, onChange }: FieldGroupProps) {
           What happens when this guard errors (e.g. its service is unreachable).
         </p>
       </div>
+
+      <div className="space-y-2 pt-2">
+        <Label>Mode</Label>
+        <Select
+          value={(draft.config.mode as string) ?? "enforce"}
+          onValueChange={(v) => setConfig({ ...draft.config, mode: v })}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="enforce">Enforce (block on failure)</SelectItem>
+            <SelectItem value="shadow">Shadow (monitor only)</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Shadow runs the guard and records its result in the audit log without
+          ever blocking traffic — use it to trial a guard before enforcing.
+        </p>
+      </div>
     </div>
   );
 }

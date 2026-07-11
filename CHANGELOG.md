@@ -10,6 +10,14 @@ from `[Unreleased]` into a dated version section as part of cutting a release.
 
 ## [Unreleased]
 
+### Added
+
+- **Guard dry-run**: `POST /v1/guardrails/{id}/test` and a dashboard "Test" tab
+  run a guard against sample text without touching live traffic.
+- **Guard shadow mode**: a guard with `mode: shadow` runs and is audited
+  (`shadow: true`) but never blocks, so it can be trialed on live traffic before
+  enforcing. Configurable from the guard form; shown as a badge in the audit log.
+
 ## [0.1.0] - 2026-07-10
 
 Initial public release. Sheeld is a "Segment for LLM guardrails": a

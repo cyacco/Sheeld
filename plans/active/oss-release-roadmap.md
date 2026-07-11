@@ -87,8 +87,13 @@ that work. Assessment done via codebase review on 2026-07-07.
   filtering.
 - True incremental streaming: chunk-level output guarding so TTFT isn't full
   pipeline latency (today streaming is buffered — the honest gap in our story).
-- Guard shadow/monitor mode: log-only enforcement to trial a guard on production
-  traffic before it rejects anything.
+- Guard shadow/monitor mode — **SHIPPED**: a guard with `mode: shadow` runs and
+  is recorded in the audit log (result marked `shadow: true`) but never counts
+  toward the accept/reject decision, so a guard can be trialed on live traffic
+  before enforcing. Marker detection is wrap-order-independent (Unwrap chain);
+  dashboard has a Mode control on the guard form and a "shadow" badge in the
+  audit log. Verified live (request tripping a shadow guard → pass, would-be
+  fail visible in audit).
 - Per-API-key rate limits/quotas (limiter is currently global per replica).
 - Rejection alerting (webhook/Slack on guard failures); audit-log export
   (CSV/JSON, SIEM forwarding).

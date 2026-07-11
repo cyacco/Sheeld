@@ -17,6 +17,9 @@ func WithScopeAllMessages(g Guard) Guard {
 	return scopeAllMessages{g}
 }
 
+// Unwrap returns the wrapped guard.
+func (s scopeAllMessages) Unwrap() Guard { return s.Guard }
+
 func (s scopeAllMessages) Validate(ctx context.Context, input string) (*Result, error) {
 	if meta, ok := CallMetaFrom(ctx); ok && meta.Phase == "input" && meta.AllMessagesText != "" {
 		input = meta.AllMessagesText
