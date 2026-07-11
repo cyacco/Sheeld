@@ -70,6 +70,13 @@ var (
 		Help: "Total LLM gateway retry attempts after the first try.",
 	})
 
+	// LLMTokens counts tokens reported by the LLM gateway, by kind
+	// (prompt/completion), for cost/usage tracking.
+	LLMTokens = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "sheeld_llm_tokens_total",
+		Help: "Total tokens reported by the LLM gateway, by kind (prompt/completion).",
+	}, []string{"kind"})
+
 	// AuditDropped counts audit entries dropped because the buffer was full.
 	AuditDropped = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "sheeld_audit_entries_dropped_total",

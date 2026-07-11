@@ -17,19 +17,24 @@ import (
 const createAuditLog = `-- name: CreateAuditLog :one
 INSERT INTO audit_logs (
     organization_id, source_id, input_hash,
-    guard_results, overall_result, latency_ms
+    guard_results, overall_result, latency_ms,
+    prompt_tokens, completion_tokens, total_tokens, model
 )
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, organization_id, source_id, input_hash, guard_results, overall_result, latency_ms, created_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, organization_id, source_id, input_hash, guard_results, overall_result, latency_ms, created_at, prompt_tokens, completion_tokens, total_tokens, model
 `
 
 type CreateAuditLogParams struct {
-	OrganizationID uuid.UUID       `json:"organization_id"`
-	SourceID       uuid.UUID       `json:"source_id"`
-	InputHash      pgtype.Text     `json:"input_hash"`
-	GuardResults   json.RawMessage `json:"guard_results"`
-	OverallResult  string          `json:"overall_result"`
-	LatencyMs      int32           `json:"latency_ms"`
+	OrganizationID   uuid.UUID       `json:"organization_id"`
+	SourceID         uuid.UUID       `json:"source_id"`
+	InputHash        pgtype.Text     `json:"input_hash"`
+	GuardResults     json.RawMessage `json:"guard_results"`
+	OverallResult    string          `json:"overall_result"`
+	LatencyMs        int32           `json:"latency_ms"`
+	PromptTokens     pgtype.Int4     `json:"prompt_tokens"`
+	CompletionTokens pgtype.Int4     `json:"completion_tokens"`
+	TotalTokens      pgtype.Int4     `json:"total_tokens"`
+	Model            pgtype.Text     `json:"model"`
 }
 
 func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) (AuditLog, error) {
@@ -40,6 +45,10 @@ func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) 
 		arg.GuardResults,
 		arg.OverallResult,
 		arg.LatencyMs,
+		arg.PromptTokens,
+		arg.CompletionTokens,
+		arg.TotalTokens,
+		arg.Model,
 	)
 	var i AuditLog
 	err := row.Scan(
@@ -51,6 +60,10 @@ func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) 
 		&i.OverallResult,
 		&i.LatencyMs,
 		&i.CreatedAt,
+		&i.PromptTokens,
+		&i.CompletionTokens,
+		&i.TotalTokens,
+		&i.Model,
 	)
 	return i, err
 }
@@ -80,7 +93,7 @@ func (q *Queries) DeleteAuditLogsBefore(ctx context.Context, arg DeleteAuditLogs
 }
 
 const listAuditLogsByOrganization = `-- name: ListAuditLogsByOrganization :many
-SELECT id, organization_id, source_id, input_hash, guard_results, overall_result, latency_ms, created_at FROM audit_logs
+SELECT id, organization_id, source_id, input_hash, guard_results, overall_result, latency_ms, created_at, prompt_tokens, completion_tokens, total_tokens, model FROM audit_logs
 WHERE organization_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -110,6 +123,10 @@ func (q *Queries) ListAuditLogsByOrganization(ctx context.Context, arg ListAudit
 			&i.OverallResult,
 			&i.LatencyMs,
 			&i.CreatedAt,
+			&i.PromptTokens,
+			&i.CompletionTokens,
+			&i.TotalTokens,
+			&i.Model,
 		); err != nil {
 			return nil, err
 		}
@@ -122,7 +139,7 @@ func (q *Queries) ListAuditLogsByOrganization(ctx context.Context, arg ListAudit
 }
 
 const listAuditLogsBySource = `-- name: ListAuditLogsBySource :many
-SELECT id, organization_id, source_id, input_hash, guard_results, overall_result, latency_ms, created_at FROM audit_logs
+SELECT id, organization_id, source_id, input_hash, guard_results, overall_result, latency_ms, created_at, prompt_tokens, completion_tokens, total_tokens, model FROM audit_logs
 WHERE source_id = $1 AND organization_id = $2
 ORDER BY created_at DESC
 LIMIT $3 OFFSET $4
@@ -158,6 +175,10 @@ func (q *Queries) ListAuditLogsBySource(ctx context.Context, arg ListAuditLogsBy
 			&i.OverallResult,
 			&i.LatencyMs,
 			&i.CreatedAt,
+			&i.PromptTokens,
+			&i.CompletionTokens,
+			&i.TotalTokens,
+			&i.Model,
 		); err != nil {
 			return nil, err
 		}

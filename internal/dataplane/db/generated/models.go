@@ -13,12 +13,16 @@ import (
 )
 
 type AuditLog struct {
-	ID             uuid.UUID       `json:"id"`
-	OrganizationID uuid.UUID       `json:"organization_id"`
-	SourceID       uuid.UUID       `json:"source_id"`
-	InputHash      pgtype.Text     `json:"input_hash"`
-	GuardResults   json.RawMessage `json:"guard_results"`
-	OverallResult  string          `json:"overall_result"`
-	LatencyMs      int32           `json:"latency_ms"`
-	CreatedAt      time.Time       `json:"created_at"`
+	ID               uuid.UUID       `json:"id"`
+	OrganizationID   uuid.UUID       `json:"organization_id"`
+	SourceID         uuid.UUID       `json:"source_id"`
+	InputHash        pgtype.Text     `json:"input_hash"`
+	GuardResults     json.RawMessage `json:"guard_results"`
+	OverallResult    string          `json:"overall_result"`
+	LatencyMs        int32           `json:"latency_ms"`
+	CreatedAt        time.Time       `json:"created_at"`
+	PromptTokens     pgtype.Int4     `json:"prompt_tokens"`
+	CompletionTokens pgtype.Int4     `json:"completion_tokens"`
+	TotalTokens      pgtype.Int4     `json:"total_tokens"`
+	Model            pgtype.Text     `json:"model"`
 }
