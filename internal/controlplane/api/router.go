@@ -142,6 +142,9 @@ func NewRouter(
 			r.Put("/{id}", guardrailHandler.Update)
 			r.Delete("/{id}", guardrailHandler.Delete)
 
+			// Dry-run: test a guard against sample text.
+			r.Post("/{id}/test", guardrailHandler.Test)
+
 			// Attach/detach/list sources for a guardrail
 			r.Post("/{id}/sources", guardrailHandler.AttachToSource)
 			r.Get("/{id}/sources", guardrailHandler.ListSources)

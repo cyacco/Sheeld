@@ -79,8 +79,10 @@ that work. Assessment done via codebase review on 2026-07-07.
 ## Post-launch (feature milestones)
 - Multi-user-per-org + roles + invitations (today one registration = one user).
 - Analytics dashboard (needs token/cost capture in audit logs first).
-- Guard dry-run: POST /v1/guardrails/{id}/test + a dashboard "test against sample"
-  button.
+- Guard dry-run — **SHIPPED**: POST /v1/guardrails/{id}/test runs a guard against
+  sample text (org-scoped, bounded timeout for network guards) and a "Test" tab on
+  the guardrail detail page shows pass/reject + details, without touching live
+  traffic or the audit trail. Verified live in the dashboard.
 - Pagination on sources/guardrails/transformers list endpoints; richer audit-log
   filtering.
 - True incremental streaming: chunk-level output guarding so TTFT isn't full

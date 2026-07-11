@@ -5,6 +5,7 @@ import type {
   CreateSourceParams,
   UpdateSourceParams,
   Guardrail,
+  GuardResult,
   CreateGuardrailParams,
   UpdateGuardrailParams,
   APIKey,
@@ -158,6 +159,16 @@ export async function updateGuardrail(
 
 export async function deleteGuardrail(id: string): Promise<void> {
   return request<void>(`/v1/guardrails/${id}`, { method: "DELETE" });
+}
+
+export async function testGuardrail(
+  id: string,
+  input: string,
+): Promise<GuardResult> {
+  return request<GuardResult>(`/v1/guardrails/${id}/test`, {
+    method: "POST",
+    body: JSON.stringify({ input }),
+  });
 }
 
 export async function attachGuardrail(

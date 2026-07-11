@@ -95,6 +95,25 @@ func (s *GuardrailService) Get(ctx context.Context, orgID, guardrailID uuid.UUID
 	})
 }
 
+// Test builds the guard from a stored guardrail's config and runs it against
+// sample text, returning the guard result without involving the data plane or
+// any source. Org-scoped via Get. Network-backed guards (webhook, presidio,
+// llm_classifier) make their real calls, so an unreachable dependency surfaces
+// as an error here.
+func (s *GuardrailService) Test(ctx context.Context, orgID, guardrailID uuid.UUID, input string) (*guard.Result, error) {
+	g, err := s.Get(ctx, orgID, guardrailID)
+	if err != nil {
+		return nil, fmt.Errorf("guardrail not found: %w", err)
+	}
+	built, err := s.registry.Create(g.GuardType, g.Name, g.Config)
+	if err != nil {
+		return nil, fmt.Errorf("building guard: %w", err)
+	}
+	// Guards read optional CallMeta; mark this as a test invocation.
+	ctx = guard.WithCallMeta(ctx, guard.CallMeta{Phase: "test"})
+	return built.Validate(ctx, input)
+}
+
 // List returns all guardrails for an organization.
 func (s *GuardrailService) List(ctx context.Context, orgID uuid.UUID) ([]generated.Guardrail, error) {
 	return s.queries.ListGuardrailsByOrg(ctx, orgID)

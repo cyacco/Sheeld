@@ -70,6 +70,15 @@ export interface Guardrail {
   updated_at: string;
 }
 
+// GuardResult is the outcome of a dry-run (POST /v1/guardrails/:id/test).
+export interface GuardResult {
+  guard_name: string;
+  guard_type: string;
+  passed: boolean;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
 export interface CreateGuardrailParams {
   name: string;
   guard_type: string;
