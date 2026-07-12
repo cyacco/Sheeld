@@ -10,6 +10,16 @@ from `[Unreleased]` into a dated version section as part of cutting a release.
 
 ## [Unreleased]
 
+### Added
+
+- **Rejection alerting**: org-level alert webhooks (`CRUD /v1/alerts`, dashboard
+  "Alerts" page) — the data plane POSTs to each enabled webhook whenever a
+  request is rejected by guards, with generic-JSON or Slack-compatible payloads.
+  Delivery is asynchronous off the proxy path and rate-capped per webhook
+  (burst 3, then ~6/min; suppressed deliveries are counted in the new
+  `sheeld_alerts_sent_total{outcome}` metric). Webhook URLs go through the same
+  SSRF policy as guard URLs.
+
 ## [0.1.1] - 2026-07-11
 
 ### Added

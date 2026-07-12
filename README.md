@@ -295,6 +295,7 @@ sheeld/
 | `CRUD` | `/v1/transformers` | JWT | Transformer management; `PUT /v1/sources/:id/transformers` reorders a source's chain |
 | `GET` | `/v1/audit-logs` | JWT | Audit logs (proxied from the data plane) |
 | `GET` | `/v1/analytics` | JWT | Aggregated usage — requests, tokens, by model/source (proxied from the data plane) |
+| `CRUD` | `/v1/alerts` | JWT | Rejection-alert webhooks (generic JSON or Slack payloads) |
 | `GET` | `/v1/internal/workspace-config` | DP token | Config payload for data planes |
 
 ### Data plane (:8081)

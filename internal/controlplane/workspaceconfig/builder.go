@@ -61,6 +61,10 @@ func (b *Builder) Build(ctx context.Context) (*domain.WorkspaceConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listing source transformers: %w", err)
 	}
+	alertWebhooks, err := b.queries.ListAllEnabledAlertWebhooks(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing alert webhooks: %w", err)
+	}
 
 	guardrailsBySource := make(map[uuid.UUID][]uuid.UUID)
 	for _, a := range attachments {
@@ -97,6 +101,16 @@ func (b *Builder) Build(ctx context.Context) (*domain.WorkspaceConfig, error) {
 				cfg.RateLimitBurst = &burst
 			}
 			org.APIKeys = append(org.APIKeys, cfg)
+		}
+	}
+
+	for _, a := range alertWebhooks {
+		if org, ok := orgs[a.OrganizationID]; ok {
+			org.AlertWebhooks = append(org.AlertWebhooks, domain.AlertWebhookConfig{
+				ID:            a.ID,
+				URL:           a.Url,
+				PayloadFormat: a.PayloadFormat,
+			})
 		}
 	}
 

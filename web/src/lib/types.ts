@@ -199,6 +199,26 @@ export interface ModelInfo {
   provider: string;
 }
 
+// AlertWebhook is an org-level rejection-alert destination: the data plane
+// POSTs to url whenever a request is rejected by guards.
+export interface AlertWebhook {
+  id: string;
+  organization_id: string;
+  name: string;
+  url: string;
+  payload_format: string; // "json" | "slack"
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AlertWebhookParams {
+  name: string;
+  url: string;
+  payload_format: string;
+  enabled?: boolean;
+}
+
 // Analytics (aggregated usage), from GET /v1/analytics?days=.
 export interface Analytics {
   days: number;

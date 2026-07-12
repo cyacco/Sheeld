@@ -81,6 +81,7 @@ func NewRouter(
 	guardrailHandler := handler.NewGuardrailHandler(guardrailService)
 	transformerHandler := handler.NewTransformerHandler(transformerService)
 	auditLogHandler := handler.NewAuditLogHandler(cfg.DataPlaneURL, cfg.DataPlaneToken)
+	alertHandler := handler.NewAlertHandler(service.NewAlertService(queries))
 	modelsHandler := handler.NewModelsHandler()
 
 	// Per-org rate limiter for authenticated control-plane routes. Keys on
@@ -187,6 +188,16 @@ func NewRouter(
 			r.Use(cpmw.JWTAuth(authService))
 			r.Use(cpRateLimiter.Middleware)
 			r.Get("/", auditLogHandler.Analytics)
+		})
+
+		// Rejection-alert webhook routes (JWT for dashboard)
+		r.Route("/alerts", func(r chi.Router) {
+			r.Use(cpmw.JWTAuth(authService))
+			r.Use(cpRateLimiter.Middleware)
+			r.Post("/", alertHandler.Create)
+			r.Get("/", alertHandler.List)
+			r.Put("/{id}", alertHandler.Update)
+			r.Delete("/{id}", alertHandler.Delete)
 		})
 
 		// Internal routes for data planes (static shared token)
