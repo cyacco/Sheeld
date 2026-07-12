@@ -67,14 +67,11 @@ durations in audit logs, and rejection alerting. Gaps, cheapest-first:
   checkbox, cheap.
 - **Non-bearer provider auth** — Azure OpenAI `api-key` header as a
   per-source auth-style field.
-- **Document the existing drop-in OpenAI route** — the data plane already
-  serves `POST /v1/proxy/{route}/chat/completions` (same handler as the native
-  route, [gateway/router.go](internal/dataplane/gateway/router.go)), so an
-  unmodified OpenAI SDK works by just setting `base_url` to
-  `.../v1/proxy/{source}` with the API key as the bearer token — source from the
-  path, org from the key. This is a real adoption lever but it's undocumented;
-  surface it in the README with a copy-paste SDK snippet. (Optional follow-up:
-  per-key→source binding so a key implies its source, for per-app keys.)
+- **Drop-in OpenAI route** — **SHIPPED** (route existed;
+  [gateway/router.go](internal/dataplane/gateway/router.go)). Surfaced a
+  copy-paste OpenAI-SDK snippet in the README quick-start ("From your app")
+  alongside the existing API-reference coverage. (Optional follow-up: per-key→
+  source binding so a key implies its source, for per-app keys.)
 - **Published latency benchmark** — reproducible script + "Sheeld adds
   ~X ms p50" in the README.
 - **Guard SDK story** — documented webhook-guard contract + starter repo

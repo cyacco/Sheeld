@@ -134,6 +134,31 @@ both in the audit log, with per-guard results:
 To send real traffic, set `llm_base_url` on the source
 (see [LLM providers](#llm-providers)).
 
+### From your app (drop-in OpenAI SDK)
+
+Those calls used `curl`, but Sheeld speaks the OpenAI chat-completions protocol,
+so any OpenAI SDK works unchanged — point its `base_url` at your source route and
+use your Sheeld API key as the key. The source is selected by the URL path; the
+SDK's usual `/chat/completions` suffix is handled automatically.
+
+```python
+from openai import OpenAI
+
+# base_url ends at the source route; the SDK appends /chat/completions itself
+client = OpenAI(base_url="http://localhost:8081/v1/proxy/chat", api_key="shld_...")
+
+resp = client.chat.completions.create(
+    model="ignored",  # the source's configured model is used
+    messages=[{"role": "user", "content": "hello there"}],
+)
+print(resp.choices[0].message.content)
+```
+
+A guardrail rejection comes back as an HTTP 422 with an OpenAI-style error
+(`"type": "guardrail_rejection"`), which the SDK raises as an `APIError` you can
+catch. See [API endpoints](#data-plane-8081) for the full request/response
+contract and streaming behavior.
+
 ## LLM providers
 
 Sheeld speaks the OpenAI chat-completions protocol outbound, so any
