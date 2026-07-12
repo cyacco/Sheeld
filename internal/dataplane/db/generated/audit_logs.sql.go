@@ -18,6 +18,8 @@ const auditByModel = `-- name: AuditByModel :many
 SELECT
     model,
     COUNT(*)::bigint AS requests,
+    COALESCE(SUM(prompt_tokens), 0)::bigint AS prompt_tokens,
+    COALESCE(SUM(completion_tokens), 0)::bigint AS completion_tokens,
     COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens
 FROM audit_logs
 WHERE organization_id = $1 AND created_at >= $2 AND model IS NOT NULL
@@ -31,12 +33,15 @@ type AuditByModelParams struct {
 }
 
 type AuditByModelRow struct {
-	Model       pgtype.Text `json:"model"`
-	Requests    int64       `json:"requests"`
-	TotalTokens int64       `json:"total_tokens"`
+	Model            pgtype.Text `json:"model"`
+	Requests         int64       `json:"requests"`
+	PromptTokens     int64       `json:"prompt_tokens"`
+	CompletionTokens int64       `json:"completion_tokens"`
+	TotalTokens      int64       `json:"total_tokens"`
 }
 
 // Request and token totals grouped by model (rows with a recorded model).
+// Prompt/completion splits let the caller price each model for cost estimates.
 func (q *Queries) AuditByModel(ctx context.Context, arg AuditByModelParams) ([]AuditByModelRow, error) {
 	rows, err := q.db.Query(ctx, auditByModel, arg.OrganizationID, arg.CreatedAt)
 	if err != nil {
@@ -46,7 +51,13 @@ func (q *Queries) AuditByModel(ctx context.Context, arg AuditByModelParams) ([]A
 	items := []AuditByModelRow{}
 	for rows.Next() {
 		var i AuditByModelRow
-		if err := rows.Scan(&i.Model, &i.Requests, &i.TotalTokens); err != nil {
+		if err := rows.Scan(
+			&i.Model,
+			&i.Requests,
+			&i.PromptTokens,
+			&i.CompletionTokens,
+			&i.TotalTokens,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

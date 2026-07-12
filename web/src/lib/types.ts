@@ -226,6 +226,7 @@ export interface Analytics {
   daily: DailyPoint[];
   by_model: ModelUsage[];
   by_source: SourceUsage[];
+  prices_as_of: string;
 }
 
 export interface AnalyticsSummary {
@@ -235,6 +236,8 @@ export interface AnalyticsSummary {
   prompt_tokens: number;
   completion_tokens: number;
   total_tokens: number;
+  estimated_cost_usd: number;
+  unpriced_requests: number;
 }
 
 export interface DailyPoint {
@@ -247,6 +250,7 @@ export interface ModelUsage {
   model: string;
   requests: number;
   total_tokens: number;
+  estimated_cost_usd: number | null; // null when the model is unpriced
 }
 
 export interface SourceUsage {

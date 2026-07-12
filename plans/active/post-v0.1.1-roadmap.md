@@ -28,9 +28,12 @@ Sequenced by leverage, cheapest-first within each tier.
 
 ## Tier 2 — Money and scale story
 
-- **Dollar-cost estimation** — per-model pricing table (configurable,
-  sensible defaults) over the captured token data; "552 tokens" → "$0.014"
-  in analytics. Small PR, direct payoff.
+- **Dollar-cost estimation** — **SHIPPED**: a shared priced model catalog
+  (`internal/shared/modelcatalog`) backs both the `/v1/models` dropdown and
+  analytics cost estimation; per-model + total estimated USD cost from captured
+  tokens (prefix-matched to prices), unpriced models flagged as "—". Verified
+  live. Follow-ups: per-org price overrides (custom/self-hosted rates) and a
+  periodic price-refresh process.
 - **Durable quotas** — Redis-backed rolling request/token caps: optional
   counter store, lease batching for the fast path, explicit fail-open/closed
   switch. Design agreed in principle (see PR #65 discussion); build when

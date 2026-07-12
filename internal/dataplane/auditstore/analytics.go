@@ -8,16 +8,18 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/cyacco/Sheeld/internal/dataplane/db/generated"
+	"github.com/cyacco/Sheeld/internal/shared/modelcatalog"
 	"github.com/cyacco/Sheeld/internal/shared/response"
 )
 
 // AnalyticsResponse is the aggregated usage payload for the dashboard.
 type AnalyticsResponse struct {
-	Days     int              `json:"days"`
-	Summary  AnalyticsSummary `json:"summary"`
-	Daily    []DailyPoint     `json:"daily"`
-	ByModel  []ModelUsage     `json:"by_model"`
-	BySource []SourceUsage    `json:"by_source"`
+	Days       int              `json:"days"`
+	Summary    AnalyticsSummary `json:"summary"`
+	Daily      []DailyPoint     `json:"daily"`
+	ByModel    []ModelUsage     `json:"by_model"`
+	BySource   []SourceUsage    `json:"by_source"`
+	PricesAsOf string           `json:"prices_as_of"` // month the cost prices were reviewed
 }
 
 type AnalyticsSummary struct {
@@ -27,6 +29,10 @@ type AnalyticsSummary struct {
 	PromptTokens     int64 `json:"prompt_tokens"`
 	CompletionTokens int64 `json:"completion_tokens"`
 	TotalTokens      int64 `json:"total_tokens"`
+	// EstimatedCostUSD sums the priced models' cost; UnpricedRequests counts
+	// requests whose model has no price (so the total is a known lower bound).
+	EstimatedCostUSD float64 `json:"estimated_cost_usd"`
+	UnpricedRequests int64   `json:"unpriced_requests"`
 }
 
 type DailyPoint struct {
@@ -36,9 +42,10 @@ type DailyPoint struct {
 }
 
 type ModelUsage struct {
-	Model       string `json:"model"`
-	Requests    int64  `json:"requests"`
-	TotalTokens int64  `json:"total_tokens"`
+	Model            string   `json:"model"`
+	Requests         int64    `json:"requests"`
+	TotalTokens      int64    `json:"total_tokens"`
+	EstimatedCostUSD *float64 `json:"estimated_cost_usd"` // null when the model is unpriced
 }
 
 type SourceUsage struct {
@@ -111,9 +118,10 @@ func (h *Handler) Analytics(w http.ResponseWriter, r *http.Request) {
 			CompletionTokens: summary.CompletionTokens,
 			TotalTokens:      summary.TotalTokens,
 		},
-		Daily:    make([]DailyPoint, 0, len(dailyRows)),
-		ByModel:  make([]ModelUsage, 0, len(modelRows)),
-		BySource: make([]SourceUsage, 0, len(sourceRows)),
+		Daily:      make([]DailyPoint, 0, len(dailyRows)),
+		ByModel:    make([]ModelUsage, 0, len(modelRows)),
+		BySource:   make([]SourceUsage, 0, len(sourceRows)),
+		PricesAsOf: modelcatalog.AsOf(),
 	}
 	for _, d := range dailyRows {
 		resp.Daily = append(resp.Daily, DailyPoint{
@@ -123,11 +131,18 @@ func (h *Handler) Analytics(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	for _, m := range modelRows {
-		resp.ByModel = append(resp.ByModel, ModelUsage{
+		mu := ModelUsage{
 			Model:       m.Model.String,
 			Requests:    m.Requests,
 			TotalTokens: m.TotalTokens,
-		})
+		}
+		if cost, ok := modelcatalog.Cost(m.Model.String, m.PromptTokens, m.CompletionTokens); ok {
+			mu.EstimatedCostUSD = &cost
+			resp.Summary.EstimatedCostUSD += cost
+		} else {
+			resp.Summary.UnpricedRequests += m.Requests
+		}
+		resp.ByModel = append(resp.ByModel, mu)
 	}
 	for _, s := range sourceRows {
 		resp.BySource = append(resp.BySource, SourceUsage{
