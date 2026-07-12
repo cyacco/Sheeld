@@ -48,9 +48,12 @@ ORDER BY day;
 
 -- name: AuditByModel :many
 -- Request and token totals grouped by model (rows with a recorded model).
+-- Prompt/completion splits let the caller price each model for cost estimates.
 SELECT
     model,
     COUNT(*)::bigint AS requests,
+    COALESCE(SUM(prompt_tokens), 0)::bigint AS prompt_tokens,
+    COALESCE(SUM(completion_tokens), 0)::bigint AS completion_tokens,
     COALESCE(SUM(total_tokens), 0)::bigint AS total_tokens
 FROM audit_logs
 WHERE organization_id = $1 AND created_at >= $2 AND model IS NOT NULL

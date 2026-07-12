@@ -3,29 +3,14 @@ package handler
 import (
 	"net/http"
 
+	"github.com/cyacco/Sheeld/internal/shared/modelcatalog"
 	"github.com/cyacco/Sheeld/internal/shared/response"
 )
 
-// ModelInfo represents a supported LLM model.
+// ModelInfo represents a supported LLM model for the dashboard dropdown.
 type ModelInfo struct {
 	Provider string `json:"provider"`
 	ID       string `json:"id"`
-}
-
-var hardcodedModels = []ModelInfo{
-	// Anthropic
-	{Provider: "anthropic", ID: "claude-sonnet-4-5-20250514"},
-	{Provider: "anthropic", ID: "claude-haiku-4-5-20251001"},
-	{Provider: "anthropic", ID: "claude-opus-4-20250514"},
-	// OpenAI
-	{Provider: "openai", ID: "gpt-4o"},
-	{Provider: "openai", ID: "gpt-4o-mini"},
-	{Provider: "openai", ID: "gpt-4.1"},
-	{Provider: "openai", ID: "gpt-4.1-mini"},
-	{Provider: "openai", ID: "gpt-4.1-nano"},
-	{Provider: "openai", ID: "o3"},
-	{Provider: "openai", ID: "o3-mini"},
-	{Provider: "openai", ID: "o4-mini"},
 }
 
 // ModelsHandler handles requests for model lists.
@@ -36,20 +21,14 @@ func NewModelsHandler() *ModelsHandler {
 	return &ModelsHandler{}
 }
 
-// List returns all supported models, optionally filtered by provider.
+// List returns the supported models from the shared catalog, optionally
+// filtered by provider. The catalog is also the source of cost prices, so the
+// dropdown and cost estimation never drift apart.
 func (h *ModelsHandler) List(w http.ResponseWriter, r *http.Request) {
-	provider := r.URL.Query().Get("provider")
-
-	if provider == "" {
-		response.JSON(w, http.StatusOK, hardcodedModels)
-		return
+	models := modelcatalog.Models(r.URL.Query().Get("provider"))
+	out := make([]ModelInfo, len(models))
+	for i, m := range models {
+		out[i] = ModelInfo{Provider: m.Provider, ID: m.ID}
 	}
-
-	var filtered []ModelInfo
-	for _, m := range hardcodedModels {
-		if m.Provider == provider {
-			filtered = append(filtered, m)
-		}
-	}
-	response.JSON(w, http.StatusOK, filtered)
+	response.JSON(w, http.StatusOK, out)
 }

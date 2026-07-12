@@ -138,7 +138,8 @@ Two PostgreSQL databases, each with its own goose migrations:
 - `CRUD /v1/guardrails` — Guardrail management + attachment; `POST /v1/guardrails/:id/test` dry-runs a guard against sample text (JWT auth)
 - `CRUD /v1/transformers` — Transformer management; PUT /v1/sources/:id/transformers replaces the ordered chain (JWT auth)
 - `GET /v1/audit-logs` — Audit logs (filters: status/from/to; keyset pagination via before/before_id), proxied from the data plane (JWT auth)
-- `GET /v1/analytics` — Aggregated usage (requests, tokens, by model/source), proxied from the data plane (JWT auth)
+- `GET /v1/analytics` — Aggregated usage (requests, tokens, estimated cost by model/source), proxied from the data plane (JWT auth)
+- `GET /v1/models` — Supported model list for the dropdown, served from the shared priced catalog (`internal/shared/modelcatalog`, prices in prices.json — also used for analytics cost estimation) (JWT auth)
 - `CRUD /v1/alerts` — Rejection-alert webhooks; DP POSTs JSON/Slack payloads on guard rejections, async + rate-capped (JWT auth)
 - `GET /v1/internal/workspace-config` — Config payload for data planes (DP token)
 - `GET /healthz` — Health check

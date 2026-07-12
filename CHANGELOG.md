@@ -12,6 +12,16 @@ from `[Unreleased]` into a dated version section as part of cutting a release.
 
 ### Added
 
+- **Cost estimation + unified model catalog**: a shared, priced model catalog
+  (`internal/shared/modelcatalog`, prices maintained in `prices.json`) is now the
+  single source of truth for both the model dropdown (`GET /v1/models`) and cost
+  estimation. Analytics computes an estimated USD cost per model and in total
+  from the captured token usage (matched to prices by longest model-name
+  prefix); unpriced models — e.g. self-hosted — are surfaced as "—" and counted
+  separately so the total is an honest lower bound. The dashboard shows an
+  Est. cost tile (with "prices as of") and a per-model cost column. The old
+  hardcoded, unpriced, drifting model list is gone.
+
 - **Audit-log filtering + pagination**: the audit log can be filtered by result
   (pass/fail) and a date range, and now uses keyset (cursor) pagination instead
   of offset — `GET /v1/audit-logs` accepts `status`, `from`, `to`, and a

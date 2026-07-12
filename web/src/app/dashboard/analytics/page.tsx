@@ -103,10 +103,19 @@ export default function AnalyticsPage() {
               value={passRate !== null ? `${passRate}%` : "—"}
               hint={`${data.summary.rejected.toLocaleString()} rejected`}
             />
-            <StatTile label="Total tokens" value={data.summary.total_tokens.toLocaleString()} />
             <StatTile
-              label="Prompt / completion"
-              value={`${data.summary.prompt_tokens.toLocaleString()} / ${data.summary.completion_tokens.toLocaleString()}`}
+              label="Total tokens"
+              value={data.summary.total_tokens.toLocaleString()}
+              hint={`${data.summary.prompt_tokens.toLocaleString()} prompt / ${data.summary.completion_tokens.toLocaleString()} completion`}
+            />
+            <StatTile
+              label="Est. cost"
+              value={formatUSD(data.summary.estimated_cost_usd)}
+              hint={
+                data.summary.unpriced_requests > 0
+                  ? `excludes ${data.summary.unpriced_requests.toLocaleString()} unpriced req`
+                  : `prices as of ${data.prices_as_of}`
+              }
             />
           </div>
 
@@ -134,6 +143,7 @@ export default function AnalyticsPage() {
                         <TableHead>Model</TableHead>
                         <TableHead className="text-right">Requests</TableHead>
                         <TableHead className="text-right">Tokens</TableHead>
+                        <TableHead className="text-right">Est. cost</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -142,6 +152,9 @@ export default function AnalyticsPage() {
                           <TableCell className="font-mono text-sm">{m.model}</TableCell>
                           <TableCell className="text-right">{m.requests.toLocaleString()}</TableCell>
                           <TableCell className="text-right">{m.total_tokens.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {m.estimated_cost_usd != null ? formatUSD(m.estimated_cost_usd) : "—"}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -182,6 +195,14 @@ export default function AnalyticsPage() {
       )}
     </div>
   );
+}
+
+// formatUSD shows small estimated costs with enough precision to be useful
+// (sub-cent totals are common in testing) while keeping larger ones readable.
+function formatUSD(v: number): string {
+  if (v === 0) return "$0";
+  const digits = v < 1 ? 4 : 2;
+  return `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: digits })}`;
 }
 
 function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {

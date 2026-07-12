@@ -28,9 +28,12 @@ Sequenced by leverage, cheapest-first within each tier.
 
 ## Tier 2 — Money and scale story
 
-- **Dollar-cost estimation** — per-model pricing table (configurable,
-  sensible defaults) over the captured token data; "552 tokens" → "$0.014"
-  in analytics. Small PR, direct payoff.
+- **Dollar-cost estimation** — **SHIPPED**: a shared priced model catalog
+  (`internal/shared/modelcatalog`) backs both the `/v1/models` dropdown and
+  analytics cost estimation; per-model + total estimated USD cost from captured
+  tokens (prefix-matched to prices), unpriced models flagged as "—". Verified
+  live. Follow-ups: per-org price overrides (custom/self-hosted rates) and a
+  periodic price-refresh process.
 - **Durable quotas** — Redis-backed rolling request/token caps: optional
   counter store, lease batching for the fast path, explicit fail-open/closed
   switch. Design agreed in principle (see PR #65 discussion); build when
@@ -39,12 +42,36 @@ Sequenced by leverage, cheapest-first within each tier.
   fine for evaluation, disqualifying for team adoption. Meaty: invitations,
   role checks across every handler.
 
+## Observability
+
+Already in place: Prometheus `/metrics` on both planes (request + guard latency
+histograms, audit-buffer depth/drop counter, config-version + staleness gauge,
+`sheeld_llm_tokens_total{kind}`, `sheeld_alerts_sent_total{outcome}`), slog with
+`X-Request-ID` correlation, the analytics dashboard, per-guard results +
+durations in audit logs, and rejection alerting. Gaps, cheapest-first:
+
+- **Shipped Grafana dashboard + example alert rules** — self-hosters currently
+  get a raw `/metrics` endpoint and nothing to consume it. Ship a dashboard
+  JSON and Prometheus alert examples (audit drops > 0, config staleness > 60s,
+  p95 proxy latency, LLM error rate) under `deploy/` or the Helm chart. Cheap,
+  high leverage.
+- **`sheeld_guard_errors_total{guard_type}` counter** — guards that repeatedly
+  `on_error` fail-open are invisible outside audit JSON. Small add.
+- **OpenTelemetry tracing** — spans per pipeline stage (transformers, each
+  guard, LLM call) so slow requests decompose without reading audit JSON.
+  Medium lift; defer until latency questions come from real users.
+
 ## Tier 3 — Ecosystem and polish
 
 - **Audit export / SIEM forwarding** — CSV/JSON export endpoint; enterprise
   checkbox, cheap.
 - **Non-bearer provider auth** — Azure OpenAI `api-key` header as a
   per-source auth-style field.
+- **Drop-in OpenAI route** — **SHIPPED** (route existed;
+  [gateway/router.go](internal/dataplane/gateway/router.go)). Surfaced a
+  copy-paste OpenAI-SDK snippet in the README quick-start ("From your app")
+  alongside the existing API-reference coverage. (Optional follow-up: per-key→
+  source binding so a key implies its source, for per-app keys.)
 - **Published latency benchmark** — reproducible script + "Sheeld adds
   ~X ms p50" in the README.
 - **Guard SDK story** — documented webhook-guard contract + starter repo
@@ -60,5 +87,7 @@ Sequenced by leverage, cheapest-first within each tier.
 
 ## Sequencing
 
-Alerting → audit filtering → dollar-cost as three quick wins, then the
-streaming design doc as the v0.2.0 flagship. Multi-user when real users ask.
+Alerting → audit filtering → dollar-cost all shipped. Next: the streaming
+design doc as the v0.2.0 flagship, with the Grafana dashboard + alert rules
+and the guard-error counter as cheap observability wins to slot in between.
+Multi-user when real users ask.
