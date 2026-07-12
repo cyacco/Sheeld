@@ -1100,13 +1100,36 @@ func TestAuditLogs(t *testing.T) {
 func TestModels(t *testing.T) {
 	token := registerUser(t, "Models Test Org", "models@example.com", "strongpassword123")
 
+	// The model list is served from the shared catalog, so assert behavior
+	// (non-empty, correctly filtered, contains a known model) rather than
+	// exact counts that change as the catalog is maintained.
+	modelIDs := func(models []interface{}, provider string) []string {
+		var ids []string
+		for _, m := range models {
+			model := m.(map[string]interface{})
+			if provider != "" && model["provider"] != provider {
+				t.Errorf("expected provider %s, got %v", provider, model["provider"])
+			}
+			ids = append(ids, model["id"].(string))
+		}
+		return ids
+	}
+	contains := func(ids []string, want string) bool {
+		for _, id := range ids {
+			if id == want {
+				return true
+			}
+		}
+		return false
+	}
+
 	t.Run("list all", func(t *testing.T) {
 		resp := doRequest(t, "GET", "/v1/models", nil, token)
 		expectStatus(t, resp, http.StatusOK)
 		var models []interface{}
 		decodeBody(t, resp, &models)
-		if len(models) != 11 {
-			t.Errorf("expected 11 models, got %d", len(models))
+		if len(models) == 0 {
+			t.Error("expected a non-empty model list")
 		}
 	})
 
@@ -1115,14 +1138,9 @@ func TestModels(t *testing.T) {
 		expectStatus(t, resp, http.StatusOK)
 		var models []interface{}
 		decodeBody(t, resp, &models)
-		if len(models) != 8 {
-			t.Errorf("expected 8 OpenAI models, got %d", len(models))
-		}
-		for _, m := range models {
-			model := m.(map[string]interface{})
-			if model["provider"] != "openai" {
-				t.Errorf("expected provider openai, got %v", model["provider"])
-			}
+		ids := modelIDs(models, "openai")
+		if len(ids) == 0 || !contains(ids, "gpt-4o") {
+			t.Errorf("expected openai models including gpt-4o, got %v", ids)
 		}
 	})
 
@@ -1131,14 +1149,9 @@ func TestModels(t *testing.T) {
 		expectStatus(t, resp, http.StatusOK)
 		var models []interface{}
 		decodeBody(t, resp, &models)
-		if len(models) != 3 {
-			t.Errorf("expected 3 Anthropic models, got %d", len(models))
-		}
-		for _, m := range models {
-			model := m.(map[string]interface{})
-			if model["provider"] != "anthropic" {
-				t.Errorf("expected provider anthropic, got %v", model["provider"])
-			}
+		ids := modelIDs(models, "anthropic")
+		if len(ids) == 0 {
+			t.Error("expected a non-empty anthropic model list")
 		}
 	})
 
