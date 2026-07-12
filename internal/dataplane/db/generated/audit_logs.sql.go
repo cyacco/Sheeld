@@ -266,72 +266,45 @@ func (q *Queries) DeleteAuditLogsBefore(ctx context.Context, arg DeleteAuditLogs
 	return result.RowsAffected(), nil
 }
 
-const listAuditLogsByOrganization = `-- name: ListAuditLogsByOrganization :many
+const listAuditLogs = `-- name: ListAuditLogs :many
 SELECT id, organization_id, source_id, input_hash, guard_results, overall_result, latency_ms, created_at, prompt_tokens, completion_tokens, total_tokens, model FROM audit_logs
 WHERE organization_id = $1
-ORDER BY created_at DESC
-LIMIT $2 OFFSET $3
+  AND ($2::uuid IS NULL OR source_id = $2)
+  AND ($3::text IS NULL OR overall_result = $3)
+  AND ($4::timestamptz IS NULL OR created_at >= $4)
+  AND ($5::timestamptz IS NULL OR created_at <= $5)
+  AND (
+    $6::timestamptz IS NULL
+    OR (created_at, id) < ($6, $7::uuid)
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT $8
 `
 
-type ListAuditLogsByOrganizationParams struct {
-	OrganizationID uuid.UUID `json:"organization_id"`
-	Limit          int32     `json:"limit"`
-	Offset         int32     `json:"offset"`
+type ListAuditLogsParams struct {
+	OrganizationID uuid.UUID          `json:"organization_id"`
+	SourceID       pgtype.UUID        `json:"source_id"`
+	Status         pgtype.Text        `json:"status"`
+	FromTime       pgtype.Timestamptz `json:"from_time"`
+	ToTime         pgtype.Timestamptz `json:"to_time"`
+	BeforeTime     pgtype.Timestamptz `json:"before_time"`
+	BeforeID       pgtype.UUID        `json:"before_id"`
+	LimitCount     int32              `json:"limit_count"`
 }
 
-func (q *Queries) ListAuditLogsByOrganization(ctx context.Context, arg ListAuditLogsByOrganizationParams) ([]AuditLog, error) {
-	rows, err := q.db.Query(ctx, listAuditLogsByOrganization, arg.OrganizationID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []AuditLog{}
-	for rows.Next() {
-		var i AuditLog
-		if err := rows.Scan(
-			&i.ID,
-			&i.OrganizationID,
-			&i.SourceID,
-			&i.InputHash,
-			&i.GuardResults,
-			&i.OverallResult,
-			&i.LatencyMs,
-			&i.CreatedAt,
-			&i.PromptTokens,
-			&i.CompletionTokens,
-			&i.TotalTokens,
-			&i.Model,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listAuditLogsBySource = `-- name: ListAuditLogsBySource :many
-SELECT id, organization_id, source_id, input_hash, guard_results, overall_result, latency_ms, created_at, prompt_tokens, completion_tokens, total_tokens, model FROM audit_logs
-WHERE source_id = $1 AND organization_id = $2
-ORDER BY created_at DESC
-LIMIT $3 OFFSET $4
-`
-
-type ListAuditLogsBySourceParams struct {
-	SourceID       uuid.UUID `json:"source_id"`
-	OrganizationID uuid.UUID `json:"organization_id"`
-	Limit          int32     `json:"limit"`
-	Offset         int32     `json:"offset"`
-}
-
-func (q *Queries) ListAuditLogsBySource(ctx context.Context, arg ListAuditLogsBySourceParams) ([]AuditLog, error) {
-	rows, err := q.db.Query(ctx, listAuditLogsBySource,
-		arg.SourceID,
+// Keyset-paginated audit log with optional filters. All filter params are
+// nullable; the keyset cursor (before_time + before_id) pages to older rows.
+// Ordering is (created_at, id) DESC so the cursor is stable under inserts.
+func (q *Queries) ListAuditLogs(ctx context.Context, arg ListAuditLogsParams) ([]AuditLog, error) {
+	rows, err := q.db.Query(ctx, listAuditLogs,
 		arg.OrganizationID,
-		arg.Limit,
-		arg.Offset,
+		arg.SourceID,
+		arg.Status,
+		arg.FromTime,
+		arg.ToTime,
+		arg.BeforeTime,
+		arg.BeforeID,
+		arg.LimitCount,
 	)
 	if err != nil {
 		return nil, err

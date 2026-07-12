@@ -11,7 +11,15 @@ import type {
 import * as api from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -31,21 +39,41 @@ interface AuditLogTableProps {
   sources?: Source[];
 }
 
-// Shared audit-log table with expandable guard-result rows and offset
-// pagination. Used by the Audit Logs page and source detail Events tab.
+// A keyset cursor pointing at the last row of a page.
+interface Cursor {
+  before: string;
+  before_id: string;
+}
+
+// Shared audit-log table with expandable guard-result rows, status/date
+// filters, and keyset pagination. Used by the Audit Logs page and the source
+// detail Events tab.
 export function AuditLogTable({ sourceId, sources }: AuditLogTableProps) {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [offset, setOffset] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Filters.
+  const [status, setStatus] = useState("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
+  // Cursor stack: empty = first page; each entry is the cursor used to fetch
+  // the page at that depth, so we can walk back with "Previous".
+  const [cursors, setCursors] = useState<Cursor[]>([]);
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
     try {
+      const cursor = cursors[cursors.length - 1];
       const data = await api.listAuditLogs({
         limit: PAGE_SIZE,
-        offset,
         source_id: sourceId,
+        status: status === "all" ? undefined : status,
+        from: from ? `${from}T00:00:00Z` : undefined,
+        to: to ? `${to}T23:59:59Z` : undefined,
+        before: cursor?.before,
+        before_id: cursor?.before_id,
       });
       setLogs(data ?? []);
     } catch (err) {
@@ -53,40 +81,99 @@ export function AuditLogTable({ sourceId, sources }: AuditLogTableProps) {
     } finally {
       setLoading(false);
     }
-  }, [offset, sourceId]);
+  }, [cursors, sourceId, status, from, to]);
 
   useEffect(() => {
     loadLogs();
   }, [loadLogs]);
 
-  // Reset pagination when the filter changes.
+  // Reset to the first page whenever a filter changes.
   useEffect(() => {
-    setOffset(0);
-  }, [sourceId]);
+    setCursors([]);
+    setExpandedId(null);
+  }, [sourceId, status, from, to]);
+
+  function nextPage() {
+    const last = logs[logs.length - 1];
+    if (!last) return;
+    setCursors((c) => [...c, { before: last.created_at, before_id: last.id }]);
+    setExpandedId(null);
+  }
+
+  function prevPage() {
+    setCursors((c) => c.slice(0, -1));
+    setExpandedId(null);
+  }
 
   function sourceName(id: string): string {
     const src = sources?.find((s) => s.id === id);
     return src?.name ?? id.slice(0, 8);
   }
 
-  if (loading) {
-    return (
-      <div className="space-y-2">
-        {[...Array(5)].map((_, i) => (
-          <Skeleton key={i} className="h-10 w-full" />
-        ))}
-      </div>
-    );
-  }
-
-  if (logs.length === 0) {
-    return <p className="text-muted-foreground">No audit logs found.</p>;
-  }
-
   const showSourceColumn = !sourceId;
+  const page = cursors.length + 1;
 
   return (
     <>
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">Result</label>
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="pass">Pass</SelectItem>
+              <SelectItem value="fail">Fail</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">From</label>
+          <Input
+            type="date"
+            value={from}
+            max={to || undefined}
+            onChange={(e) => setFrom(e.target.value)}
+            className="w-40"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">To</label>
+          <Input
+            type="date"
+            value={to}
+            min={from || undefined}
+            onChange={(e) => setTo(e.target.value)}
+            className="w-40"
+          />
+        </div>
+        {(status !== "all" || from || to) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setStatus("all");
+              setFrom("");
+              setTo("");
+            }}
+          >
+            Clear
+          </Button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="space-y-2">
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      ) : logs.length === 0 ? (
+        <p className="text-muted-foreground">No audit logs found.</p>
+      ) : (
+        <>
       <Table>
         <TableHeader>
           <TableRow>
@@ -179,23 +266,23 @@ export function AuditLogTable({ sourceId, sources }: AuditLogTableProps) {
         <Button
           variant="outline"
           size="sm"
-          disabled={offset === 0}
-          onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+          disabled={cursors.length === 0}
+          onClick={prevPage}
         >
           Previous
         </Button>
-        <span className="text-sm text-muted-foreground">
-          Showing {offset + 1}–{offset + logs.length}
-        </span>
+        <span className="text-sm text-muted-foreground">Page {page}</span>
         <Button
           variant="outline"
           size="sm"
           disabled={logs.length < PAGE_SIZE}
-          onClick={() => setOffset(offset + PAGE_SIZE)}
+          onClick={nextPage}
         >
           Next
         </Button>
       </div>
+        </>
+      )}
     </>
   );
 }

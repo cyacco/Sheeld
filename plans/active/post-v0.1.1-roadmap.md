@@ -16,9 +16,10 @@ Sequenced by leverage, cheapest-first within each tier.
   per webhook, with a `sheeld_alerts_sent_total{outcome}` metric and the
   same SSRF policy as guard URLs. Verified live (UI-created webhook fired on
   a blocked request).
-- **Audit filtering + pagination** — the audit log is the screen users stare
-  at; add status/date/guard filters and cursor pagination; pagination on the
-  sources/guardrails/transformers list endpoints while in there.
+- **Audit filtering + pagination** — **SHIPPED** (status + date filters, keyset
+  cursor pagination on GET /v1/audit-logs; dashboard Result/From/To controls).
+  Verified live. Remaining: guard-type filter (needs JSONB querying into
+  guard_results) and pagination on the sources/guardrails/transformers lists.
 - **True incremental streaming** (flagship for v0.2.0) — buffered streaming
   means TTFT = full pipeline latency, disqualifying for chat UX. Chunk-level
   output guarding (sliding-window evaluation, kill the stream on violation).

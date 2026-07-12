@@ -308,16 +308,25 @@ export async function listModels(provider?: string): Promise<ModelInfo[]> {
   return request<ModelInfo[]>(`/v1/models${qs}`);
 }
 
-// Audit Logs
+// Audit Logs — keyset pagination via a (before, before_id) cursor taken from
+// the last row of the previous page.
 export async function listAuditLogs(params: {
   limit?: number;
-  offset?: number;
   source_id?: string;
+  status?: string; // "pass" | "fail"
+  from?: string; // RFC3339
+  to?: string; // RFC3339
+  before?: string; // cursor: created_at of last row
+  before_id?: string; // cursor: id of last row
 }): Promise<AuditLog[]> {
   const searchParams = new URLSearchParams();
   if (params.limit) searchParams.set("limit", String(params.limit));
-  if (params.offset) searchParams.set("offset", String(params.offset));
   if (params.source_id) searchParams.set("source_id", params.source_id);
+  if (params.status) searchParams.set("status", params.status);
+  if (params.from) searchParams.set("from", params.from);
+  if (params.to) searchParams.set("to", params.to);
+  if (params.before) searchParams.set("before", params.before);
+  if (params.before_id) searchParams.set("before_id", params.before_id);
   const qs = searchParams.toString();
   return request<AuditLog[]>(`/v1/audit-logs${qs ? `?${qs}` : ""}`);
 }
