@@ -12,6 +12,11 @@ from `[Unreleased]` into a dated version section as part of cutting a release.
 
 ### Added
 
+- **Audit-log filtering + pagination**: the audit log can be filtered by result
+  (pass/fail) and a date range, and now uses keyset (cursor) pagination instead
+  of offset — `GET /v1/audit-logs` accepts `status`, `from`, `to`, and a
+  `before`/`before_id` cursor. The dashboard's audit table gains Result and
+  From/To controls with Previous/Next paging.
 - **Rejection alerting**: org-level alert webhooks (`CRUD /v1/alerts`, dashboard
   "Alerts" page) — the data plane POSTs to each enabled webhook whenever a
   request is rejected by guards, with generic-JSON or Slack-compatible payloads.

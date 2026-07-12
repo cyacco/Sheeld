@@ -47,7 +47,7 @@ func (h *AuditLogHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	q := url.Values{}
 	q.Set("org_id", orgID.String())
-	for _, param := range []string{"source_id", "limit", "offset"} {
+	for _, param := range []string{"source_id", "status", "from", "to", "before", "before_id", "limit"} {
 		if v := r.URL.Query().Get(param); v != "" {
 			q.Set(param, v)
 		}

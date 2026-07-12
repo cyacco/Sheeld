@@ -7,17 +7,22 @@ INSERT INTO audit_logs (
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
--- name: ListAuditLogsByOrganization :many
+-- name: ListAuditLogs :many
+-- Keyset-paginated audit log with optional filters. All filter params are
+-- nullable; the keyset cursor (before_time + before_id) pages to older rows.
+-- Ordering is (created_at, id) DESC so the cursor is stable under inserts.
 SELECT * FROM audit_logs
-WHERE organization_id = $1
-ORDER BY created_at DESC
-LIMIT $2 OFFSET $3;
-
--- name: ListAuditLogsBySource :many
-SELECT * FROM audit_logs
-WHERE source_id = $1 AND organization_id = $2
-ORDER BY created_at DESC
-LIMIT $3 OFFSET $4;
+WHERE organization_id = @organization_id
+  AND (sqlc.narg('source_id')::uuid IS NULL OR source_id = sqlc.narg('source_id'))
+  AND (sqlc.narg('status')::text IS NULL OR overall_result = sqlc.narg('status'))
+  AND (sqlc.narg('from_time')::timestamptz IS NULL OR created_at >= sqlc.narg('from_time'))
+  AND (sqlc.narg('to_time')::timestamptz IS NULL OR created_at <= sqlc.narg('to_time'))
+  AND (
+    sqlc.narg('before_time')::timestamptz IS NULL
+    OR (created_at, id) < (sqlc.narg('before_time'), sqlc.narg('before_id')::uuid)
+  )
+ORDER BY created_at DESC, id DESC
+LIMIT @limit_count;
 
 -- name: AuditSummary :one
 -- Totals over a window for one org.
