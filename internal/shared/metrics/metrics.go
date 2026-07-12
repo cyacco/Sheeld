@@ -77,6 +77,13 @@ var (
 		Help: "Total tokens reported by the LLM gateway, by kind (prompt/completion).",
 	}, []string{"kind"})
 
+	// AlertsSent counts rejection-alert webhook deliveries by outcome
+	// (sent/error/suppressed — suppressed = per-webhook rate cap hit).
+	AlertsSent = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "sheeld_alerts_sent_total",
+		Help: "Rejection-alert webhook deliveries, by outcome (sent/error/suppressed).",
+	}, []string{"outcome"})
+
 	// AuditDropped counts audit entries dropped because the buffer was full.
 	AuditDropped = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "sheeld_audit_entries_dropped_total",

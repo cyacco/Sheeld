@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/cyacco/Sheeld/internal/dataplane/alert"
 	"github.com/cyacco/Sheeld/internal/dataplane/backendconfig"
 	"github.com/cyacco/Sheeld/internal/shared/domain"
 	"github.com/cyacco/Sheeld/internal/shared/guard"
@@ -84,7 +85,7 @@ func TestProcessor_TransformsRunBeforeGuardsAndLLM(t *testing.T) {
 	defer gateway.Close()
 
 	audit := &captureAudit{}
-	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), audit)
+	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), audit, nil)
 
 	// "secret" appears in the system prompt AND the last user message. The
 	// transformer redacts both; the blocklist guard (which blocks "secret")
@@ -117,6 +118,76 @@ func TestProcessor_TransformsRunBeforeGuardsAndLLM(t *testing.T) {
 	}
 }
 
+type captureAlerts struct {
+	events []alert.Event
+}
+
+func (c *captureAlerts) Notify(e alert.Event) {
+	c.events = append(c.events, e)
+}
+
+func TestProcessor_FiresAlertOnInputRejection(t *testing.T) {
+	orgID := uuid.New()
+	gid := uuid.New()
+	cfg := &domain.WorkspaceConfig{
+		Version: "v1",
+		Organizations: []domain.OrgConfig{{
+			ID: orgID,
+			Guardrails: []domain.GuardrailConfig{{
+				ID: gid, Name: "Blocker", GuardType: domain.GuardTypeBlocklist,
+				Phase: domain.GuardPhaseInput, Config: json.RawMessage(`{"words":["attack"]}`),
+			}},
+			Sources: []domain.SourceConfig{{
+				ID: uuid.New(), Route: "r", Enabled: true, LLMModel: "m", LLMAPIKey: "k",
+				InputPassCriteria: domain.PassCriteriaAll, OutputPassCriteria: domain.PassCriteriaAll,
+				GuardrailIDs: []uuid.UUID{gid}, TransformerIDs: []uuid.UUID{},
+			}},
+		}},
+	}
+	store := backendconfig.NewStore()
+	if err := store.Apply(cfg, guard.NewRegistry(), transform.NewRegistry()); err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
+
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"id":"x","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}]}`))
+	}))
+	defer gateway.Close()
+
+	alerts := &captureAlerts{}
+	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), nil, alerts)
+
+	// A rejected request fires one alert carrying the failing guard.
+	res, err := proc.Execute(context.Background(), orgID, "r", &llm.ChatRequest{
+		Messages: []llm.Message{{Role: "user", Content: "launch an attack"}},
+	})
+	if err != nil || res.Status != "rejected" {
+		t.Fatalf("expected rejection, got res=%+v err=%v", res, err)
+	}
+	if len(alerts.events) != 1 {
+		t.Fatalf("expected 1 alert event, got %d", len(alerts.events))
+	}
+	e := alerts.events[0]
+	if e.OrganizationID != orgID || e.SourceRoute != "r" || e.Phase != "input" {
+		t.Errorf("unexpected event: %+v", e)
+	}
+	if len(e.FailedGuards) != 1 || e.FailedGuards[0].Name != "Blocker" {
+		t.Errorf("unexpected failed guards: %+v", e.FailedGuards)
+	}
+
+	// A passing request fires nothing.
+	res, err = proc.Execute(context.Background(), orgID, "r", &llm.ChatRequest{
+		Messages: []llm.Message{{Role: "user", Content: "hello"}},
+	})
+	if err != nil || res.Status != "pass" {
+		t.Fatalf("expected pass, got res=%+v err=%v", res, err)
+	}
+	if len(alerts.events) != 1 {
+		t.Errorf("pass must not fire an alert; got %d events", len(alerts.events))
+	}
+}
+
 func TestProcessor_CapturesTokenUsage(t *testing.T) {
 	orgID := uuid.New()
 	store := buildStore(t, orgID)
@@ -128,7 +199,7 @@ func TestProcessor_CapturesTokenUsage(t *testing.T) {
 	defer gateway.Close()
 
 	audit := &captureAudit{}
-	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), audit)
+	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), audit, nil)
 
 	req := &llm.ChatRequest{Messages: []llm.Message{{Role: "user", Content: "hello there"}}}
 	result, err := proc.Execute(context.Background(), orgID, "r", req)
@@ -178,7 +249,7 @@ func TestProcessor_InputRejectHasNoTokenUsage(t *testing.T) {
 	defer gateway.Close()
 
 	audit := &captureAudit{}
-	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), audit)
+	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), audit, nil)
 
 	req := &llm.ChatRequest{Messages: []llm.Message{{Role: "user", Content: "launch an attack"}}}
 	result, err := proc.Execute(context.Background(), orgID, "r", req)
@@ -236,7 +307,7 @@ func TestProcessor_AllMessagesScopeCatchesHistoryInjection(t *testing.T) {
 	}
 
 	// Default last_message scope: bypassed.
-	proc := NewProcessor(mk(""), guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), nil)
+	proc := NewProcessor(mk(""), guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), nil, nil)
 	result, err := proc.Execute(context.Background(), orgID, "r", req())
 	if err != nil {
 		t.Fatal(err)
@@ -246,7 +317,7 @@ func TestProcessor_AllMessagesScopeCatchesHistoryInjection(t *testing.T) {
 	}
 
 	// all_messages scope: caught.
-	proc = NewProcessor(mk(`,"scope":"all_messages"`), guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), nil)
+	proc = NewProcessor(mk(`,"scope":"all_messages"`), guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), nil, nil)
 	result, err = proc.Execute(context.Background(), orgID, "r", req())
 	if err != nil {
 		t.Fatal(err)
@@ -297,7 +368,7 @@ func TestProcessor_OutputTransformsRewriteResponseBeforeOutputGuards(t *testing.
 	defer gateway.Close()
 
 	audit := &captureAudit{}
-	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), audit)
+	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), audit, nil)
 
 	result, err := proc.Execute(context.Background(), orgID, "r", &llm.ChatRequest{
 		Messages: []llm.Message{{Role: "user", Content: "hi"}},
@@ -381,7 +452,7 @@ func TestProcessor_ReversibleAnonymizationRoundTrip(t *testing.T) {
 	}))
 	defer gateway.Close()
 
-	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), nil)
+	proc := NewProcessor(store, guard.NewEngine(guard.NewRegistry()), llm.NewClient(gateway.URL, 0), nil, nil)
 	result, err := proc.Execute(context.Background(), orgID, "r", &llm.ChatRequest{
 		Messages: []llm.Message{{Role: "user", Content: "tell Alice hi"}},
 	})

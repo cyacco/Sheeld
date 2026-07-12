@@ -20,11 +20,20 @@ type WorkspaceConfig struct {
 
 // OrgConfig holds one organization's proxy-relevant configuration.
 type OrgConfig struct {
-	ID           uuid.UUID           `json:"id"`
-	APIKeys      []APIKeyConfig      `json:"api_keys"`
-	Sources      []SourceConfig      `json:"sources"`
-	Guardrails   []GuardrailConfig   `json:"guardrails"`
-	Transformers []TransformerConfig `json:"transformers"`
+	ID            uuid.UUID            `json:"id"`
+	APIKeys       []APIKeyConfig       `json:"api_keys"`
+	Sources       []SourceConfig       `json:"sources"`
+	Guardrails    []GuardrailConfig    `json:"guardrails"`
+	Transformers  []TransformerConfig  `json:"transformers"`
+	AlertWebhooks []AlertWebhookConfig `json:"alert_webhooks,omitempty"`
+}
+
+// AlertWebhookConfig is an enabled rejection-alert webhook as seen by the
+// data plane: it POSTs to URL whenever a request is rejected by guards.
+type AlertWebhookConfig struct {
+	ID            uuid.UUID `json:"id"`
+	URL           string    `json:"url"`
+	PayloadFormat string    `json:"payload_format"` // "json" | "slack"
 }
 
 // APIKeyConfig carries the hash of an active API key and its optional

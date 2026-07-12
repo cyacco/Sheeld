@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/cyacco/Sheeld/internal/dataplane/alert"
 	"github.com/cyacco/Sheeld/internal/dataplane/auditstore"
 	"github.com/cyacco/Sheeld/internal/dataplane/backendconfig"
 	"github.com/cyacco/Sheeld/internal/dataplane/config"
@@ -108,7 +109,7 @@ func run() error {
 	guardEngine := guard.NewEngine(guardRegistry)
 	llmClient := llm.NewClient(cfg.LLMGatewayURL, cfg.LLMRequestTimeout).
 		WithRetry(cfg.LLMMaxRetries, cfg.LLMRetryBackoff)
-	proc := processor.NewProcessor(store, guardEngine, llmClient, auditWriter)
+	proc := processor.NewProcessor(store, guardEngine, llmClient, auditWriter, alert.NewNotifier(store))
 	slog.Info("LLM gateway configured",
 		"url", cfg.LLMGatewayURL, "timeout", cfg.LLMRequestTimeout,
 		"max_retries", cfg.LLMMaxRetries, "retry_backoff", cfg.LLMRetryBackoff)

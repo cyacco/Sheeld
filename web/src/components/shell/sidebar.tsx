@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, Cable, KeyRound, PlugZap, ScrollText, Shield, Wand2 } from "lucide-react";
+import { BarChart3, Bell, Cable, KeyRound, PlugZap, ScrollText, Shield, Wand2 } from "lucide-react";
 import { NavItem } from "@/components/shell/nav-item";
 import { UserFooter } from "@/components/shell/user-footer";
 import { Separator } from "@/components/ui/separator";
@@ -13,6 +13,7 @@ const navItems = [
   { href: "/dashboard/transformations", label: "Transformations", icon: Wand2 },
   { href: "/dashboard/audit-logs", label: "Audit Logs", icon: ScrollText },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/dashboard/alerts", label: "Alerts", icon: Bell },
   { href: "/dashboard/api-keys", label: "API Keys", icon: KeyRound },
 ];
 

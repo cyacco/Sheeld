@@ -206,7 +206,7 @@ func TestMain(m *testing.M) {
 	transformRegistry.Register("test_replace", transform.TestReplaceFactory)
 	guardEngine := guard.NewEngine(guardRegistry)
 	llmClient := llm.NewClient(mockLLM.URL, dpCfg.LLMRequestTimeout)
-	proc := processor.NewProcessor(store, guardEngine, llmClient, auditWriter)
+	proc := processor.NewProcessor(store, guardEngine, llmClient, auditWriter, nil)
 	dpServer = httptest.NewServer(gateway.NewRouter(dpCfg, store, proc, auditstore.NewHandler(dpQueries)))
 
 	cfg := &config.Config{

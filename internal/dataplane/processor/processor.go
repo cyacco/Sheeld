@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/cyacco/Sheeld/internal/dataplane/alert"
 	"github.com/cyacco/Sheeld/internal/dataplane/backendconfig"
 	"github.com/cyacco/Sheeld/internal/shared/guard"
 	"github.com/cyacco/Sheeld/internal/shared/llm"
@@ -50,6 +51,12 @@ type AuditSink interface {
 	Record(orgID, sourceID uuid.UUID, inputText string, guardResults map[string]*guard.EngineResult, transforms, outputTransforms *transform.ChainResult, overallResult string, latencyMs int64, usage *llm.Usage, model string)
 }
 
+// AlertSink receives rejection events for asynchronous alert delivery.
+// Implementations must not block.
+type AlertSink interface {
+	Notify(event alert.Event)
+}
+
 // Processor runs the proxy stages: input guards → LLM call → output guards.
 // All configuration comes from the in-memory store; no I/O beyond the LLM
 // call happens on the request path.
@@ -58,11 +65,35 @@ type Processor struct {
 	engine    *guard.Engine
 	llmClient *llm.Client
 	audit     AuditSink
+	alerts    AlertSink
 }
 
-// NewProcessor creates a processor. audit may be nil to disable audit logging.
-func NewProcessor(store *backendconfig.Store, engine *guard.Engine, llmClient *llm.Client, audit AuditSink) *Processor {
-	return &Processor{store: store, engine: engine, llmClient: llmClient, audit: audit}
+// NewProcessor creates a processor. audit may be nil to disable audit
+// logging; alerts may be nil to disable rejection alerting.
+func NewProcessor(store *backendconfig.Store, engine *guard.Engine, llmClient *llm.Client, audit AuditSink, alerts AlertSink) *Processor {
+	return &Processor{store: store, engine: engine, llmClient: llmClient, audit: audit, alerts: alerts}
+}
+
+// alert fires a rejection event carrying the phase's failing (non-shadow)
+// guards. No-op when alerting is disabled.
+func (p *Processor) alert(ctx context.Context, orgID uuid.UUID, sourceRoute, phase string, res *guard.EngineResult) {
+	if p.alerts == nil || res == nil {
+		return
+	}
+	var failed []alert.FailedGuard
+	for _, r := range res.Results {
+		if !r.Passed && !r.Shadow {
+			failed = append(failed, alert.FailedGuard{Name: r.GuardName, Type: r.GuardType, Message: r.Message})
+		}
+	}
+	p.alerts.Notify(alert.Event{
+		OrganizationID: orgID,
+		SourceRoute:    sourceRoute,
+		Phase:          phase,
+		RequestID:      requestID(ctx),
+		FailedGuards:   failed,
+		Timestamp:      time.Now(),
+	})
 }
 
 // requestID extracts the request ID from the context.
@@ -166,6 +197,7 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 			}
 			log.Info("request rejected at input phase", "total_latency_ms", result.LatencyMs)
 			p.record(source, orgID, inputText, guardResults, transforms, nil, "fail", result.LatencyMs, nil, "")
+			p.alert(ctx, orgID, source.Route, "input", inputResult)
 			return result, nil
 		}
 	}
@@ -241,6 +273,7 @@ func (p *Processor) Execute(ctx context.Context, orgID uuid.UUID, sourceRoute st
 			}
 			log.Info("request rejected at output phase", "total_latency_ms", result.LatencyMs)
 			p.record(source, orgID, inputText, guardResults, transforms, outputTransforms, "fail", result.LatencyMs, &chatResp.Usage, chatResp.Model)
+			p.alert(ctx, orgID, source.Route, "output", outputResult)
 			return result, nil
 		}
 	}

@@ -58,6 +58,7 @@ type Snapshot struct {
 	Version string
 	apiKeys map[string]AuthInfo // sha256 hex of raw key → auth info
 	sources map[sourceKey]*ResolvedSource
+	alerts  map[uuid.UUID][]domain.AlertWebhookConfig // org → enabled alert webhooks
 }
 
 // Store holds the current config snapshot, swapped atomically by the poller.
@@ -105,6 +106,15 @@ func (s *Store) LookupSource(orgID uuid.UUID, route string) (*ResolvedSource, bo
 	return src, ok
 }
 
+// AlertWebhooks returns the org's enabled rejection-alert webhooks.
+func (s *Store) AlertWebhooks(orgID uuid.UUID) []domain.AlertWebhookConfig {
+	snap := s.current.Load()
+	if snap == nil {
+		return nil
+	}
+	return snap.alerts[orgID]
+}
+
 // Apply resolves a workspace config into a snapshot (building guards via the
 // registry) and atomically swaps it in. On error nothing is swapped and the
 // previous snapshot keeps serving.
@@ -113,9 +123,13 @@ func (s *Store) Apply(cfg *domain.WorkspaceConfig, registry *guard.Registry, tra
 		Version: cfg.Version,
 		apiKeys: make(map[string]AuthInfo),
 		sources: make(map[sourceKey]*ResolvedSource),
+		alerts:  make(map[uuid.UUID][]domain.AlertWebhookConfig),
 	}
 
 	for _, org := range cfg.Organizations {
+		if len(org.AlertWebhooks) > 0 {
+			snap.alerts[org.ID] = org.AlertWebhooks
+		}
 		for _, k := range org.APIKeys {
 			info := AuthInfo{OrgID: org.ID, KeyHash: k.KeyHash}
 			if k.RateLimitRPS != nil {

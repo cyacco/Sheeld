@@ -124,6 +124,7 @@ Two PostgreSQL databases, each with its own goose migrations:
 - `source_guardrails` — many-to-many attachment
 - `transformers` — org-level message rewriters, input and output phases ("Transformations" in UI copy; `transformers` in API/DB)
 - `source_transformers` — ordered attachment (position column = chain order)
+- `alert_webhooks` — org-level rejection-alert destinations (url + payload_format json/slack)
 
 **Data plane** (`internal/dataplane/db/migrations/`, separate goose version table):
 - `audit_logs` — request history with per-guard results and LLM token usage (`prompt_tokens`/`completion_tokens`/`total_tokens`/`model`, NULL when no LLM call was made); no FKs, org/source ids are opaque
@@ -138,6 +139,7 @@ Two PostgreSQL databases, each with its own goose migrations:
 - `CRUD /v1/transformers` — Transformer management; PUT /v1/sources/:id/transformers replaces the ordered chain (JWT auth)
 - `GET /v1/audit-logs` — Audit logs, proxied from the data plane (JWT auth)
 - `GET /v1/analytics` — Aggregated usage (requests, tokens, by model/source), proxied from the data plane (JWT auth)
+- `CRUD /v1/alerts` — Rejection-alert webhooks; DP POSTs JSON/Slack payloads on guard rejections, async + rate-capped (JWT auth)
 - `GET /v1/internal/workspace-config` — Config payload for data planes (DP token)
 - `GET /healthz` — Health check
 

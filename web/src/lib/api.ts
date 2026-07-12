@@ -1,4 +1,6 @@
 import type {
+  AlertWebhook,
+  AlertWebhookParams,
   Analytics,
   RegisterResult,
   LoginResult,
@@ -318,6 +320,34 @@ export async function listAuditLogs(params: {
   if (params.source_id) searchParams.set("source_id", params.source_id);
   const qs = searchParams.toString();
   return request<AuditLog[]>(`/v1/audit-logs${qs ? `?${qs}` : ""}`);
+}
+
+// Alert webhooks
+export async function listAlertWebhooks(): Promise<AlertWebhook[]> {
+  return request<AlertWebhook[]>("/v1/alerts");
+}
+
+export async function createAlertWebhook(
+  params: AlertWebhookParams,
+): Promise<AlertWebhook> {
+  return request<AlertWebhook>("/v1/alerts", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function updateAlertWebhook(
+  id: string,
+  params: AlertWebhookParams,
+): Promise<AlertWebhook> {
+  return request<AlertWebhook>(`/v1/alerts/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function deleteAlertWebhook(id: string): Promise<void> {
+  return request<void>(`/v1/alerts/${id}`, { method: "DELETE" });
 }
 
 // Analytics
