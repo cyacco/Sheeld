@@ -21,10 +21,14 @@ Sequenced by leverage, cheapest-first within each tier.
   Verified live. Remaining: guard-type filter (needs JSONB querying into
   guard_results) and pagination on the sources/guardrails/transformers lists.
 - **True incremental streaming** (flagship for v0.2.0) — buffered streaming
-  means TTFT = full pipeline latency, disqualifying for chat UX. Chunk-level
-  output guarding (sliding-window evaluation, kill the stream on violation).
-  Hard part is semantics (what happens to already-streamed tokens on a late
-  rejection?), not plumbing. Write a design doc before code.
+  means TTFT = full pipeline latency, disqualifying for chat UX. **Design doc
+  written** ([incremental-streaming-design.md](incremental-streaming-design.md)),
+  awaiting sign-off before code. Approach is guarded release: hold output in a
+  pending buffer, release only what has passed output guards, so TTFT ≈ one
+  window instead of the whole response. The semantics question ("what happens to
+  already-streamed tokens on a late rejection?") resolves to *bounded* rather
+  than zero exposure, which makes it a per-source opt-in with buffered staying
+  the default. v0.2.0 ships once this lands.
 
 ## Tier 2 — Money and scale story
 
