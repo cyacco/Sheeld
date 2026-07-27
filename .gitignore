@@ -1,1 +1,6 @@
 .env
+
+# Per-developer harness launch config (absolute paths, local ports).
+# Copy .claude/launch.json.example to .claude/launch.json and adjust locally.
+# .claude/settings.json is shared project config and stays tracked.
+.claude/launch.json

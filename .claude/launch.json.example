@@ -1,0 +1,27 @@
+{
+  "_comment": [
+    "Copy to .claude/launch.json (gitignored) and adjust for your machine.",
+    "Runs the dashboard dev server against a locally running control plane.",
+    "Port 3000 collides with the compose 'web' service: run",
+    "'docker compose stop web' first, or change the port here.",
+    "Env vars are passed via the 'env' shim because a launch configuration",
+    "has no dedicated env field. NEXT_PUBLIC_* is inlined at build time, so",
+    "it must be set here rather than in the shell."
+  ],
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "NEXT_PUBLIC_API_URL=http://localhost:8080",
+        "npm",
+        "run",
+        "dev",
+        "--prefix",
+        "web"
+      ],
+      "port": 3000
+    }
+  ]
+}
