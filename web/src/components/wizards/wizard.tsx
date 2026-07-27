@@ -64,12 +64,12 @@ export function Wizard({
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Stepper */}
-      <div className="flex items-center gap-2 pb-4">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pb-4">
         {steps.map((s, i) => (
-          <div key={s.id} className="flex items-center gap-2">
+          <div key={s.id} className="flex shrink-0 items-center gap-2">
             <div
               className={cn(
-                "flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium",
+                "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium",
                 i < step
                   ? "bg-primary text-primary-foreground"
                   : i === step
@@ -90,8 +90,12 @@ export function Wizard({
                 <span className="ml-1 text-xs text-muted-foreground">(optional)</span>
               )}
             </span>
+            {/* Plain rule rather than <Separator>: its
+                data-[orientation=horizontal]:w-full outranks a w-6 override on
+                specificity, which stretched the connector and squeezed the
+                step circles into ovals. */}
             {i < steps.length - 1 && (
-              <Separator className="w-6" orientation="horizontal" />
+              <div className="h-px w-6 shrink-0 bg-border" />
             )}
           </div>
         ))}
