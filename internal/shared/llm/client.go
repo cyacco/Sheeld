@@ -20,6 +20,16 @@ type Client struct {
 	baseURL    string
 	httpClient *http.Client
 
+	// streamHTTP is used for streaming requests. It deliberately has no
+	// Client.Timeout: that timeout covers reading the response body, so it
+	// would abort a long stream mid-flight. A slow or hung provider is caught
+	// by ResponseHeaderTimeout instead, and the caller's context bounds the
+	// stream overall. Built lazily by streamClient.
+	streamHTTP *http.Client
+	// timeout is the configured per-request timeout, reused as the streaming
+	// response-header timeout.
+	timeout time.Duration
+
 	// maxRetries is the number of retries after the first attempt (so
 	// maxRetries=2 means up to 3 attempts). Retries apply only to transient
 	// failures: connection errors, HTTP 429, and HTTP 5xx.
@@ -35,9 +45,25 @@ func NewClient(baseURL string, timeout time.Duration) *Client {
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
+		timeout:     timeout,
 		maxRetries:  2,
 		baseBackoff: 200 * time.Millisecond,
 	}
+}
+
+// streamClient returns the HTTP client used for streaming requests, building
+// it on first use. See the streamHTTP field for why it can't share
+// httpClient's overall timeout.
+func (c *Client) streamClient() *http.Client {
+	if c.streamHTTP == nil {
+		c.streamHTTP = &http.Client{
+			Transport: &http.Transport{
+				Proxy:                 http.ProxyFromEnvironment,
+				ResponseHeaderTimeout: c.timeout,
+			},
+		}
+	}
+	return c.streamHTTP
 }
 
 // WithRetry configures transient-failure retries. maxRetries is retries after
